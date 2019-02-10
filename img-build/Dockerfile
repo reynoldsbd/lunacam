@@ -6,16 +6,15 @@ FROM archlinux/base
 # TODO: clean up this list after rewrite
 RUN pacman --noconfirm -Syu base-devel git wget parted qemu qemu-arch-extra dosfstools e2fsprogs \
     psmisc mtools
-# TODO: is there something I can install via pacman to make this simpler?
-COPY install_aur_packages.sh /scripts/install_aur_packages.sh
-RUN ["/scripts/install_aur_packages.sh"]
+COPY aur-install.sh /scripts/aur-install.sh
+RUN /scripts/aur-install.sh qemu-user-static-bin
 
 # Start with the base filesystem from Arch ARM
-RUN wget -O /arch-arm-base.tar.gz http://os.archlinuxarm.org/os/ArchLinuxARM-rpi-latest.tar.gz
-COPY prepare_root_filesystem.sh /scripts/prepare_root_filesystem.sh
-RUN ["/scripts/prepare_root_filesystem.sh"]
+RUN wget -O /alarm-base.tar.gz http://os.archlinuxarm.org/os/ArchLinuxARM-rpi-latest.tar.gz
+RUN (mkdir /img && bsdtar -xpf /alarm-base.tar.gz -C /img) || true
 
+COPY alarm-chroot.sh /scripts/alarm-chroot.sh
 COPY loop0.sfdisk /scripts/loop0.sfdisk
-COPY build_alarm_image.sh /scripts/build_alarm_image.sh
-
-CMD ["/scripts/build_alarm_image.sh"]
+COPY alarm-build.sh /scripts/alarm-build.sh
+COPY alarm-init.sh /scripts/alarm-init.sh
+CMD /scripts/alarm-build.sh

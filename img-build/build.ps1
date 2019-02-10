@@ -8,8 +8,8 @@ mkdir -f $sourceDir\target
 
 docker build -t=mk-alarm-img $sourceDir\img-build
 
-docker run --name img-build-container --privileged `
-    -v $sourceDir\staging:/mnt/staging `
+docker run -it --name img-build-container --privileged `
+    -v $sourceDir\staging:/mnt `
     --tmpfs /tmp `
     mk-alarm-img
 docker cp img-build-container:/alarm.img $sourceDir\target\alarm.img
