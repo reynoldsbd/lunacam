@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block title %}Live Stream{% endblock title %}
+
+{% block content %}
+<div class="container has-text-centered">
+    <h1 class="title">Live Stream</h1>
+    <video id="video" controls width="100%" height="auto"></video>
+</div>
+{% endblock content %}
+
+{% block extrajs %}
+<script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+<script type="text/javascript">
+    $(document).ready(function() {
+        // Start the HLS stream
+        var video = document.getElementById('video');
+        if (Hls.isSupported()) {
+            var hls = new Hls();
+            hls.loadSource('/hls/video0.m3u8');
+            hls.attachMedia(video);
+            hls.on(Hls.Events.MANIFEST_PARSED, function() { video.play(); });
+        }
+        else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+            video.src = '/hls/video0.m3u8';
+            video.addEventListener('loadmetadata', function() { video.play() });
+        }
+    });
+</script>
+{% endblock extrajs %}
