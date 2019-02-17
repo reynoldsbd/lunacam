@@ -4,6 +4,26 @@
 set -e
 
 
+# Setup USB gadget ethernet
+echo "install.sh > configuring USB gadget ethernet"
+echo "dtoverlay=dwc2" >> /boot/config.txt
+install -D /mnt/root/etc/modules-load.d/raspberrypi.conf /etc/modules-load.d/raspberrypi.conf
+install -D /mnt/root/etc/modprobe.d/g_ether.conf         /etc/modprobe.d/g_ether.conf
+install -D /mnt/root/etc/systemd/network/gadget.network  /etc/systemd/network/gadget.network
+systemctl enable systemd-networkd
+
+
+# Update system and install dependencies
+echo "install.sh > updating system"
+pacman-key --init
+pacman-key --populate archlinuxarm
+pacman --noconfirm -Syu base-devel git sudo nginx
+# pacman --noconfirm -U /mnt/ffmpeg-mmal.pkg.tar.xz
+
+
+exit 0
+
+
 ####################################################################################################
 # TODO:
 # Running the commented-out section below results in an un-bootable system. Don't fully know the

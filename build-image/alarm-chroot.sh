@@ -6,8 +6,8 @@
 # extracted filesystem, and $2 is path of the script or binary to use with chroot. Note that you may
 # omit $2 to start an interactive shell.
 #
-# For convenience, the /scripts and /mnt directories of the Docker image are mounted within the
-# chroot.
+# For convenience, the /artifacts directory of the  Docker image is mounted within the chroot at
+# /mnt.
 set -e
 root=$1
 cmd=$2
@@ -29,9 +29,9 @@ mount --bind /sys $root/sys
 mount --bind /proc $root/proc
 mount --bind /dev $root/dev
 mount --bind /dev/pts $root/dev/pts
-mkdir -p $root/scripts
-mount --bind /scripts $root/scripts
-mount --bind /mnt $root/mnt
+# mkdir -p $root/scripts
+mount --bind /artifacts $root/mnt
+# mount --bind /mnt $root/mnt
 
 
 # Do the chroot
@@ -44,8 +44,8 @@ fuser -sk $root || true
 
 # Clean up mount points
 umount $root/mnt
-umount $root/scripts
-rmdir $root/scripts
+# umount $root/scripts
+# rmdir $root/scripts
 umount $root/dev/pts
 umount $root/dev
 umount $root/proc

@@ -5,12 +5,7 @@
 set -e
 
 
-####################################################################################################
-# Perform image customization inside ARM system
-####################################################################################################
-
-echo "alarm-build > Customizing ARM system"
-/scripts/alarm-chroot.sh /img /scripts/alarm-init.sh
+/root/alarm-chroot.sh /img /mnt/install.sh
 
 
 ####################################################################################################
@@ -26,17 +21,17 @@ img=/alarm.img
 echo "alarm-build > Creating disk image"
 rm -f $img
 dd if=/dev/zero of=$img bs=2M count=1024 &> /dev/null
-sfdisk $img < /scripts/loop0.sfdisk &> /dev/null
+sfdisk $img < /root/loop0.sfdisk &> /dev/null
 
 echo "alarm-build > Building boot partition image"
 mkfs.fat -F 32 -n BOOT -C /tmp/boot.img 102400 &> /dev/null
 mcopy -i /tmp/boot.img -s /img/boot/* ::
-rm -rf /img/boot/*
+mkdir -p /root/img-boot
+mv /img/boot/* /root/img-boot/
 dd if=/tmp/boot.img of=$img bs=512 seek=2048 conv=notrunc &> /dev/null
 
 echo "alarm-build > Building root partition image"
 mkfs.ext4 -b 4096 -d /img -L root /tmp/root.img 498432
-echo "FOO"
 dd if=/tmp/root.img of=$img bs=512 seek=206848 conv=notrunc
 
 echo "alarm-build > Flushing disk cache"
