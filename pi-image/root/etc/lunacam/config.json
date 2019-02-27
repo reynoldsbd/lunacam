@@ -1,0 +1,5 @@
+{
+    "listen": "0.0.0.0:80",
+    "streamPath": "/tmp/lunacam/hls",
+    "templatePath": "/usr/local/share/lunacam/templates/**/*"
+}
