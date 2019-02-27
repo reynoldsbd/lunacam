@@ -27,18 +27,15 @@ This is necessary because some models of the Raspberry Pi (e.g. the Zero W) don'
 build a large Rust program. (Cross compiling is also *tremendously* faster than building on the Pi's
 slow ARM chip.)
 
-Cross-compilation requires the GCC toolchain provided by Raspberry Pi, which in turn means LunaCam
-SD card images may only be built from Linux.
-
-The 
-
-### Cross Compiler for ARMv6
-
-Install a GCC cross-compiler targeting ARMv6:
+Cross compiling the project's Rust code simply requires installing the proper toolchain:
 
 ```
-sudo apt install gcc-arm-unknown-gnueabihf
+rustup target add arm-unknown-linux-gnueabihf
 ```
+
+Some dependencies include C and assembly code, so a Raspberry Pi compatible GCC toolchain must also
+be available when building. This toolchain is included via a submodule, so be sure to run
+`git submodule update --init --recursive` before cross-compiling.
 
 ### Docker
 
@@ -58,16 +55,6 @@ adapted as follows to work on Sid under WSL:
      stretch \
      stable"
   ```
-
-### Rust
-
-[Install Rust](https://rustup.rs/). This project uses version 1.32.
-
-Install the `arm-unknown-linux-gnueabihf` target:
-
-```
-rustup target add arm-unknown-linux-gnueabihf
-```
 
 
 # References
