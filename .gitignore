@@ -10,3 +10,6 @@ lunacam.img
 
 # Cross-compiler
 /rpi-tools
+
+# Staging artifacts
+/staging

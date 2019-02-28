@@ -1,6 +1,6 @@
 repo := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 
-.PHONY: server build-image build-volume image
+.PHONY: server staging build-image build-volume image
 
 
 ####################################################################################################
@@ -28,6 +28,36 @@ server: $(server)
 
 
 ####################################################################################################
+# The staging directory contains everything required to install LunaCam onto an Arch ARM system
+####################################################################################################
+
+staging := $(repo)/staging
+
+staging: $(server) $(shell find $(repo)/system -type f)
+	@mkdir -p $(staging)
+	@cp $(server) $(staging)/
+	@cp -R $(repo)/system/* $(staging)/
+
+
+####################################################################################################
+# Deploys complete LunaCam installation to a connected Raspberry Pi
+####################################################################################################
+
+pi_user := alarm
+pi_pass := alarm
+pi_host := 192.168.7.3
+
+PI_CP = sshpass -p "$(pi_pass)" scp -r $(1) $(pi_user)@$(pi_host):~/
+PI_CMD := sshpass -p "$(pi_pass)" ssh $(pi_user)@$(pi_host)
+
+deploy: staging
+	@echo Copying staging artifacts to Pi
+	@$(call PI_CP,$(staging))
+	@echo Invoking build script on Pi
+	@$(SSH_CMD) echo Hello, world!
+
+
+####################################################################################################
 # Building the LunaCam SD card image
 #
 # This is a 3-step process:
@@ -41,12 +71,12 @@ server: $(server)
 build-image: $(shell find build-image -type f)
 	@docker build -f ./build-image/Dockerfile -t lunacam-build ./build-image
 
-build-volume: server $(shell find pi-image -type f)
+build-volume: server $(shell find system -type f)
 	@docker volume rm lunacam-build 2> /dev/null || true
 	@docker volume create --name lunacam-build > /dev/null
 	@docker rm copier 2> /dev/null || true
 	@docker run -v lunacam-build:/data --name copier busybox true > /dev/null
-	@docker cp ./pi-image/. copier:/data
+	@docker cp ./system/. copier:/data
 	@docker cp $(server) copier:/data/root/usr/local/bin/lunacam
 	@docker cp ./templates copier:/data/root/usr/local/share/lunacam
 
