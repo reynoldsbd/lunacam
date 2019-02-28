@@ -1,23 +1,30 @@
-repo := $(abspath $(lastword $(MAKEFILE_LIST)))
+repo := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 
 .PHONY: server build-image build-volume image
 
 
 ####################################################################################################
 # Cross-compiling the LunaCam control server binary
-#
-# Some dependencies require a Raspberry Pi compatible cross compiler in $PATH.
 ####################################################################################################
 
-server := $(repo)/target/arm-unknown-linux-gnueabihf/release/lunacam
+toolchain := $(repo)/rpi-tools/arm-bcm2708/arm-linux-gnueabihf/bin
 manifest := $(repo)/Cargo.toml
+server := $(repo)/target/arm-unknown-linux-gnueabihf/debug/lunacam
 
-export PATH := $(repo)/rpi-tools/arm-bcm2708/arm-linux-gnueabihf/bin:$(PATH)
+$(toolchain):
+	@echo Downloading Raspberry Pi toolchain...
+	@git clone --depth 1 https://github.com/raspberrypi/tools $(repo)/rpi-tools
 
-$(server): $(manifest) $(shell find src -type f)
+export PATH := $(toolchain):$(PATH)
+
+# Cargo may decide that $(server) doesn't need to be updated after all. The "touch" in this recipe
+# updates the file's timestamp manually, which prevents make from invoking this rule if it isn't
+# needed
+$(server): $(manifest) $(shell find src -type f) $(toolchain)
 	@cargo build --manifest-path $(manifest) --target arm-unknown-linux-gnueabihf
+	@touch $(server)
 
-server: $(server-bin)
+server: $(server)
 
 
 ####################################################################################################
@@ -40,7 +47,7 @@ build-volume: server $(shell find pi-image -type f)
 	@docker rm copier 2> /dev/null || true
 	@docker run -v lunacam-build:/data --name copier busybox true > /dev/null
 	@docker cp ./pi-image/. copier:/data
-	@docker cp $(server-bin) copier:/data/root/usr/local/bin/lunacam
+	@docker cp $(server) copier:/data/root/usr/local/bin/lunacam
 	@docker cp ./templates copier:/data/root/usr/local/share/lunacam
 
 image: build-image build-volume
