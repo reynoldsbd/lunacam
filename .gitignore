@@ -1,6 +1,12 @@
+# Rust stuff
 /target
 **/*.rs.bk
 
+# Developer configuration
 /config.json
 
+# SD card image
 lunacam.img
+
+# Cross-compiler
+/rpi-tools
