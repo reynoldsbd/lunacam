@@ -1,6 +1,13 @@
 repo := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 
-.PHONY: server staging build-image build-volume image
+
+.PHONY: server staging build-image build-volume image clean
+
+
+clean:
+	@cargo clean
+	@rm -rf staging
+	@rm -rf lunacam.img
 
 
 ####################################################################################################
@@ -32,11 +39,15 @@ server: $(server)
 ####################################################################################################
 
 staging := $(repo)/staging
+templates := $(repo)/templates
 
-staging: $(server) $(shell find $(repo)/system -type f)
+staging: $(shell find $(repo)/system -type f) $(server) $(shell find $(templates) -type f)
 	@mkdir -p $(staging)
-	@cp $(server) $(staging)/
 	@cp -R $(repo)/system/* $(staging)/
+	@mkdir -p $(staging)/root/usr/local/bin
+	@cp $(server) $(staging)/root/usr/local/bin/lunacam
+	@mkdir -p $(staging)/root/usr/local/share/lunacam/templates
+	@cp -R $(templates)/* $(staging)/root/usr/local/share/lunacam/templates
 
 
 ####################################################################################################
@@ -51,10 +62,13 @@ PI_CP = sshpass -p "$(pi_pass)" scp -r $(1) $(pi_user)@$(pi_host):~/
 PI_CMD := sshpass -p "$(pi_pass)" ssh $(pi_user)@$(pi_host)
 
 deploy: staging
-	@echo Copying staging artifacts to Pi
+	@echo copying staging artifacts to Pi
 	@$(call PI_CP,$(staging))
-	@echo Invoking build script on Pi
-	@$(SSH_CMD) echo Hello, world!
+	@echo installing LunaCam
+	@$(PI_CMD) sudo /home/alarm/staging/install.sh /home/alarm/staging
+	@echo resetting services
+	@$(PI_CMD) sudo systemctl daemon-reload
+	@$(PI_CMD) sudo systemctl restart lunacam
 
 
 ####################################################################################################

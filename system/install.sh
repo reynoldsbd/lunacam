@@ -2,6 +2,7 @@
 #
 # Customizes the Arch ARM image
 set -e
+staging=$1
 
 
 # Setup USB gadget ethernet
@@ -23,8 +24,7 @@ set -e
 
 
 # Install LunaCam
-echo "install.sh > installing LunaCam"
-(cd /mnt/root && find . -type f) | xargs -i install -D /mnt/root/{} /{}
+(cd $staging/root && find . -type f) | xargs -i install -D $staging/root/{} /{}
 systemctl enable systemd-networkd
 systemctl enable lunacam
 
