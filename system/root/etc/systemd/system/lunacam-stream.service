@@ -1,5 +1,5 @@
 [Unit]
-Description=Video capture and HLS management for LunaCam
+Description=LunaCam HLS Manager
 BindsTo=dev-video0.device
 After=dev-video0.device
 PartOf=lunacam.service

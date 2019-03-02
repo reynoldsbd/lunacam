@@ -19,7 +19,7 @@ staging=$1
 # echo "install.sh > updating system"
 # pacman-key --init
 # pacman-key --populate archlinuxarm
-# pacman --noconfirm -Syu base-devel git sudo nginx
+# pacman --noconfirm -Syu base-devel git sudo nginx ffmpeg
 # pacman --noconfirm -U /mnt/ffmpeg-mmal.pkg.tar.xz
 
 
@@ -27,6 +27,7 @@ staging=$1
 (cd $staging/root && find . -type f) | xargs -i install -D $staging/root/{} /{}
 systemctl enable systemd-networkd
 systemctl enable lunacam
+systemctl enable lunacam-web
 
 
 exit 0

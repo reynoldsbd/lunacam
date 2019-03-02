@@ -8,7 +8,6 @@ use std::sync::Arc;
 use actix_web::{App, HttpResponse};
 use actix_web::dev::Resource;
 use actix_web::error::ResponseError;
-use actix_web::fs::StaticFiles;
 use actix_web::http::StatusCode;
 use actix_web::middleware::Logger;
 use actix_web::server;
@@ -25,7 +24,6 @@ use tera::{compile_templates, Context, Tera};
 #[serde(rename_all = "camelCase")]
 struct Configuration {
     listen: String,
-    stream_path: String,
     template_path: String,
 }
 
@@ -99,13 +97,11 @@ impl TemplateCollection {
 
 fn make_app_factory(config: &Configuration) -> impl Fn() -> App + Clone {
     let templates = TemplateCollection::new(&config.template_path);
-    let stream_path = config.stream_path.to_owned();
 
     move || {
         App::new()
             .middleware(Logger::default())
             .resource("/", templates.register("index.html"))
-            .handler("/stream", StaticFiles::new(&stream_path).unwrap())
     }
 }
 
