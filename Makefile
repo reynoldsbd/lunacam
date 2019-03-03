@@ -41,13 +41,17 @@ server: $(server)
 staging := $(repo)/staging
 templates := $(repo)/templates
 
-staging: $(shell find $(repo)/system -type f) $(server) $(shell find $(templates) -type f)
+$(staging): $(shell find $(repo)/system -type f) $(server) $(shell find $(templates) -type f)
+	@echo building staging directory
 	@mkdir -p $(staging)
 	@cp -R $(repo)/system/* $(staging)/
 	@mkdir -p $(staging)/root/usr/local/bin
 	@cp $(server) $(staging)/root/usr/local/bin/lunacam
 	@mkdir -p $(staging)/root/usr/local/share/lunacam/templates
 	@cp -R $(templates)/* $(staging)/root/usr/local/share/lunacam/templates
+	@touch $(staging)
+
+staging: $(staging)
 
 
 ####################################################################################################
@@ -62,7 +66,7 @@ PI_CP = sshpass -p "$(pi_pass)" scp -r $(1) $(pi_user)@$(pi_host):~/
 PI_CMD := sshpass -p "$(pi_pass)" ssh $(pi_user)@$(pi_host)
 
 deploy: staging
-	@echo copying staging artifacts to Pi
+	@echo copying staging artifacts to pi
 	@$(call PI_CP,$(staging))
 	@echo installing LunaCam
 	@$(PI_CMD) sudo /home/alarm/staging/install.sh /home/alarm/staging

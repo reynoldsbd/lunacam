@@ -2,14 +2,13 @@
 /target
 **/*.rs.bk
 
-# Developer configuration
-/config.json
-
-# SD card image
-lunacam.img
-
 # Cross-compiler
 /rpi-tools
 
-# Staging artifacts
+# Developer configuration
+/config.json
+/system/root.local
+
+# Build artifacts
+lunacam.img
 /staging
