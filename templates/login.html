@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+
+{% block title %}Please Log In{% endblock title %}
+
+{% block content %}
+<div class="container has-text-centered">
+    <div class="level">
+        <div class="box level-item">
+            <form method="post">
+                <h1 class="title">Please Log In</h1>
+                <div class="field">
+                    <label class="label">Password</label>
+                    <div class="control">
+                        <input class="input" type="password" placeholder="Password">
+                    </div>
+                </div>
+                <div class="control">
+                    <button class="button" type="submit">Submit</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock content %}
+
+{% block extrajs %}
+{% endblock extrajs %}

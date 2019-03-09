@@ -102,6 +102,7 @@ fn make_app_factory(config: &Configuration) -> impl Fn() -> App + Clone {
         App::new()
             .middleware(Logger::default())
             .resource("/", templates.register("index.html"))
+            .resource("/login", templates.register("login.html"))
     }
 }
 
