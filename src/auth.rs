@@ -1,4 +1,6 @@
-use actix_web::{Form, FromRequest, HttpRequest, HttpResponse, Request};
+use std::sync::Arc;
+
+use actix_web::{AsyncResponder, Form, FromRequest, HttpRequest, HttpResponse, Request};
 use actix_web::dev::{Handler, Resource};
 use actix_web::http::header;
 use actix_web::pred;
@@ -9,13 +11,39 @@ use futures::Future;
 use serde::Deserialize;
 
 
+#[derive(Debug)]
+enum UserType {
+    Regular,
+    Administrator,
+}
+
+
+struct Authenticator {
+    user_pw: String,
+    admin_pw: String,
+}
+
+impl Authenticator {
+
+    fn authenticate(&self, pw: &str) -> Option<UserType> {
+        if pw == self.user_pw {
+            Some(UserType::Regular)
+        } else if pw == self.admin_pw {
+            Some(UserType::Administrator)
+        } else {
+            None
+        }
+    }
+}
+
+
 /// Path-based route predicate
-pub struct PathPredicate(String);
+struct PathPredicate(String);
 
 impl PathPredicate {
 
     /// Creates a new PathPredicate
-    pub fn new<S>(s: S) -> PathPredicate
+    fn new<S>(s: S) -> PathPredicate
     where S: AsRef<str> {
         PathPredicate(s.as_ref().to_owned())
     }
@@ -37,10 +65,7 @@ pub struct LoginForm {
 
 /// Handles POST of the login page
 #[derive(Clone)]
-pub struct LoginHandler {
-    user_pw: String,
-    admin_pw: String,
-}
+pub struct LoginHandler(Arc<Authenticator>);
 
 impl LoginHandler {
 
@@ -48,10 +73,10 @@ impl LoginHandler {
         resource.route()
             .filter(pred::Post())
             .filter(PathPredicate::new("/login"))
-            .h(LoginHandler {
+            .h(LoginHandler(Arc::new(Authenticator {
                 user_pw: user_pw,
                 admin_pw: admin_pw,
-            });
+            })));
     }
 }
 
@@ -61,30 +86,25 @@ impl Handler<()> for LoginHandler {
     fn handle(&self, request: &HttpRequest<()>) -> Self::Result {
         // Don't fully understand why, but the resturn value must be 'static, which means we can't
         // reference self from inside any callbacks.
-        let user_pw = self.user_pw.clone();
-        let admin_pw = self.admin_pw.clone();
+        let authenticator = self.0.clone();
 
-        Box::new(
-            Form::<LoginForm>::extract(request)
-                .map(move |f| {
-                    if f.password == user_pw {
-                        // TODO: set cookie user
-                        println!("Authentication successful for a normal user");
-                    } else if f.password == admin_pw {
-                        // TODO: set cookie to admin
-                        println!("Authentication successful for an admin");
-                    } else {
-                        // TODO: render login page directly, instead of redirecting
-                        // TODO: show an error message
-                        return HttpResponse::Found()
-                            .header(header::LOCATION, "/login")
-                            .finish();
-                    }
-
+        Form::<LoginForm>::extract(request)
+            .map(move |f| match dbg!(authenticator.authenticate(&f.password)) {
+                Some(_) => {
+                    // TODO: set user type cookie
+                    // TODO: redirect based on query param
                     HttpResponse::Found()
                         .header(header::LOCATION, "/")
                         .finish()
-                })
-        )
+                },
+                None => {
+                    // TODO: directly render login page
+                    // TODO: display some error message
+                    HttpResponse::Found()
+                        .header(header::LOCATION, "/login")
+                        .finish()
+                }
+            })
+            .responder()
     }
 }
