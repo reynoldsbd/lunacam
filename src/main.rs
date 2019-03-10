@@ -24,6 +24,8 @@ struct Configuration {
     listen: String,
     template_path: String,
     static_path: String,
+    user_password: String,
+    admin_password: String,
 }
 
 impl Configuration {
@@ -39,9 +41,14 @@ impl Configuration {
 fn make_app_factory(config: &Configuration) -> impl Fn() -> App + Clone {
     let templates = templates::TemplateManager::new(&config.template_path);
     let static_path = config.static_path.to_owned();
+    let user_pw = config.user_password.to_owned();
+    let admin_pw = config.admin_password.to_owned();
 
     move || {
         let templates = templates.clone();
+        let user_pw = user_pw.clone();
+        let admin_pw = admin_pw.clone();
+
         App::new()
             .middleware(Logger::default())
             .handler(
@@ -50,10 +57,7 @@ fn make_app_factory(config: &Configuration) -> impl Fn() -> App + Clone {
                     .expect("failed to load static file handler")
             )
             .resource("/{tail:.*}", move |r| {
-                r.route()
-                    .filter(pred::Post())
-                    .filter(auth::LoginPredicate)
-                    .h(auth::post_login_handler);
+                auth::LoginHandler::register(r, user_pw.to_owned(), admin_pw.to_owned());
                 r.route()
                     .filter(pred::Get())
                     .h(templates.clone());

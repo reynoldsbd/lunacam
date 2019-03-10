@@ -29,6 +29,7 @@ impl TemplateManager {
 
 impl<S> Handler<S> for TemplateManager {
     type Result = HttpResponse;
+    
     fn handle(&self, request: &HttpRequest<S>) -> Self::Result {
 
         // Extract requested path
