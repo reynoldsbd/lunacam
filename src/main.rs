@@ -7,11 +7,13 @@ use std::path::Path;
 use actix_web::App;
 use actix_web::fs::StaticFiles;
 use actix_web::middleware::Logger;
+use actix_web::pred;
 use actix_web::server;
 
 use serde::Deserialize;
 
 
+mod auth;
 mod templates;
 
 
@@ -39,6 +41,7 @@ fn make_app_factory(config: &Configuration) -> impl Fn() -> App + Clone {
     let static_path = config.static_path.to_owned();
 
     move || {
+        let templates = templates.clone();
         App::new()
             .middleware(Logger::default())
             .handler(
@@ -46,7 +49,15 @@ fn make_app_factory(config: &Configuration) -> impl Fn() -> App + Clone {
                 StaticFiles::new(&static_path)
                     .expect("failed to load static file handler")
             )
-            .handler("/", templates.clone())
+            .resource("/{tail:.*}", move |r| {
+                r.route()
+                    .filter(pred::Post())
+                    .filter(auth::LoginPredicate)
+                    .h(auth::post_login_handler);
+                r.route()
+                    .filter(pred::Get())
+                    .h(templates.clone());
+            })
     }
 }
 

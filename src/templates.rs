@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use actix_web::{HttpRequest, HttpResponse};
 use actix_web::dev::Handler;
-use actix_web::http::{Method, StatusCode};
+use actix_web::http::StatusCode;
 
 use tera::{compile_templates, Context, Tera};
 
@@ -31,16 +31,9 @@ impl<S> Handler<S> for TemplateManager {
     type Result = HttpResponse;
     fn handle(&self, request: &HttpRequest<S>) -> Self::Result {
 
-        // Only makes sense to render for GET
-        if request.method() != Method::GET {
-            return HttpResponse::new(StatusCode::NOT_FOUND);
-        }
-
         // Extract requested path
-        let mut name: String = match request.match_info().query::<String>("tail") {
-            // Skip the leading "/"
-            Ok(tail) => tail.chars().skip(1).collect(),
-            // Missing tail means this handler wasn't properly registered with the Actix App
+        let mut name: String = match request.match_info().query("tail") {
+            Ok(tail) => tail,
             Err(_) => return HttpResponse::new(StatusCode::INTERNAL_SERVER_ERROR)
         };
 
