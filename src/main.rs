@@ -7,14 +7,22 @@ use std::path::Path;
 use actix_web::App;
 use actix_web::fs::StaticFiles;
 use actix_web::middleware::Logger;
+use actix_web::middleware::session::{SessionStorage, CookieSessionBackend};
 use actix_web::pred;
 use actix_web::server;
+
+use base64::STANDARD;
+
+use base64_serde::base64_serde_type;
 
 use serde::Deserialize;
 
 
 mod auth;
 mod templates;
+
+
+base64_serde_type!(BASE64, STANDARD);
 
 
 /// Service configuration values
@@ -26,6 +34,9 @@ struct Configuration {
     static_path: String,
     user_password: String,
     admin_password: String,
+
+    #[serde(with = "BASE64")]
+    secret: Vec<u8>,
 }
 
 impl Configuration {
@@ -43,21 +54,28 @@ fn make_app_factory(config: &Configuration) -> impl Fn() -> App + Clone {
     let static_path = config.static_path.to_owned();
     let user_pw = config.user_password.to_owned();
     let admin_pw = config.admin_password.to_owned();
+    let secret = config.secret.clone();
 
     move || {
         let templates = templates.clone();
         let user_pw = user_pw.clone();
         let admin_pw = admin_pw.clone();
+        let secret = secret.clone();
 
         App::new()
             .middleware(Logger::default())
+            .middleware(SessionStorage::new(
+                CookieSessionBackend::private(&secret)
+                    .name("lunacamsession")
+                    .secure(false) // TODO: is there a way to enable secure cookies?
+            ))
             .handler(
                 "/static",
                 StaticFiles::new(&static_path)
                     .expect("failed to load static file handler")
             )
             .resource("/{tail:.*}", move |r| {
-                auth::LoginHandler::register(r, user_pw.to_owned(), admin_pw.to_owned());
+                auth::Authenticator::register(r, user_pw.to_owned(), admin_pw.to_owned());
                 r.route()
                     .filter(pred::Get())
                     .h(templates.clone());
