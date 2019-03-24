@@ -1,5 +1,6 @@
 {
     "files.associations": {
         "*.html": "jinja-html"
-    }
+    },
+    "terminal.integrated.shell.windows": "C:\\WINDOWS\\System32\\wsl.exe"
 }
