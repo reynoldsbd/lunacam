@@ -22,6 +22,7 @@ mod auth;
 mod templates;
 
 
+/// Provides bas64 encoding/decoding for the configuration system
 base64_serde_type!(BASE64, STANDARD);
 
 
@@ -29,18 +30,30 @@ base64_serde_type!(BASE64, STANDARD);
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct Configuration {
+
+    /// Address on which LunaCam web service listens
     listen: String,
+
+    /// Path to HTML templates
     template_path: String,
+
+    /// Path to static content (CSS, etc.)
     static_path: String,
+
+    /// Password required for user-level access
     user_password: String,
+
+    /// Password required for administrative access
     admin_password: String,
 
+    /// Key used to encrypt session cookies (must be 32 bytes, base64-encoded)
     #[serde(with = "BASE64")]
     secret: Vec<u8>,
 }
 
 impl Configuration {
 
+    /// Loads Configuration from the specified file
     fn from_file<P: AsRef<Path>>(path: P) -> Result<Configuration, Box<Error>> {
         let file = File::open(path)?;
         let reader = BufReader::new(file);
@@ -49,6 +62,7 @@ impl Configuration {
 }
 
 
+/// Creates an App factory method for actix-web
 fn make_app_factory(config: &Configuration) -> impl Fn() -> App + Clone {
     let templates = templates::TemplateManager::new(&config.template_path);
     let static_path = config.static_path.to_owned();
@@ -67,7 +81,7 @@ fn make_app_factory(config: &Configuration) -> impl Fn() -> App + Clone {
             .middleware(SessionStorage::new(
                 CookieSessionBackend::private(&secret)
                     .name("lunacamsession")
-                    .secure(false) // TODO: is there a way to enable secure cookies?
+                .secure(false) // TODO: is there a way to enable secure cookies?
             ))
             .handler(
                 "/static",
