@@ -11,6 +11,33 @@ clean:
 
 
 ####################################################################################################
+# Files in .targets are used to represent non-file dependencies, like Docker objects. This allows
+# make to correctly track such dependencies and run their recipes only when needed.
+####################################################################################################
+
+target_dir := $(repo)/.targets
+
+$(target_dir):
+	@mkdir -p $(target_dir)
+
+
+####################################################################################################
+# Docker image used to cross-compile ("xc") binaries for the Raspberry Pi
+####################################################################################################
+
+xc_dir := $(repo)/build/xc
+xc_img_name := lunacam-xc
+xc_img_target := $(target_dir)/xc_img
+
+$(xc_img_target): $(shell find $(xc_dir) -type f) $(target_dir)
+	@docker build -t $(xc_img_name) $(xc_dir)
+	@touch $(xc_img_target)
+
+xc_img: $(xc_img_target)
+
+.PHONY: xc_img
+
+####################################################################################################
 # Cross-compiling the LunaCam control server binary
 ####################################################################################################
 
