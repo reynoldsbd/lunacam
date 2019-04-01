@@ -1,82 +1,114 @@
 repo := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 
 
-.PHONY: server staging build-image build-volume image clean
+####################################################################################################
+# Files in .targets are used to represent non-file dependencies, like Docker objects. This allows
+# make to correctly track such dependencies and run their recipes only when needed.
+####################################################################################################
+
+target_dir := $(repo)/.targets
+
+$(target_dir):
+	@mkdir -p $(target_dir)
 
 
-clean:
-	@cargo clean
-	@rm -rf staging
-	@rm -rf lunacam.img
+####################################################################################################
+# Docker image used to cross-compile ("xc") binaries for the Raspberry Pi
+#
+# TODO: store CARGO_HOME in a persisted volume (otherwise, Cargo's cache is always empty)
+####################################################################################################
 
+xc_dir := $(repo)/build/xc
+xc_img_name := lunacam-xc
+xc_img_target := $(target_dir)/xc_img
+
+$(xc_img_target): $(shell find $(xc_dir) -type f) $(target_dir)
+	@docker build -t $(xc_img_name) $(xc_dir)
+	@touch $(xc_img_target)
 
 ####################################################################################################
 # Cross-compiling the LunaCam control server binary
 ####################################################################################################
 
-toolchain := $(repo)/rpi-tools/arm-bcm2708/arm-linux-gnueabihf/bin
-manifest := $(repo)/Cargo.toml
-server := $(repo)/target/arm-unknown-linux-gnueabihf/debug/lunacam
+srv_manifest := $(repo)/Cargo.toml
+srv := $(repo)/target/arm-unknown-linux-gnueabihf/debug/lunacam
 
-$(toolchain):
-	@echo Downloading Raspberry Pi toolchain...
-	@git clone --depth 1 https://github.com/raspberrypi/tools $(repo)/rpi-tools
-
-export PATH := $(toolchain):$(PATH)
-
-# Cargo may decide that $(server) doesn't need to be updated after all. The "touch" in this recipe
-# updates the file's timestamp manually, which prevents make from invoking this rule if it isn't
-# needed
-$(server): $(manifest) $(shell find src -type f) $(toolchain)
-	@cargo build --manifest-path $(manifest) --target arm-unknown-linux-gnueabihf
-	@touch $(server)
-
-server: $(server)
+$(srv): $(shell find $(repo)/src -type f) $(srv_manifest) $(xc_img_target)
+	@docker run -it --rm -v $(repo):/source -w /source $(xc_img_name) \
+		cargo build --target arm-unknown-linux-gnueabihf
+	@touch $(srv)
 
 
 ####################################################################################################
-# The staging directory contains everything required to install LunaCam onto an Arch ARM system
+# Static files (like CSS stylesheets)
 ####################################################################################################
 
-staging := $(repo)/staging
+static := $(repo)/.static
+static_target := $(target_dir)/static
+style := $(repo)/style
+
+$(static_target): $(shell find $(style) -type f)
+	@sass $(style):$(static)
+	@touch $(static_target)
+
+
+####################################################################################################
+# The staging directory contains everything required to install LunaCam onto an Arch ARM system.
+#
+# Primarily, this consists of an overlay of the root filesystem. The filesystem structure under
+# $(stg)/root will be installed into the Pi's root filesystem.
+#
+# $(stg) also includes an install script responsible for installing the root overlay and performing
+# any necessary followup operations (like enabling services).
+####################################################################################################
+
+stg := $(repo)/.staging
+stg_target := $(target_dir)/stg
 templates := $(repo)/templates
 
-$(staging): $(shell find $(repo)/system -type f) $(server) $(shell find $(templates) -type f)
+$(stg_target): \
+		$(shell find $(repo)/system -type f) \
+		$(srv) \
+		$(static_target) \
+		$(shell find $(templates) -type f)
 	@echo building staging directory
-	@mkdir -p $(staging)
-	@cp -R $(repo)/system/* $(staging)/
-	@mkdir -p $(staging)/root/usr/local/bin
-	@cp $(server) $(staging)/root/usr/local/bin/lunacam
-	@mkdir -p $(staging)/root/usr/local/share/lunacam/templates
-	@cp -R $(templates)/* $(staging)/root/usr/local/share/lunacam/templates
-	@touch $(staging)
+	@mkdir -p $(stg)
+	@cp -R $(repo)/system/* $(stg)/
+	@mkdir -p $(stg)/root/usr/local/bin
+	@cp $(srv) $(stg)/root/usr/local/bin/lunacam
+	@mkdir -p $(stg)/root/usr/local/share/lunacam/static
+	@cp -R $(static)/* $(stg)/root/usr/local/share/lunacam/static
+	@mkdir -p $(stg)/root/usr/local/share/lunacam/templates
+	@cp -R $(templates)/* $(stg)/root/usr/local/share/lunacam/templates
+	@touch $(stg_target)
 
-staging: $(staging)
+stg: $(stg_target)
+.PHONY: stg
 
 
 ####################################################################################################
 # Deploys complete LunaCam installation to a connected Raspberry Pi
 ####################################################################################################
 
-pi_user := alarm
-pi_pass := alarm
-pi_host := 192.168.7.3
+pi_host := lunacam.local
 
-PI_CP = sshpass -p "$(pi_pass)" scp -r $(1) $(pi_user)@$(pi_host):~/
-PI_CMD := sshpass -p "$(pi_pass)" ssh $(pi_user)@$(pi_host)
+PI_CP = scp -r $(1) $(pi_host):~/
+PI_CMD := ssh $(pi_host)
 
-deploy: staging
+deploy: $(stg_target)
 	@echo copying staging artifacts to pi
-	@$(call PI_CP,$(staging))
+	@$(call PI_CP,$(stg))
 	@echo installing LunaCam
 	@$(PI_CMD) sudo /home/alarm/staging/install.sh /home/alarm/staging
 	@echo resetting services
 	@$(PI_CMD) sudo systemctl daemon-reload
 	@$(PI_CMD) sudo systemctl restart lunacam
+.PHONY: deploy
 
 
 ####################################################################################################
 # Building the LunaCam SD card image
+# TODO: this section needs a rewrite
 #
 # This is a 3-step process:
 # 1. "build-image" produces a Docker image with an environment suitable for preparing the SD card.

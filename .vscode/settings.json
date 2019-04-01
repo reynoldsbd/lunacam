@@ -2,5 +2,11 @@
     "files.associations": {
         "*.html": "jinja-html"
     },
+    "files.exclude": {
+        "**/.staging": true,
+        "**/.static": true,
+        "**/.targets": true,
+        "**/target": true
+    },
     "terminal.integrated.shell.windows": "C:\\WINDOWS\\System32\\wsl.exe"
 }

@@ -11,5 +11,6 @@
 
 # Build artifacts
 lunacam.img
-/staging
-/static
+/.staging
+/.static
+/.targets
