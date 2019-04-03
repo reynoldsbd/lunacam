@@ -88,18 +88,21 @@ stg: $(stg_target)
 
 ####################################################################################################
 # Deploys complete LunaCam installation to a connected Raspberry Pi
+#
+# For this to work, you need to (1) configure a user account on the Pi using the same username as on
+# your workstation, (2) setup SSH keys and ssh-agent, and (3) setup passwordless sudo on the Pi.
 ####################################################################################################
 
 pi_host := lunacam.local
 
-PI_CP = scp -r $(1) $(pi_host):~/
+PI_CP = scp -r $(1) $(pi_host):
 PI_CMD := ssh $(pi_host)
 
 deploy: $(stg_target)
 	@echo copying staging artifacts to pi
 	@$(call PI_CP,$(stg))
 	@echo installing LunaCam
-	@$(PI_CMD) sudo /home/alarm/staging/install.sh /home/alarm/staging
+	@$(PI_CMD) sudo ./$(notdir $(stg))/install.sh ./$(notdir $(stg))
 	@echo resetting services
 	@$(PI_CMD) sudo systemctl daemon-reload
 	@$(PI_CMD) sudo systemctl restart lunacam

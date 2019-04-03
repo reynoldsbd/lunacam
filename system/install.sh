@@ -15,6 +15,7 @@ staging=$1
 files=$(cd $staging/root && find . -type f)
 for file in $files
 do
+    echo "--> installing $staging/root/$file to /$file"
     install -D $staging/root/$file /$file
 done
 
@@ -24,6 +25,7 @@ then
     files=$(cd $staging/root.local && find . -type f)
     for file in $files
     do
+        echo "--> installing $staging/root.local/$file to /$file"
         install -D $staging/root.local/$file /$file
     done
 fi
