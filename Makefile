@@ -109,9 +109,8 @@ sd := $(repo)/lunacam.img
 sd_ctr_name := lunacam-sd
 
 $(sd): $(stg_target) $(sd_img_target)
-	@docker run -it --privileged --tmpfs /tmp -v $(stg):/mnt --name $(sd_ctr_name) $(sd_img_name)
-	@docker cp $(sd_ctr_name):/alarm.img $(sd)
-	@docker rm $(sd_ctr_name)
+	@docker run -it --rm --privileged --tmpfs /tmp -v $(stg):/mnt -v $(repo):/out \
+		--name $(sd_ctr_name) $(sd_img_name)
 
 sd: $(sd)
 .PHONY: sd

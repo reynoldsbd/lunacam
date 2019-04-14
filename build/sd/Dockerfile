@@ -8,6 +8,7 @@ FROM archlinux/base
 COPY --from=alarmfs /img /img
 RUN pacman --noconfirm -Syu base-devel git wget parted qemu qemu-arch-extra dosfstools e2fsprogs \
     psmisc mtools
+
 COPY scripts/aur-install.sh /scripts/aur-install.sh
 RUN /scripts/aur-install.sh qemu-user-static-bin
 

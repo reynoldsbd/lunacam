@@ -19,7 +19,7 @@ set -e
 #
 # Make sure to do some math before changing any of these block sizes.
 ####################################################################################################
-img=/alarm.img
+img=/out/lunacam.img
 
 echo "build.sh: creating disk image skeleton"
 rm -f $img
