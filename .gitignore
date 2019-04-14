@@ -2,11 +2,9 @@
 /target
 **/*.rs.bk
 
-# Cross-compiler
-/rpi-tools
-
 # Developer configuration
 /config.json
+/system/local.sh
 /system/root.local
 
 # Build artifacts

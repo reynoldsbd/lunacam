@@ -18,7 +18,14 @@ do
     install -D $staging/root/$file /$file
 done
 
-# If provided, also install items from root.local
+
+# Configure startup services
+systemctl enable systemd-networkd
+systemctl enable systemd-resolved
+systemctl enable lunacam
+systemctl enable lunacam-web
+
+# If provided, also perform local initialization
 if [ -d $staging/root.local ]
 then
     files=$(cd $staging/root.local && find . -type f)
@@ -28,9 +35,7 @@ then
         install -D $staging/root.local/$file /$file
     done
 fi
-
-
-# Configure startup services
-systemctl enable systemd-networkd
-systemctl enable lunacam
-systemctl enable lunacam-web
+if [ -f $staging/local.sh ]
+then
+    $staging/local.sh
+fi
