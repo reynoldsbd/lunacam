@@ -5,9 +5,6 @@
 # This script expects two positional arguments. $1 must be the path to the root of the Arch ARM's
 # extracted filesystem, and $2 is path of the script or binary to use with chroot. Note that you may
 # omit $2 to start an interactive shell.
-#
-# For convenience, the /artifacts directory of the  Docker image is mounted within the chroot at
-# /mnt.
 set -e
 root=$1
 cmd=$2
@@ -29,12 +26,14 @@ mount --bind /sys $root/sys
 mount --bind /proc $root/proc
 mount --bind /dev $root/dev
 mount --bind /dev/pts $root/dev/pts
-# mkdir -p $root/scripts
-mount --bind /artifacts $root/mnt
-# mount --bind /mnt $root/mnt
+mount --bind /tmp $root/tmp
+mkdir -p $root/scripts
+mount --bind /scripts $root/scripts
+mount --bind /mnt $root/mnt
 
 
 # Do the chroot
+echo "alarm-chroot.sh: running command \"$cmd\""
 chroot $root $cmd 2>&1 | sed 's/^/    /'
 cmdStatus=${PIPESTATUS[0]}
 
@@ -44,8 +43,9 @@ fuser -sk $root || true
 
 # Clean up mount points
 umount $root/mnt
-# umount $root/scripts
-# rmdir $root/scripts
+umount $root/scripts
+rmdir $root/scripts
+umount $root/tmp
 umount $root/dev/pts
 umount $root/dev
 umount $root/proc

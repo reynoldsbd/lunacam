@@ -1,15 +1,14 @@
-#! /bin/bash
-#
-# Customizes the Arch ARM image
+#!/bin/bash
+
+# Installs LunaCam on Arch ARM
+
 set -e
-staging=$1
+
+staging="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
 
-# Update system and install dependencies
-# TODO: this shouldn't be part of install.sh
-# pacman-key --init 2>/dev/null 1>/dev/null
-# pacman-key --populate archlinuxarm 2>/dev/null 1>/dev/null
-# pacman --noconfirm -Syu --needed sudo nginx ffmpeg
+# Install dependencies
+pacman --noconfirm -Syu --needed nginx ffmpeg
 
 # Install items from staging/root to the system
 files=$(cd $staging/root && find . -type f)

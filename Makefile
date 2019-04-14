@@ -26,6 +26,7 @@ $(xc_img_target): $(shell find $(xc_dir) -type f) $(target_dir)
 	@docker build -t $(xc_img_name) $(xc_dir)
 	@touch $(xc_img_target)
 
+
 ####################################################################################################
 # Cross-compiling the LunaCam control server binary
 ####################################################################################################
@@ -73,7 +74,7 @@ $(stg_target): \
 		$(shell find $(templates) -type f)
 	@echo building staging directory
 	@mkdir -p $(stg)
-	@cp -R $(repo)/system/* $(stg)/
+	@cp -Rp $(repo)/system/* $(stg)/
 	@mkdir -p $(stg)/root/usr/local/bin
 	@cp $(srv) $(stg)/root/usr/local/bin/lunacam
 	@mkdir -p $(stg)/root/usr/local/share/lunacam/static
@@ -82,8 +83,38 @@ $(stg_target): \
 	@cp -R $(templates)/* $(stg)/root/usr/local/share/lunacam/templates
 	@touch $(stg_target)
 
+# TODO: I don't think this stg target is needed
 stg: $(stg_target)
 .PHONY: stg
+
+
+####################################################################################################
+# Docker image used to prepare the SD card image containing LunaCam
+####################################################################################################
+
+sd_dir := $(repo)/build/sd
+sd_img_name := lunacam-sd
+sd_img_target := $(target_dir)/sd_img
+
+$(sd_img_target): $(shell find $(sd_dir) -type f) $(target_dir)
+	@docker build -t $(sd_img_name) $(sd_dir)
+	@touch $(sd_img_target)
+
+
+####################################################################################################
+# Builds the LunaCam SD card image
+####################################################################################################
+
+sd := $(repo)/lunacam.img
+sd_ctr_name := lunacam-sd
+
+$(sd): $(stg_target) $(sd_img_target)
+	@docker run -it --privileged --tmpfs /tmp -v $(stg):/mnt --name $(sd_ctr_name) $(sd_img_name)
+	@docker cp $(sd_ctr_name):/alarm.img $(sd)
+	@docker rm $(sd_ctr_name)
+
+sd: $(sd)
+.PHONY: sd
 
 
 ####################################################################################################
@@ -107,35 +138,3 @@ deploy: $(stg_target)
 	@$(PI_CMD) sudo systemctl daemon-reload
 	@$(PI_CMD) sudo systemctl restart lunacam
 .PHONY: deploy
-
-
-####################################################################################################
-# Building the LunaCam SD card image
-# TODO: this section needs a rewrite
-#
-# This is a 3-step process:
-# 1. "build-image" produces a Docker image with an environment suitable for preparing the SD card.
-#    This approach makes it easy to consistently build images on various platforms.
-# 2. "build-volume" prepares a Docker volume with artifacts that will end up on the SD card.
-# 3. "image" runs the Docker image from step 1 with the volume prepared in step 2 to build and
-#    initialize the final image.
-####################################################################################################
-
-build-image: $(shell find build-image -type f)
-	@docker build -f ./build-image/Dockerfile -t lunacam-build ./build-image
-
-build-volume: server $(shell find system -type f)
-	@docker volume rm lunacam-build 2> /dev/null || true
-	@docker volume create --name lunacam-build > /dev/null
-	@docker rm copier 2> /dev/null || true
-	@docker run -v lunacam-build:/data --name copier busybox true > /dev/null
-	@docker cp ./system/. copier:/data
-	@docker cp $(server) copier:/data/root/usr/local/bin/lunacam
-	@docker cp ./templates copier:/data/root/usr/local/share/lunacam
-
-image: build-image build-volume
-	@docker rm lunacam-build 2> /dev/null || true
-	@docker run -it --privileged --name lunacam-build \
-		-v lunacam-build:/artifacts \
-		lunacam-build
-	@docker cp lunacam-build:/alarm.img ./lunacam.img

@@ -1,11 +1,14 @@
 #! /bin/bash
-#
+
 # This script builds and customizes an Arch ARM image. It is designed to be run as root inside an
 # Arch Linux docker image.
+
 set -e
 
 
-/root/alarm-chroot.sh /img /mnt/install.sh
+# Perform initialization within emulated Arch ARM system
+/scripts/alarm-chroot.sh /img /scripts/alarm-init.sh
+/scripts/alarm-chroot.sh /img /mnt/install.sh
 
 
 ####################################################################################################
@@ -18,23 +21,22 @@ set -e
 ####################################################################################################
 img=/alarm.img
 
-echo "alarm-build > Creating disk image"
+echo "build.sh: creating disk image skeleton"
 rm -f $img
-dd if=/dev/zero of=$img bs=2M count=1024 &> /dev/null
-sfdisk $img < /root/loop0.sfdisk &> /dev/null
+dd if=/dev/zero of=$img bs=2M count=1024 status=progress
+sfdisk -q $img < /scripts/loop0.sfdisk
 
-echo "alarm-build > Building boot partition image"
+echo "build.sh: populating boot partition image"
 mkfs.fat -F 32 -n BOOT -C /tmp/boot.img 102400 &> /dev/null
 mcopy -i /tmp/boot.img -s /img/boot/* ::
-mkdir -p /root/img-boot
-mv /img/boot/* /root/img-boot/
-dd if=/tmp/boot.img of=$img bs=512 seek=2048 conv=notrunc &> /dev/null
+dd if=/tmp/boot.img of=$img bs=512 seek=2048 conv=notrunc status=progress
 
-echo "alarm-build > Building root partition image"
+echo "build.sh: populating root partition image"
+rm -rf /img/boot/*
 mkfs.ext4 -b 4096 -d /img -L root /tmp/root.img 498432
-dd if=/tmp/root.img of=$img bs=512 seek=206848 conv=notrunc
+dd if=/tmp/root.img of=$img bs=512 seek=206848 conv=notrunc status=progress
 
-echo "alarm-build > Flushing disk cache"
+echo "build.sh: syncing disks"
 sync
 
-echo "alarm-build > Disk image is ready!"
+echo "build.sh: $img is ready"
