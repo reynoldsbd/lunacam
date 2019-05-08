@@ -7,6 +7,7 @@ repo := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 ####################################################################################################
 
 target_dir := $(repo)/.targets
+clean_artifacts += $(target_dir)
 
 $(target_dir):
 	@mkdir -p $(target_dir)
@@ -26,6 +27,16 @@ $(xc_img_target): $(shell find $(xc_dir) -type f) $(target_dir)
 	@docker build -t $(xc_img_name) $(xc_dir)
 	@touch $(xc_img_target)
 
+xc-img: $(xc_img_target)
+.PHONY: xc-img
+
+xc-img-clean:
+	@echo cleaning xc-img
+	@docker image rm -f $(xc_img_name) 2> /dev/null
+	@rm -rf $(xc_img_target)
+.PHONY: xc-img-clean
+clean_targets += xc-img-clean
+
 
 ####################################################################################################
 # Cross-compiling the LunaCam control server binary
@@ -33,11 +44,21 @@ $(xc_img_target): $(shell find $(xc_dir) -type f) $(target_dir)
 
 srv_manifest := $(repo)/Cargo.toml
 srv := $(repo)/target/arm-unknown-linux-gnueabihf/debug/lunacam
+xc_cache_vol_name := lunacam-xc-cache
 
 $(srv): $(shell find $(repo)/src -type f) $(srv_manifest) $(xc_img_target)
-	@docker run -it --rm -v $(repo):/source -w /source $(xc_img_name) \
-		cargo build --target arm-unknown-linux-gnueabihf
+	@docker run -it --rm -v $(repo):/source -v $(xc_cache_vol_name):/root/.cargo -w /source \
+		$(xc_img_name) cargo build --target arm-unknown-linux-gnueabihf
 	@touch $(srv)
+
+srv: $(srv)
+.PHONY: srv
+
+srv-clean:
+	@echo cleaning srv
+	@cargo clean
+.PHONY: srv-clean
+clean_targets += srv-clean
 
 
 ####################################################################################################
@@ -123,7 +144,7 @@ sd: $(sd)
 # your workstation, (2) setup SSH keys and ssh-agent, and (3) setup passwordless sudo on the Pi.
 ####################################################################################################
 
-pi_host := lunacam.local
+pi_host := lunacam-dev.local
 
 PI_CP = scp -r $(1) $(pi_host):
 PI_CMD := ssh $(pi_host)
@@ -137,3 +158,13 @@ deploy: $(stg_target)
 	@$(PI_CMD) sudo systemctl daemon-reload
 	@$(PI_CMD) sudo systemctl restart lunacam
 .PHONY: deploy
+
+
+####################################################################################################
+# Cleanup
+####################################################################################################
+
+clean: $(clean_targets)
+	@echo cleaning...
+	@rm -rf $(clean_artifacts)
+.PHONY: clean

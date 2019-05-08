@@ -1,10 +1,10 @@
-#! /bin/bash
-#
-# Uses QEMU and chroot to run the specified script within the hosted Arch ARM system.
-#
-# This script expects two positional arguments. $1 must be the path to the root of the Arch ARM's
-# extracted filesystem, and $2 is path of the script or binary to use with chroot. Note that you may
-# omit $2 to start an interactive shell.
+#!/bin/bash
+
+# Uses QEMU and chroot to run the specified command within the hosted Arch ARM system. Expects
+# exactly 2 arguments:
+# 1. Absolute path of extracted Arch ARM filesystem
+# 2. Path of program or script to run within emulated chroot. This path
+
 set -e
 root=$1
 cmd=$2
