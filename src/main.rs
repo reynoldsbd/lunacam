@@ -4,16 +4,22 @@ use std::fs::File;
 use std::io::BufReader;
 use std::path::Path;
 
+use actix::{System, SystemRunner};
+
 use actix_web::App;
 use actix_web::fs::StaticFiles;
 use actix_web::middleware::Logger;
 use actix_web::middleware::session::{SessionStorage, CookieSessionBackend};
 use actix_web::pred;
-use actix_web::server;
+use actix_web::server::HttpServer;
 
 use base64::STANDARD;
 
 use base64_serde::base64_serde_type;
+
+use env_logger::Env;
+
+use log::{debug, error, info, trace};
 
 use serde::Deserialize;
 
@@ -98,17 +104,47 @@ fn make_app_factory(config: &Configuration) -> impl Fn() -> App + Clone {
 }
 
 
+//#region Actix System
+
+fn sys_init(config: &Configuration) -> SystemRunner {
+    let runner = System::new("lunacam");
+
+    trace!("initializing HTTP server");
+    HttpServer::new(make_app_factory(&config))
+        .bind(&config.listen)
+        .expect("could not bind to address")
+        .start();
+
+    trace!("registering termination handler");
+    let system = System::current();
+    ctrlc::set_handler(move || sys_term(&system))
+        .unwrap_or_else(|e| error!("failed to register termination handler ({})", e));
+
+    runner
+}
+
+fn sys_term(system: &System) {
+    debug!("received termination signal");
+    system.stop();
+}
+
+//#endregion
+
+
 fn main() {
+    let env = Env::default()
+        .default_filter_or("info");
+    env_logger::init_from_env(env);
+
+    debug!("loading configuration");
     let args: Vec<_> = env::args().collect();
     let config = Configuration::from_file(&args[1])
         .expect("failed to load configuration");
 
-    env::set_var("RUST_LOG", "actix_web=info");
-    env_logger::init();
+    debug!("initializing system");
+    let runner = sys_init(&config);
+    info!("initialization complete");
 
-    let app_factory = make_app_factory(&config);
-    server::new(app_factory)
-        .bind(&config.listen)
-        .expect("could not bind to address")
-        .run();
+    let status = runner.run();
+    debug!("system exited with status {}", status);
 }
