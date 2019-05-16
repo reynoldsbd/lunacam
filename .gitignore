@@ -12,3 +12,4 @@ lunacam.img
 /.staging
 /.static
 /.targets
+/.user

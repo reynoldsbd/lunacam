@@ -7,7 +7,7 @@ mod templates;
 
 use std::env;
 
-use actix::{System, SystemRunner};
+use actix::{Actor, System, SystemRunner};
 
 use actix_web::App;
 use actix_web::fs::StaticFiles;
@@ -20,7 +20,8 @@ use env_logger::Env;
 
 use log::{debug, error, info, trace};
 
-use config::SystemConfig;
+use crate::auth::NewAuthenticator;
+use crate::config::SystemConfig;
 
 //#endregion
 
@@ -65,6 +66,11 @@ fn make_app_factory(config: &SystemConfig) -> impl Fn() -> App + Clone {
 
 fn sys_init(config: &SystemConfig) -> SystemRunner {
     let runner = System::new("lunacam");
+
+    trace!("initializing authentication system");
+    let auth = NewAuthenticator::new(&config)
+        .expect("failed to initialize authentication system")
+        .start();
 
     trace!("initializing HTTP server");
     HttpServer::new(make_app_factory(&config))

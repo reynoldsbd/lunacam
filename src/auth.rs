@@ -1,4 +1,12 @@
+//! Authentication system
+
+
+//#region Usings
+
+use std::result;
 use std::sync::Arc;
+
+use actix::{Actor, Addr, Context, Handler, MailboxError, Message};
 
 use actix_web::{Form, HttpRequest, HttpResponse, Request};
 use actix_web::dev::Resource;
@@ -8,8 +16,21 @@ use actix_web::middleware::session::RequestSession;
 use actix_web::pred;
 use actix_web::pred::Predicate;
 
+use derive_more::Display;
+
+use futures::future::Future;
+
+use log::{error};
+
 use serde::{Deserialize, Serialize};
 
+use crate::config;
+use crate::config::{Config, SystemConfig, UserConfig};
+
+//#endregion
+
+
+//#region Old
 
 /// Matches only the specified path
 struct PathPredicate(String);
@@ -43,7 +64,7 @@ const USER_TYPE_COOKIE_NAME: &str = "usertype";
 
 /// Defines access type for a signed-in user
 #[derive(Debug, Deserialize, PartialEq, Serialize)]
-enum UserType {
+pub enum UserType {
 
     /// User has regular level of access
     Regular,
@@ -57,7 +78,7 @@ enum UserType {
 struct AuthorizationMiddleware;
 
 impl<S> Middleware<S> for AuthorizationMiddleware {
-    fn start(&self, request: &HttpRequest<S>) -> Result<Started, actix_web::Error> {
+    fn start(&self, request: &HttpRequest<S>) -> result::Result<Started, actix_web::Error> {
         let user_type = request.session().get(USER_TYPE_COOKIE_NAME)?;
         let path = request.path();
 
@@ -106,7 +127,7 @@ impl Authenticator {
         &self,
         req: HttpRequest,
         form: Form<LoginForm>
-    ) -> Result<HttpResponse, actix_web::Error> {
+    ) -> result::Result<HttpResponse, actix_web::Error> {
         if let Some(user_type) = self.authenticate(&form.password) {
             req.session().set(USER_TYPE_COOKIE_NAME, user_type)?;
             Ok(
@@ -140,3 +161,93 @@ impl Authenticator {
             .with(move |req, form| authenticator.handle(req, form));
     }
 }
+
+//#endregion
+
+
+//#region Error Handling
+
+#[derive(Debug, Display)]
+pub enum Error {
+    AuthFailed,
+    Config(config::Error),
+    Mailbox(MailboxError),
+}
+
+impl From<config::Error> for Error {
+    fn from(err: config::Error) -> Self {
+        Error::Config(err)
+    }
+}
+
+impl From<MailboxError> for Error {
+    fn from(err: MailboxError) -> Self {
+        Error::Mailbox(err)
+    }
+}
+
+pub type Result<T> = result::Result<T, Error>;
+
+//#endregion
+
+
+//#region Authenticator
+
+#[derive(Clone, Default, Deserialize, Serialize)]
+struct AuthConfig {
+    admin_pw: String,
+    secret: [u8; 32],
+    user_pw: String,
+}
+
+impl UserConfig for AuthConfig {}
+
+pub struct NewAuthenticator {
+    config: Addr<Config<AuthConfig>>,
+}
+
+impl NewAuthenticator {
+
+    pub fn new(config: &SystemConfig) -> Result<Self> {
+        Ok(NewAuthenticator {
+            config: Config::new("auth", config)?
+                .start()
+        })
+    }
+}
+
+impl Actor for NewAuthenticator {
+    type Context = Context<Self>;
+}
+
+pub struct Authenticate(String);
+
+impl Message for Authenticate {
+    type Result = Result<UserType>;
+}
+
+impl Handler<Authenticate> for NewAuthenticator {
+    type Result = Box<dyn Future<Item = UserType, Error = Error>>;
+
+    fn handle(&mut self, msg: Authenticate, _: &mut Context<Self>) -> Self::Result {
+        let Authenticate(pw) = msg;
+        let fut = self.config.send(config::LoadConfig::new())
+            .map_err(|err| {
+                error!("unexpected mailbox error ({})", err);
+                Error::from(err)
+            })
+            .and_then(|res| res.map_err(|err| Error::from(err)))
+            .and_then(move |cfg| {
+                if pw == cfg.admin_pw {
+                    Ok(UserType::Administrator)
+                } else if pw == cfg.user_pw {
+                    Ok(UserType::Regular)
+                } else {
+                    Err(Error::AuthFailed)
+                }
+            });
+        Box::new(fut)
+    }
+}
+
+//#endregion
