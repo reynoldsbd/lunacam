@@ -1,5 +1,8 @@
 //! Authentication system
 
+// TODO: get rid of old stuff
+// TODO: rename "Authenticator" to something more appropriate (maybe "SecurityContext")
+
 
 //#region Usings
 
@@ -193,10 +196,15 @@ pub type Result<T> = result::Result<T, Error>;
 
 //#region Authenticator
 
+// TODO: manually impl Default for AuthConfig to automatically randomize secret
+// TODO: (or, make Secret a newtype and impl Default for only it)
+
+pub type Secret = [u8; 32];
+
 #[derive(Clone, Default, Deserialize, Serialize)]
 struct AuthConfig {
     admin_pw: String,
-    secret: [u8; 32],
+    secret: Secret,
     user_pw: String,
 }
 
@@ -246,6 +254,27 @@ impl Handler<Authenticate> for NewAuthenticator {
                     Err(Error::AuthFailed)
                 }
             });
+        Box::new(fut)
+    }
+}
+
+pub struct GetSecret;
+
+impl Message for GetSecret {
+    type Result = Result<Secret>;
+}
+
+impl Handler<GetSecret> for NewAuthenticator {
+    type Result = Box<dyn Future<Item = Secret, Error = Error>>;
+
+    fn handle(&mut self, msg: GetSecret, _: &mut Context<Self>) -> Self::Result {
+        let fut = self.config.send(config::LoadConfig::new())
+            .map_err(|err| {
+                error!("unexpected mailbox error ({})", err);
+                Error::from(err)
+            })
+            .and_then(|res| res.map_err(|err| Error::from(err)))
+            .map(|cfg| cfg.secret.clone());
         Box::new(fut)
     }
 }

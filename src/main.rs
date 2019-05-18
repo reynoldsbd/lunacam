@@ -1,11 +1,18 @@
+// TODO: how to enable resetting secret?
+// TODO: actors probably being used overzealously
+// TODO: better capitalization for logged messages at info or above
+
+mod api;
 mod auth;
 mod config;
 mod templates;
+mod ui;
 
 
 //#region Usings
 
 use std::env;
+use std::sync::Arc;
 
 use actix::{Actor, System, SystemRunner};
 
@@ -64,17 +71,32 @@ fn make_app_factory(config: &SystemConfig) -> impl Fn() -> App + Clone {
 
 //#region Actix System
 
-fn sys_init(config: &SystemConfig) -> SystemRunner {
-    let runner = System::new("lunacam");
+fn app_factory(config: SystemConfig) -> impl Fn() -> Vec<App> + Clone + Send {
 
     trace!("initializing authentication system");
     let auth = NewAuthenticator::new(&config)
         .expect("failed to initialize authentication system")
         .start();
+    let config = Arc::new(config);
+
+    move || {
+        vec![
+            ui::app(auth.clone(), &config),
+            api::app()
+                .prefix("/api"),
+        ]
+    }
+}
+
+fn sys_init(config: SystemConfig) -> SystemRunner {
+    let runner = System::new("lunacam");
+
+    // TODO: if config changes, restart dependent actors
 
     trace!("initializing HTTP server");
-    HttpServer::new(make_app_factory(&config))
-        .bind(&config.listen)
+    let addr = config.listen.clone();
+    HttpServer::new(app_factory(config))
+        .bind(addr)
         .expect("could not bind to address")
         .start();
 
@@ -105,7 +127,7 @@ fn main() {
         .expect("failed to load configuration");
 
     debug!("initializing system");
-    let runner = sys_init(&config);
+    let runner = sys_init(config);
     info!("initialization complete");
 
     let status = runner.run();
