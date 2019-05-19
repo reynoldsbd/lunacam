@@ -6,18 +6,18 @@
 use std::fs::{File, OpenOptions};
 use std::io;
 use std::io::{BufReader, Seek, SeekFrom};
-use std::marker::PhantomData;
-use std::mem;
+use std::ops::{Deref, DerefMut};
 use std::path::{Path, PathBuf};
 use std::result;
+use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
-use actix::{Actor, Context, Handler, Message};
-
-use base64::STANDARD;
-
-use base64_serde::base64_serde_type;
+use actix::{Actor, Addr, Arbiter, Context, Handler, Message};
 
 use derive_more::Display;
+
+use futures::future::Future;
+
+use log::{error, warn};
 
 use serde::{Deserialize, Serialize};
 use serde::de::DeserializeOwned;
@@ -29,19 +29,27 @@ use serde::de::DeserializeOwned;
 
 /// Error type returned by config operations
 #[derive(Debug, Display)]
-pub enum Error {
+pub enum Error
+{
+    /// An I/O operation failed
     Io(io::Error),
+
+    /// Serialization or deserialization of JSON failed
     Json(serde_json::Error),
 }
 
-impl From<io::Error> for Error {
-    fn from(err: io::Error) -> Self {
+impl From<io::Error> for Error
+{
+    fn from(err: io::Error) -> Self
+    {
         Error::Io(err)
     }
 }
 
-impl From<serde_json::Error> for Error {
-    fn from(err: serde_json::Error) -> Self {
+impl From<serde_json::Error> for Error
+{
+    fn from(err: serde_json::Error) -> Self
+    {
         Error::Json(err)
     }
 }
@@ -52,16 +60,67 @@ pub type Result<T> = result::Result<T, Error>;
 //#endregion
 
 
+//#region Utilities
+
+/// Loads configuration from the given file
+fn load_config<T>(file: &mut File) -> Result<T>
+where T: DeserializeOwned
+{
+    file.seek(SeekFrom::Start(0))?;
+    let reader = BufReader::new(file);
+    Ok(serde_json::from_reader(reader)?)
+}
+
+/// Stores configuration to the given file
+fn store_config<T>(config: &T, file: &mut File) -> Result<()>
+where T: Serialize
+{
+    file.seek(SeekFrom::Start(0))?;
+    file.set_len(0)?;
+    serde_json::to_writer_pretty(&*file, config)?;
+    file.sync_all()?;
+    Ok(())
+}
+
+/// Retrieves a read or write guard from a potentially poisoned lock
+///
+/// A warning is logged if the lock is poisoned, but the guard is still returned.
+macro_rules! rwl {
+    ($lock:expr, $op:ident) => {
+        $lock.$op()
+            .unwrap_or_else(|err| {
+                warn!("A configuration lock is poisoned");
+                err.into_inner()
+            })
+    }
+}
+
+/// Retrieves an `RwLock`'s read guard
+///
+/// A warning is logged if the lock is poisoned, but the guard is still returned.
+macro_rules! rwl_read {
+    ($lock:expr) => (rwl!($lock, read))
+}
+
+/// Retrieves an `RwLock`'s write guard
+///
+/// A warning is logged if the lock is poisoned, but the guard is still returned.
+macro_rules! rwl_write {
+    ($lock:expr) => (rwl!($lock, write))
+}
+
+//#endregion
+
+
 //#region System Configuration
 
-/// Provides base64 encoding/decoding for the configuration system
-base64_serde_type!(BASE64, STANDARD);
+// TODO: use regular config infrastructure to load and watch system configuration
 
 /// Critical configuration needed for the system to operate correctly
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SystemConfig {
-
+pub struct SystemConfig
+{
     /// Address on which LunaCam listens for HTTP requests
     pub listen: String,
 
@@ -73,68 +132,138 @@ pub struct SystemConfig {
 
     /// Path to user configuration storage
     pub user_config_path: String,
-
-    // TODO: move these into user configs
-    pub admin_password: String,
-    #[serde(with = "BASE64")]
-    pub secret: Vec<u8>,
-    pub user_password: String,
 }
 
-impl SystemConfig {
-
+impl SystemConfig
+{
     /// Loads system configuration from the specified file
-    pub fn load<P: AsRef<Path>>(path: P) -> Result<SystemConfig> {
-        let file = File::open(path)?;
-        let reader = BufReader::new(file);
-        Ok(serde_json::from_reader(reader)?)
+    pub fn load<P: AsRef<Path>>(path: P) -> Result<SystemConfig>
+    {
+        load_config(&mut File::open(path)?)
     }
 }
 
 //#endregion
 
 
-//#region User Configuration
+//#region Configuration Flusher
 
-// TODO: Hide actor behind some opaque object, allowing for "load" operation without message passing
-
-/// Dynamic configuration that can be modified by the user
-pub trait UserConfig: Clone + Default + DeserializeOwned + Serialize + 'static {}
-
-/// Loads configuration from the given file
-fn load_config<T: UserConfig>(file: &mut File) -> Result<T> {
-    file.seek(SeekFrom::Start(0))?;
-    let reader = BufReader::new(file);
-    Ok(serde_json::from_reader(reader)?)
-}
-
-/// Stores configuration to the given file
-fn store_config<T: UserConfig>(config: &T, file: &mut File) -> Result<()> {
-    file.seek(SeekFrom::Start(0))?;
-    file.set_len(0)?;
-    serde_json::to_writer_pretty(&*file, config)?;
-    file.sync_all()?;
-    Ok(())
-}
-
-/// Provides access to filesystem-backed configuration
-pub struct Config<T> {
+/// Performs asynchronous flushing of config data to the filesystem
+struct ConfigFlusher<T>
+{
+    config: Arc<RwLock<T>>,
     file: File,
-    config: T,
 }
 
-impl<T: UserConfig> Config<T> {
+impl<T> Actor for ConfigFlusher<T>
+where T: 'static
+{
+    type Context = Context<Self>;
+}
 
+/// Signals a `ConfigFlusher` to flush configuration
+struct Flush;
+
+impl Message for Flush
+{
+    type Result = Result<()>;
+}
+
+impl<T> Handler<Flush> for ConfigFlusher<T>
+where T: Serialize + 'static
+{
+    type Result = Result<()>;
+
+    fn handle(&mut self, _: Flush, _: &mut Context<Self>) -> Self::Result
+    {
+        let config = rwl_read!(self.config);
+        store_config(&*config, &mut self.file)
+    }
+}
+
+//#endregion
+
+
+//#region Write Guard
+
+/// RAII structure used to ensure configuration is flushed after it is modified
+pub struct ConfigWriteGuard<'a, T>
+where T: Serialize + 'static
+{
+    inner: RwLockWriteGuard<'a, T>,
+    flusher: &'a Addr<ConfigFlusher<T>>,
+}
+
+impl<'a, T> Deref for ConfigWriteGuard<'a, T>
+where T: Serialize
+{
+    type Target = T;
+
+    fn deref(&self) -> &T
+    {
+        self.inner.deref()
+    }
+}
+
+impl<'a, T> DerefMut for ConfigWriteGuard<'a, T>
+where T: Serialize
+{
+    fn deref_mut(&mut self) -> &mut T
+    {
+        self.inner.deref_mut()
+    }
+}
+
+impl<'a, T> Drop for ConfigWriteGuard<'a, T>
+where T: Serialize
+{
+    fn drop(&mut self)
+    {
+        Arbiter::spawn(
+            self.flusher.send(Flush)
+                .map_err(|err|
+                    error!("Failed to communicate with configuration flusher: {}", err)
+                )
+                .map(|res| res.unwrap_or_else(|err|
+                    error!("Failed to flush configuration: {}", err))
+                )
+        );
+    }
+}
+
+//#endregion
+
+
+//#region Configuration Management
+
+// TODO: Watch backing file for changes
+// TODO: Support read-only config, use for system parameters
+
+/// Manages access to filesystem-backed configuration
+///
+/// `Config` provides shared access to an instance of `T` with very similar semantics to `RwLock`.
+/// Additionally, any changes made to the instance are serialized and flushed to a file.
+pub struct Config<T>
+where T: 'static
+{
+    config: Arc<RwLock<T>>,
+    flusher: Addr<ConfigFlusher<T>>,
+}
+
+impl<T> Config<T>
+where T: Default + DeserializeOwned + Serialize + 'static
+{
     /// Creates a new `Config` with the given name
     ///
     /// `name` is used as name of the file backing the configuration, so it must be unique across
     /// all instances of `Config`.
-    pub fn new(name: &str, sys: &SystemConfig) -> Result<Self> {
-
+    pub fn new(name: &str, sys: &SystemConfig) -> Result<Self>
+    {
         // Open backing file, creating it if it does not exist
+        // TODO: this method should probably just accept a path instead of trying to construct one
         let mut path = PathBuf::from(&sys.user_config_path);
         path.push(format!("{}.json", name));
-        let existed = path.exists();
+        let already_exists = path.exists();
         let mut file = OpenOptions::new()
             .read(true)
             .write(true)
@@ -142,65 +271,62 @@ impl<T: UserConfig> Config<T> {
             .open(path)?;
 
         // If file was already present, load its contents
-        let config = if existed {
+        let config = if already_exists {
             load_config(&mut file)?
         } else {
             Default::default()
         };
 
         // If file is new, write default contents
-        if !existed {
+        if !already_exists {
             store_config(&config, &mut file)?;
         }
 
-        Ok(Config {
+        let config = Arc::new(RwLock::new(config));
+        let flusher = ConfigFlusher {
+            config: config.clone(),
             file: file,
+        };
+
+        Ok(Config {
             config: config,
+            flusher: flusher.start(),
         })
     }
-}
 
-impl<T: UserConfig> Actor for Config<T> {
-    type Context = Context<Self>;
-}
+    /// Locks configuration for shared read access
+    ///
+    /// Current thread is blocked until lock can be acquired.
+    pub fn read(&self) -> RwLockReadGuard<T>
+    {
+        rwl_read!(self.config)
+    }
 
-/// Loads configuration from a `Config`
-pub struct LoadConfig<T>(PhantomData<T>);
-
-impl<T> LoadConfig<T> {
-
-    /// Creates a new `LoadConfig` message
-    pub fn new() -> Self {
-        LoadConfig(PhantomData)
+    /// Locks configuration for exclusive write access
+    ///
+    /// Current thread is blocked until lock can be acquired.
+    pub fn write(&self) -> ConfigWriteGuard<T>
+    {
+        ConfigWriteGuard {
+            inner: rwl_write!(self.config),
+            flusher: &self.flusher,
+        }
     }
 }
 
-impl<T: UserConfig> Message for LoadConfig<T> {
-    type Result = Result<T>;
-}
-
-impl<T: UserConfig> Handler<LoadConfig<T>> for Config<T> {
-    type Result = Result<T>;
-
-    fn handle(&mut self, _: LoadConfig<T>, _: &mut Context<Self>) -> Self::Result {
-        Ok(self.config.clone())
-    }
-}
-
-/// Stores configuration to a `Config`
-pub struct StoreConfig<T>(T);
-
-impl<T: UserConfig> Message for StoreConfig<T> {
-    type Result = Result<()>;
-}
-
-impl<T: UserConfig> Handler<StoreConfig<T>> for Config<T> {
-    type Result = Result<()>;
-
-    fn handle(&mut self, store: StoreConfig<T>, _: &mut Context<Self>) -> Self::Result {
-        mem::replace(&mut self.config, store.0);
-        store_config(&self.config, &mut self.file)?;
-        Ok(())
+/// Manual implementation of `Clone`
+///
+/// Needed because `T` need not implement `Clone`. See also
+/// [RFC 2353](https://github.com/rust-lang/rfcs/pull/2353)
+impl<T> Clone for Config<T>
+where T: Default + DeserializeOwned + Serialize + 'static
+{
+    fn clone(&self) -> Self
+    {
+        Config {
+            config: self.config.clone(),
+            flusher: self.flusher.clone()
+        }
     }
 }
 

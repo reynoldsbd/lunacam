@@ -8,6 +8,7 @@ use actix_web::App;
 //#endrgegion
 
 
-pub fn app() -> App {
+pub fn app() -> App
+{
     App::new()
 }

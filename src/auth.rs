@@ -28,7 +28,7 @@ use log::{error};
 use serde::{Deserialize, Serialize};
 
 use crate::config;
-use crate::config::{Config, SystemConfig, UserConfig};
+use crate::config::{Config, SystemConfig};
 
 //#endregion
 
@@ -208,25 +208,25 @@ struct AuthConfig {
     user_pw: String,
 }
 
-impl UserConfig for AuthConfig {}
+// impl UserConfig for AuthConfig {}
 
-pub struct NewAuthenticator {
-    config: Addr<Config<AuthConfig>>,
-}
+// pub struct NewAuthenticator {
+//     config: Addr<Config<AuthConfig>>,
+// }
 
-impl NewAuthenticator {
+// impl NewAuthenticator {
 
-    pub fn new(config: &SystemConfig) -> Result<Self> {
-        Ok(NewAuthenticator {
-            config: Config::new("auth", config)?
-                .start()
-        })
-    }
-}
+//     pub fn new(config: &SystemConfig) -> Result<Self> {
+//         Ok(NewAuthenticator {
+//             config: Config::new("auth", config)?
+//                 .start()
+//         })
+//     }
+// }
 
-impl Actor for NewAuthenticator {
-    type Context = Context<Self>;
-}
+// impl Actor for NewAuthenticator {
+//     type Context = Context<Self>;
+// }
 
 pub struct Authenticate(String);
 
@@ -234,29 +234,29 @@ impl Message for Authenticate {
     type Result = Result<UserType>;
 }
 
-impl Handler<Authenticate> for NewAuthenticator {
-    type Result = Box<dyn Future<Item = UserType, Error = Error>>;
+// impl Handler<Authenticate> for NewAuthenticator {
+//     type Result = Box<dyn Future<Item = UserType, Error = Error>>;
 
-    fn handle(&mut self, msg: Authenticate, _: &mut Context<Self>) -> Self::Result {
-        let Authenticate(pw) = msg;
-        let fut = self.config.send(config::LoadConfig::new())
-            .map_err(|err| {
-                error!("unexpected mailbox error ({})", err);
-                Error::from(err)
-            })
-            .and_then(|res| res.map_err(|err| Error::from(err)))
-            .and_then(move |cfg| {
-                if pw == cfg.admin_pw {
-                    Ok(UserType::Administrator)
-                } else if pw == cfg.user_pw {
-                    Ok(UserType::Regular)
-                } else {
-                    Err(Error::AuthFailed)
-                }
-            });
-        Box::new(fut)
-    }
-}
+//     fn handle(&mut self, msg: Authenticate, _: &mut Context<Self>) -> Self::Result {
+//         let Authenticate(pw) = msg;
+//         let fut = self.config.send(config::LoadConfig::new())
+//             .map_err(|err| {
+//                 error!("unexpected mailbox error ({})", err);
+//                 Error::from(err)
+//             })
+//             .and_then(|res| res.map_err(|err| Error::from(err)))
+//             .and_then(move |cfg| {
+//                 if pw == cfg.admin_pw {
+//                     Ok(UserType::Administrator)
+//                 } else if pw == cfg.user_pw {
+//                     Ok(UserType::Regular)
+//                 } else {
+//                     Err(Error::AuthFailed)
+//                 }
+//             });
+//         Box::new(fut)
+//     }
+// }
 
 pub struct GetSecret;
 
@@ -264,19 +264,19 @@ impl Message for GetSecret {
     type Result = Result<Secret>;
 }
 
-impl Handler<GetSecret> for NewAuthenticator {
-    type Result = Box<dyn Future<Item = Secret, Error = Error>>;
+// impl Handler<GetSecret> for NewAuthenticator {
+//     type Result = Box<dyn Future<Item = Secret, Error = Error>>;
 
-    fn handle(&mut self, msg: GetSecret, _: &mut Context<Self>) -> Self::Result {
-        let fut = self.config.send(config::LoadConfig::new())
-            .map_err(|err| {
-                error!("unexpected mailbox error ({})", err);
-                Error::from(err)
-            })
-            .and_then(|res| res.map_err(|err| Error::from(err)))
-            .map(|cfg| cfg.secret.clone());
-        Box::new(fut)
-    }
-}
+//     fn handle(&mut self, msg: GetSecret, _: &mut Context<Self>) -> Self::Result {
+//         let fut = self.config.send(config::LoadConfig::new())
+//             .map_err(|err| {
+//                 error!("unexpected mailbox error ({})", err);
+//                 Error::from(err)
+//             })
+//             .and_then(|res| res.map_err(|err| Error::from(err)))
+//             .map(|cfg| cfg.secret.clone());
+//         Box::new(fut)
+//     }
+// }
 
 //#endregion
