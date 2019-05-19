@@ -1,18 +1,21 @@
 //! Serves the LunaCam user interface
 
 
+// TODO: error handling
+
+
 //#region Usings
 
 use std::sync::Arc;
 
-use actix_web::{App, HttpResponse};
+use actix_web::{App, HttpRequest, HttpResponse};
 use actix_web::dev::Resource;
 use actix_web::fs::StaticFiles;
 use actix_web::http::header::LOCATION;
 use actix_web::middleware::Logger;
 use actix_web::middleware::session::{CookieSessionBackend, RequestSession, SessionStorage};
 
-use log::{debug, error, info, trace};
+use log::{debug, error, trace, warn};
 
 use rand::Rng;
 
@@ -52,26 +55,10 @@ impl Default for Secrets
     }
 }
 
-/// Defines access level for a signed-in user
-#[derive(Debug, Deserialize, PartialEq, Serialize)]
-pub enum UserType
-{
-    /// User has regular level of access
-    Regular,
-
-    /// User has administrative level of access
-    Administrator,
-}
-
-/// Name of secure cookie used to store user type
-const USER_TYPE_COOKIE: &str = "userType";
-
 //#endregion
 
 
-//#region Actix Application
-
-// TODO: figure out how to factor out common implementation of identity verification
+//#region Templates
 
 /// Renders the specified template to an `HttpResponse`
 ///
@@ -93,62 +80,140 @@ fn render(templates: &Tera, name: &str) -> HttpResponse
         })
 }
 
-/// Configures the */index/* resource
-///
-/// This function returns a callback that can be passed to the `App::resource` method
-fn res_index(templates: Arc<Tera>) -> impl FnOnce(&mut Resource<()>)
-{
-    |resource| {
-        resource.get().f(move |request| {
-            trace!("handling GET request for index page");
-            let user_type: Option<UserType> = request.session()
-                .get(USER_TYPE_COOKIE)
-                .unwrap_or_else(|err| {
-                    error!("Failed to access user type cookie: {}", err);
-                    None
-                });
+//#endregion
 
-            // TODO: uncomment once login page is ready
-            if user_type.is_some() {
-                info!("user type is {:?}", user_type);
-                // render(&templates, "index.html")
-            } else {
-                info!("user is not logged in");
-                // HttpResponse::Found()
-                //     .header(LOCATION, "/login")
-                //     .finish()
-            }
-            render(&templates, "index.html")
-        });
+
+//#region Authentication and Login Page
+
+/// Defines a user's access level
+///
+/// Ordering of variant declarations matters! This ordering is used to derive `PartialOrd`
+#[derive(Deserialize, PartialEq, PartialOrd, Serialize)]
+enum AccessLevel
+{
+    Any,
+    Administrative,
+}
+
+/// Name of secure cookie used to store access level
+const ACCESS_LEVEL_COOKIE: &str = "accessLevel";
+
+/// Validates user's access level
+///
+/// Checks the user's session for an access level, then returns whether the access level is equal to
+/// or above the level specified by `min`. If an access level is not set, this function returns
+/// `false`.
+fn check_access_level(request: &HttpRequest<()>, min: AccessLevel) -> bool
+{
+    request.session()
+        .get::<AccessLevel>(ACCESS_LEVEL_COOKIE)
+        .unwrap_or_else(|err| {
+            error!("Failed to read access level: {}", err);
+            None
+        })
+        .map(|level| level >= min)
+        .unwrap_or(false)
+}
+
+/// Creates an `HttpResponse` redirecting the user to the login page
+///
+/// After successful login, the user will be redirected to the page specified by `dest`. This
+/// parameter is assumed to be the name of an Actix resource as set by the `Resource::name` method.
+fn login_redirect(request: &HttpRequest<()>, dest: &str) -> HttpResponse
+{
+    let mut url = request.url_for_static(RES_LOGIN)
+        .expect("Reverse-lookup of login resource failed");
+
+    request.url_for_static(dest)
+        .map(|dest| url.set_query(Some(&format!("dest={}", dest.path()))))
+        .unwrap_or_else(|err|
+            warn!("Reverse-lookup of destination resource \"{}\" failed: {}", dest, err)
+        );
+
+    HttpResponse::Found()
+        .header(LOCATION, url.as_str())
+        .finish()
+}
+
+//#endregion
+
+
+//#region Resource Handlers
+
+/// Returns the admin page's *GET* handler
+fn get_admin(templates: Arc<Tera>) -> impl Fn(&HttpRequest<()>) -> HttpResponse
+{
+    move |request| {
+        if check_access_level(request, AccessLevel::Administrative) {
+            // TODO: create an admin template
+            render(&templates, "admin.html")
+        } else {
+            login_redirect(request, RES_ADMIN)
+        }
     }
 }
 
-/// Configures the */login/* resource
-///
-/// This function returns a callback that can be passed to the `App::resource` method
-fn res_login(templates: Arc<Tera>) -> impl FnOnce(&mut Resource<()>)
+/// Returns the home page's *GET* handler
+fn get_home(templates: Arc<Tera>) -> impl Fn(&HttpRequest<()>) -> HttpResponse
 {
-    |resource| {
-        resource.get().f(move |_| {
-            trace!("handling GET request for login page");
-            render(&templates, "login.html")
-        });
-        // TODO: on POST, validate creds and redirect to destination, or re-render login w/ error
+    move |request| {
+        if check_access_level(request, AccessLevel::Any) {
+            render(&templates, "home.html")
+        } else {
+            login_redirect(request, RES_HOME)
+        }
     }
 }
 
-/// Configures the */admin/* resource
+/// Returns the login page's *GET* handler
+fn get_login(templates: Arc<Tera>) -> impl Fn(&HttpRequest<()>) -> HttpResponse
+{
+    move |_| {
+        render(&templates, "login.html")
+    }
+}
+
+//#endregion
+
+
+//#region Actix Application
+
+// Unique resource names
+const RES_ADMIN: &str = "admin";
+const RES_HOME: &str = "home";
+const RES_LOGIN: &str = "login";
+
+/// Configures the admin resource
 ///
 /// This function returns a callback that can be passed to the `App::resource` method
 fn res_admin(templates: Arc<Tera>) -> impl FnOnce(&mut Resource<()>)
 {
     |resource| {
-        resource.get().f(move |_| {
-            trace!("handling GET request for admin page");
-            // TODO: check admin status or redirect to login
-            // TODO: create an admin template
-            render(&templates, "admin.html")
-        });
+        resource.name(RES_ADMIN);
+        resource.get().f(get_admin(templates));
+    }
+}
+
+/// Configures the home resource
+///
+/// This function returns a callback that can be passed to the `App::resource` method
+fn res_home(templates: Arc<Tera>) -> impl FnOnce(&mut Resource<()>)
+{
+    |resource| {
+        resource.name(RES_HOME);
+        resource.get().f(get_home(templates));
+    }
+}
+
+/// Configures the login resource
+///
+/// This function returns a callback that can be passed to the `App::resource` method
+fn res_login(templates: Arc<Tera>) -> impl FnOnce(&mut Resource<()>)
+{
+    |resource| {
+        resource.name(RES_LOGIN);
+        resource.get().f(get_login(templates));
+        // TODO: on POST, validate creds and redirect to destination, or re-render login w/ error
     }
 }
 
@@ -163,7 +228,7 @@ pub fn app(secrets: Config<Secrets>, templates: Arc<Tera>, config: &SystemConfig
             CookieSessionBackend::private(&secrets.read().session_key)
                 .name("lc-session")
         ))
-        .resource("/", res_index(templates.clone()))
+        .resource("/", res_home(templates.clone()))
         .resource("/login/", res_login(templates.clone()))
         .resource("/admin/", res_admin(templates.clone()));
 

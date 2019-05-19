@@ -3,6 +3,9 @@
 // TODO: get rid of old stuff
 // TODO: rename "Authenticator" to something more appropriate (maybe "SecurityContext")
 
+#![allow(dead_code)]
+#![allow(unused_imports)]
+
 
 //#region Usings
 
