@@ -4,7 +4,6 @@
 // TODO: curly brace convention
 
 mod api;
-mod auth;
 mod config;
 mod templates;
 mod ui;
