@@ -87,9 +87,9 @@ fn sys_term(system: &System)
 
 fn main()
 {
-    // TODO: use LUNACAM_LOG variable name
     let env = Env::default()
-        .default_filter_or("info");
+        .filter_or("LUNACAM_LOG", "info")
+        .write_style("LUNACAM_LOG_STYLE");
     env_logger::init_from_env(env);
 
     debug!("loading configuration");
