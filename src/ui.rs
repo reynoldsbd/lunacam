@@ -28,9 +28,9 @@ use crate::config::{Config, SystemConfig};
 //#endregion
 
 
-//#region Security
+//#region Secrets
 
-// TODO: Shouldn't need to be public. Could we use a singleton or Actix service?
+// TODO: wouldn't need to be public if Config were singleton or Actix service
 
 /// Secret values used for authentication and session encryption
 #[derive(Deserialize, Serialize)]
@@ -183,10 +183,46 @@ struct LoginForm
     password: String,
 }
 
-fn post_login(secrets: Config<Secrets>, templates: Arc<Tera>) -> impl Fn(&HttpRequest<()>, Form<LoginForm>) -> HttpResponse
+fn post_login(secrets: Config<Secrets>, templates: Arc<Tera>) -> impl Fn(HttpRequest<()>, Form<LoginForm>) -> HttpResponse
 {
-    |request, form| {
+    let authenticate = move |password: &str| {
+        let secrets = secrets.read();
+        if password == &secrets.user_pw {
+            Some(AccessLevel::Any)
+        } else if password == &secrets.admin_pw {
+            Some(AccessLevel::Administrative)
+        } else {
+            debug!("authentication failed");
+            None
+        }
+    };
 
+    move |request, form| {
+        if let Some(level) = authenticate(&form.password) {
+            request.session().set(ACCESS_LEVEL_COOKIE, level)
+                .unwrap_or_else(|err| error!("Failed to set access level cookie: {}", err));
+            HttpResponse::Found()
+                .header(
+                    LOCATION,
+                    request.query()
+                        .get("dest")
+                        .map(|dest| dest.to_owned())
+                        .unwrap_or_else(||
+                            request.url_for_static(RES_HOME)
+                                .map(|url| url.as_str().to_owned())
+                                .unwrap_or_else(|err| {
+                                    error!("Reverse-lookup of home resource failed: {}", err);
+                                    "/".to_owned()
+                                })
+                        )
+                )
+                .finish()
+
+        } else {
+            warn!("failed authentication attempt");
+            // TODO: display user-visible warning
+            render(&templates, "login.html")
+        }
     }
 }
 
@@ -229,7 +265,7 @@ fn res_login(secrets: Config<Secrets>, templates: Arc<Tera>) -> impl FnOnce(&mut
 {
     |resource| {
         resource.name(RES_LOGIN);
-        resource.get().f(get_login(templates));
+        resource.get().f(get_login(templates.clone()));
         resource.post().with(post_login(secrets, templates));
     }
 }
@@ -244,9 +280,10 @@ pub fn app(secrets: Config<Secrets>, templates: Arc<Tera>, config: &SystemConfig
         .middleware(SessionStorage::new(
             CookieSessionBackend::private(&secrets.read().session_key)
                 .name("lc-session")
+                .secure(false)
         ))
         .resource("/", res_home(templates.clone()))
-        .resource("/login/", res_login(secrets, templates.clone()))
+        .resource("/login/", res_login(secrets.clone(), templates.clone()))
         .resource("/admin/", res_admin(templates.clone()));
 
     // Inability to serve static files is an error, but not necessarily fatal
