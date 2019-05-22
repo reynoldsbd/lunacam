@@ -8,7 +8,7 @@
 
 use std::sync::Arc;
 
-use actix_web::{App, HttpRequest, HttpResponse};
+use actix_web::{App, Form, HttpRequest, HttpResponse};
 use actix_web::dev::Resource;
 use actix_web::fs::StaticFiles;
 use actix_web::http::header::LOCATION;
@@ -60,6 +60,8 @@ impl Default for Secrets
 
 //#region Templates
 
+// TODO: use an actor to support reloading
+
 /// Renders the specified template to an `HttpResponse`
 ///
 /// If an error occurs while rendering the template, the error error message is logged and written
@@ -83,7 +85,9 @@ fn render(templates: &Tera, name: &str) -> HttpResponse
 //#endregion
 
 
-//#region Authentication and Login Page
+//#region Authentication and Login
+
+// TODO: some of this needs to be usable from the api module
 
 /// Defines a user's access level
 ///
@@ -173,6 +177,19 @@ fn get_login(templates: Arc<Tera>) -> impl Fn(&HttpRequest<()>) -> HttpResponse
     }
 }
 
+#[derive(Deserialize)]
+struct LoginForm
+{
+    password: String,
+}
+
+fn post_login(secrets: Config<Secrets>, templates: Arc<Tera>) -> impl Fn(&HttpRequest<()>, Form<LoginForm>) -> HttpResponse
+{
+    |request, form| {
+
+    }
+}
+
 //#endregion
 
 
@@ -208,12 +225,12 @@ fn res_home(templates: Arc<Tera>) -> impl FnOnce(&mut Resource<()>)
 /// Configures the login resource
 ///
 /// This function returns a callback that can be passed to the `App::resource` method
-fn res_login(templates: Arc<Tera>) -> impl FnOnce(&mut Resource<()>)
+fn res_login(secrets: Config<Secrets>, templates: Arc<Tera>) -> impl FnOnce(&mut Resource<()>)
 {
     |resource| {
         resource.name(RES_LOGIN);
         resource.get().f(get_login(templates));
-        // TODO: on POST, validate creds and redirect to destination, or re-render login w/ error
+        resource.post().with(post_login(secrets, templates));
     }
 }
 
@@ -229,7 +246,7 @@ pub fn app(secrets: Config<Secrets>, templates: Arc<Tera>, config: &SystemConfig
                 .name("lc-session")
         ))
         .resource("/", res_home(templates.clone()))
-        .resource("/login/", res_login(templates.clone()))
+        .resource("/login/", res_login(secrets, templates.clone()))
         .resource("/admin/", res_admin(templates.clone()));
 
     // Inability to serve static files is an error, but not necessarily fatal
