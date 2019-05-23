@@ -1,86 +1,83 @@
-mod auth;
+// TODO: how to enable resetting secret?
+// TODO: actors probably being used overzealously
+// TODO: better capitalization for logged messages at info or above
+// TODO: curly brace convention
+
+mod api;
 mod config;
 mod templates;
+mod ui;
 
 
 //#region Usings
 
 use std::env;
+use std::sync::Arc;
 
 use actix::{System, SystemRunner};
 
 use actix_web::App;
-use actix_web::fs::StaticFiles;
-use actix_web::middleware::Logger;
-use actix_web::middleware::session::{SessionStorage, CookieSessionBackend};
-use actix_web::pred;
 use actix_web::server::HttpServer;
 
 use env_logger::Env;
 
 use log::{debug, error, info, trace};
 
-use config::SystemConfig;
+use tera::compile_templates;
+
+use crate::config::{Config, SystemConfig};
 
 //#endregion
 
 
-/// Creates an App factory method for actix-web
-fn make_app_factory(config: &SystemConfig) -> impl Fn() -> App + Clone {
-    let templates = templates::TemplateManager::new(&config.template_path);
-    let static_path = config.static_path.to_owned();
-    let user_pw = config.user_password.to_owned();
-    let admin_pw = config.admin_password.to_owned();
-    let secret = config.secret.clone();
+//#region Actix System
+
+/// Returns an application factory callback
+fn app_factory(config: SystemConfig) -> impl Fn() -> Vec<App> + Clone + Send
+{
+    let config = Arc::new(config);
+    let secrets = Config::new("secrets", &config)
+        .expect("Failed to initialize secrets");
+    let templates = Arc::new(compile_templates!(&format!("{}/**/*", &config.template_path)));
 
     move || {
-        let templates = templates.clone();
-        let user_pw = user_pw.clone();
-        let admin_pw = admin_pw.clone();
-        let secret = secret.clone();
-
-        App::new()
-            .middleware(Logger::default())
-            .middleware(SessionStorage::new(
-                CookieSessionBackend::private(&secret)
-                    .name("lunacamsession")
-                .secure(false) // TODO: is there a way to enable secure cookies?
-            ))
-            .handler(
-                "/static",
-                StaticFiles::new(&static_path)
-                    .expect("failed to load static file handler")
-            )
-            .resource("/{tail:.*}", move |r| {
-                auth::Authenticator::register(r, user_pw.to_owned(), admin_pw.to_owned());
-                r.route()
-                    .filter(pred::Get())
-                    .h(templates.clone());
-            })
+        vec![
+            ui::app(secrets.clone(), templates.clone(), &config),
+            api::app()
+                .prefix("/api"),
+        ]
     }
 }
 
-
-//#region Actix System
-
-fn sys_init(config: &SystemConfig) -> SystemRunner {
+/// Initializes the main Actix system
+fn sys_init(config: SystemConfig) -> SystemRunner
+{
     let runner = System::new("lunacam");
 
+    // TODO: if config changes, restart dependent actors
+
     trace!("initializing HTTP server");
-    HttpServer::new(make_app_factory(&config))
-        .bind(&config.listen)
-        .expect("could not bind to address")
+    let addr = config.listen.clone();
+    HttpServer::new(app_factory(config))
+        .bind(addr)
+        .expect("Could not bind to address")
         .start();
 
     trace!("registering termination handler");
     let system = System::current();
     ctrlc::set_handler(move || sys_term(&system))
-        .unwrap_or_else(|e| error!("failed to register termination handler ({})", e));
+        .unwrap_or_else(|e| error!("Failed to register termination handler: {}", e));
 
     runner
 }
 
-fn sys_term(system: &System) {
+/// Terminates the specified Actix system
+///
+/// This function is called to handle termination signals on all platforms. At present, it's only
+/// responsibility is to stop the main Actix system, but in the future we should use it to manage
+/// components that require graceful teardown.
+fn sys_term(system: &System)
+{
     debug!("received termination signal");
     system.stop();
 }
@@ -88,9 +85,11 @@ fn sys_term(system: &System) {
 //#endregion
 
 
-fn main() {
+fn main()
+{
     let env = Env::default()
-        .default_filter_or("info");
+        .filter_or("LUNACAM_LOG", "info")
+        .write_style("LUNACAM_LOG_STYLE");
     env_logger::init_from_env(env);
 
     debug!("loading configuration");
@@ -99,7 +98,7 @@ fn main() {
         .expect("failed to load configuration");
 
     debug!("initializing system");
-    let runner = sys_init(&config);
+    let runner = sys_init(config);
     info!("initialization complete");
 
     let status = runner.run();
