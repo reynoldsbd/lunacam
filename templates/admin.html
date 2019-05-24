@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+
+{% block title %}Administration{% endblock title %}
+
+{% block content %}
+<div class="container">
+    <div class="columns is-centered">
+        <div class="column is-narrow">
+            <div class="box">
+
+                <h3 class="title is-5">Administrative Controls</h3>
+                <hr />
+
+                <div class="field is-horizontal">
+                    <div class="field-label">
+                        <label class="label">Stream Enabled</label>
+                    </div>
+                    <div class="field-body">
+                        <div class="field is-narrow">
+                            <div class="control">
+                                <input type="checkbox">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock content %}
