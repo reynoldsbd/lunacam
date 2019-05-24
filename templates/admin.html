@@ -18,14 +18,18 @@
                     <div class="field-body">
                         <div class="field is-narrow">
                             <div class="control">
-                                <input type="checkbox">
+                                <input type="checkbox" onclick="enabledClicked(this)">
                             </div>
                         </div>
                     </div>
                 </div>
-                
+
             </div>
         </div>
     </div>
 </div>
 {% endblock content %}
+
+{% block extrajs %}
+<script src="/static/js/admin.js"></script>
+{% endblock extrajs %}

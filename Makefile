@@ -68,9 +68,11 @@ clean_targets += srv-clean
 static := $(repo)/.static
 static_target := $(target_dir)/static
 style := $(repo)/style
+js := $(repo)/js
 
-$(static_target): $(shell find $(style) -type f)
+$(static_target): $(shell find $(style) -type f) $(shell find $(js) -type f)
 	@sass $(style):$(static)
+	@cp -R $(js) $(static)
 	@touch $(static_target)
 
 
@@ -158,6 +160,15 @@ deploy: $(stg_target)
 	@$(PI_CMD) sudo systemctl daemon-reload
 	@$(PI_CMD) sudo systemctl restart lunacam
 .PHONY: deploy
+
+
+####################################################################################################
+# Runs LunaCam on the local machine
+####################################################################################################
+
+run: $(shell find $(repo)/src -type f) $(srv_manifest) $(static_target)
+	@cargo run -- config.json
+.PHONY: run
 
 
 ####################################################################################################
