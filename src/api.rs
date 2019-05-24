@@ -6,17 +6,12 @@
 
 //#region Usings
 
-use actix_web::{App, HttpRequest, HttpResponse, Json};
+use actix_web::{HttpResponse, Json, Scope};
 use actix_web::dev::{Resource};
-use actix_web::middleware::{Logger};
-use actix_web::middleware::session::{CookieSessionBackend, SessionStorage};
 
 use log::{debug, trace};
 
 use serde::Deserialize;
-
-use crate::config::Config;
-use crate::ui::Secrets;
 
 //#endrgegion
 
@@ -28,9 +23,9 @@ struct Stream {
     enabled: Option<bool>,
 }
 
-fn post_admin_stream() -> impl Fn(HttpRequest<()>, Json<Stream>) -> HttpResponse
+fn post_admin_stream() -> impl Fn(Json<Stream>) -> HttpResponse
 {
-    |request, stream| {
+    |stream| {
         if let Some(enabled) = stream.enabled {
             debug!("setting stream enabled status to {}", enabled);
             // TODO: smgr.set_enabled(stream.enabled)
@@ -54,21 +49,16 @@ fn res_admin_stream() -> impl FnOnce(&mut Resource<()>)
     }
 }
 
-/// Returns an Actix application that provides LunaCam's web API
-pub fn app(secrets: Config<Secrets>) -> App
+/// Configures LunaCam's API scope
+pub fn scope() -> impl FnOnce(Scope<()>) -> Scope<()>
 {
-    trace!("initializing API application");
+    |scope| {
+        trace!("configuring API scope");
 
-    let app = App::new()
-        .middleware(Logger::default())
-        .middleware(SessionStorage::new(
-            CookieSessionBackend::private(&secrets.read().session_key)
-                .name("lc-session")
-                .secure(false)
-        ))
-        .resource("/admin/stream", res_admin_stream());
-
-    app
+        // TODO: middleware to reject unauthenticated requests
+        scope
+            .resource("/admin/stream", res_admin_stream())
+    }
 }
 
 //#endregion

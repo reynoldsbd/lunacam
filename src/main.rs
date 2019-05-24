@@ -17,6 +17,9 @@ use std::sync::Arc;
 use actix::{System, SystemRunner};
 
 use actix_web::App;
+use actix_web::fs::{StaticFiles};
+use actix_web::middleware::{Logger};
+use actix_web::middleware::session::{CookieSessionBackend, SessionStorage};
 use actix_web::server::HttpServer;
 
 use env_logger::Env;
@@ -32,22 +35,28 @@ use crate::config::{Config, SystemConfig};
 
 //#region Actix System
 
-// TODO: use app scopes instead of separate apps
-
 /// Returns an application factory callback
-fn app_factory(config: SystemConfig) -> impl Fn() -> Vec<App> + Clone + Send
+fn app_factory(config: SystemConfig) -> impl Fn() -> App + Clone + Send
 {
     let config = Arc::new(config);
-    let secrets = Config::new("secrets", &config)
+    let secrets: Config<ui::Secrets> = Config::new("secrets", &config)
         .expect("Failed to initialize secrets");
     let templates = Arc::new(compile_templates!(&format!("{}/**/*", &config.template_path)));
 
     move || {
-        vec![
-            api::app(secrets.clone())
-                .prefix("/api"),
-            ui::app(secrets.clone(), templates.clone(), &config),
-        ]
+        let static_files = StaticFiles::new(&config.static_path)
+            .expect("Could not load static files");
+
+        App::new()
+            .middleware(Logger::default())
+            .middleware(SessionStorage::new(
+                CookieSessionBackend::private(&secrets.read().session_key)
+                    .name("lc-session")
+                    .secure(false)
+            ))
+            .handler("/static", static_files)
+            .scope("/api", api::scope())
+            .scope("", ui::scope(secrets.clone(), templates.clone()))
     }
 }
 
