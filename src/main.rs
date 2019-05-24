@@ -32,6 +32,8 @@ use crate::config::{Config, SystemConfig};
 
 //#region Actix System
 
+// TODO: use app scopes instead of separate apps
+
 /// Returns an application factory callback
 fn app_factory(config: SystemConfig) -> impl Fn() -> Vec<App> + Clone + Send
 {
@@ -42,9 +44,9 @@ fn app_factory(config: SystemConfig) -> impl Fn() -> Vec<App> + Clone + Send
 
     move || {
         vec![
-            ui::app(secrets.clone(), templates.clone(), &config),
-            api::app()
+            api::app(secrets.clone())
                 .prefix("/api"),
+            ui::app(secrets.clone(), templates.clone(), &config),
         ]
     }
 }
