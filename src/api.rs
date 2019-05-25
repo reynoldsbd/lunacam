@@ -27,6 +27,41 @@ struct ApiState
     secrets: Config<Secrets>,
 }
 
+/// Structure of the */admin/passwords* resource
+#[derive(Deserialize)]
+struct PasswordPatch
+{
+    admin_pw: Option<String>,
+    user_pw: Option<String>,
+}
+
+/// Handles *PATCH /admin/passwords*
+///
+/// Updates user and admin passwords as directed by user
+fn patch_admin_passwords() -> impl Fn(HttpRequest<ApiState>, Json<PasswordPatch>) -> HttpResponse
+{
+    |request, passwords| {
+        trace!("updating passwords");
+
+        let mut secrets = request.state()
+            .secrets
+            .write();
+
+        if let Some(ref pw) = passwords.admin_pw {
+            info!("Updating admin password");
+            secrets.admin_pw = pw.to_owned();
+        }
+
+        if let Some(ref pw) = passwords.user_pw {
+            info!("Updating user password");
+            secrets.user_pw = pw.to_owned();
+        }
+
+        HttpResponse::Ok()
+            .finish()
+    }
+}
+
 /// Handles *DELETE /admin/sessions*
 ///
 /// Resets the session key, which effectively forcing all users to re-authenticate.
@@ -45,7 +80,7 @@ fn delete_admin_sessions() -> impl Fn(&HttpRequest<ApiState>) -> HttpResponse
     }
 }
 
-/// Structure of the */admin/stream* REST resource
+/// Structure of the */admin/stream* resource
 #[derive(Deserialize)]
 struct StreamPatch
 {
@@ -88,6 +123,9 @@ pub fn scope(secrets: Config<Secrets>) -> impl FnOnce(Scope<()>) -> Scope<()>
                     AccessLevel::Administrator,
                     |_| HttpResponse::Unauthorized().finish()
                 ))
+                .resource("/admin/passwords", |r| {
+                    r.patch().with(patch_admin_passwords());
+                })
                 .resource("/admin/sessions", |r| {
                     r.delete().f(delete_admin_sessions());
                 })
