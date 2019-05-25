@@ -8,7 +8,7 @@
 
 use actix_web::{HttpRequest, HttpResponse, Json, Scope};
 
-use log::{debug, trace};
+use log::{debug, info, trace};
 
 use serde::Deserialize;
 
@@ -33,11 +33,13 @@ struct ApiState
 fn delete_admin_sessions() -> impl Fn(&HttpRequest<ApiState>) -> HttpResponse
 {
     |request| {
+        info!("Resetting all login sessions");
         request.state()
             .secrets
             .write()
             .reset_session_key();
-        // TODO: reset the server (https://github.com/actix/actix-net/pull/20)
+        // TODO: only reset the HTTP server (https://github.com/actix/actix-net/pull/20)
+
         HttpResponse::Ok()
             .finish()
     }
@@ -45,7 +47,7 @@ fn delete_admin_sessions() -> impl Fn(&HttpRequest<ApiState>) -> HttpResponse
 
 /// Structure of the */admin/stream* REST resource
 #[derive(Deserialize)]
-struct Stream
+struct StreamPatch
 {
     enabled: Option<bool>,
 }
@@ -53,9 +55,11 @@ struct Stream
 /// Handles *PATCH /admin/stream*
 ///
 /// Reconfigures the video stream as directed by the user
-fn patch_admin_stream() -> impl Fn(Json<Stream>) -> HttpResponse
+fn patch_admin_stream() -> impl Fn(Json<StreamPatch>) -> HttpResponse
 {
     |stream| {
+        trace!("configuring video stream");
+
         if let Some(enabled) = stream.enabled {
             debug!("setting stream enabled status to {}", enabled);
             // TODO: smgr.set_enabled(stream.enabled)

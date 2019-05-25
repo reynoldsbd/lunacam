@@ -1,7 +1,4 @@
-// TODO: how to enable resetting secret?
 // TODO: actors probably being used overzealously
-// TODO: better capitalization for logged messages at info or above
-// TODO: curly brace convention
 
 mod api;
 mod config;
@@ -46,6 +43,8 @@ fn app_factory(config: SystemConfig) -> impl Fn() -> App + Clone + Send
     let templates = Arc::new(compile_templates!(&format!("{}/**/*", &config.template_path)));
 
     move || {
+        trace!("preparing actix application");
+
         let static_files = StaticFiles::new(&config.static_path)
             .expect("Could not load static files");
 
@@ -105,12 +104,12 @@ fn main()
         .write_style("LUNACAM_LOG_STYLE");
     env_logger::init_from_env(env);
 
-    debug!("loading configuration");
+    trace!("loading configuration");
     let args: Vec<_> = env::args().collect();
     let config = SystemConfig::load(&args[1])
         .expect("failed to load configuration");
 
-    debug!("initializing system");
+    trace!("initializing system");
     let runner = sys_init(config);
     info!("initialization complete");
 

@@ -27,7 +27,9 @@ use actix_web::error;
 use actix_web::middleware::{Middleware, Started};
 use actix_web::middleware::session::RequestSession;
 
-use log::{error, trace, warn};
+use derive_more::Display;
+
+use log::{debug, error, trace, warn};
 
 use rand::Rng;
 
@@ -83,7 +85,7 @@ impl Default for Secrets
 /// Defines a user's access level
 ///
 /// Access levels are sequential, and a higher level of access implies all lower levels.
-#[derive(Deserialize, PartialEq, PartialOrd, Serialize)]
+#[derive(Deserialize, Display, PartialEq, PartialOrd, Serialize)]
 pub enum AccessLevel
 {
     // Ordering of variant declaration matters! This ordering is used by the derivation of
@@ -108,6 +110,8 @@ const ACCESS_LEVEL_COOKIE: &str = "accessLevel";
 pub fn authenticate<S>(request: &HttpRequest<S>, password: &str) -> bool
 where S: AsRef<Config<Secrets>>
 {
+    trace!("authenticating request");
+
     let secrets = request.state()
         .as_ref()
         .read();
@@ -121,10 +125,10 @@ where S: AsRef<Config<Secrets>>
         return false;
     };
 
+    debug!("authenticated request with access level {}", level);
     request.session()
         .set(ACCESS_LEVEL_COOKIE, level)
         .unwrap_or_else(|err| error!("Failed to set access level cookie: {}", err));
-
     true
 }
 
@@ -145,11 +149,17 @@ where R: Fn(&HttpRequest<S>) -> HttpResponse + 'static
 {
     fn start(&self, request: &HttpRequest<S>) -> error::Result<Started>
     {
-        request.session()
+        let level = request.session()
             .get::<AccessLevel>(ACCESS_LEVEL_COOKIE)?
-            .filter(|level| level >= &self.min_level)
-            .map(|_| Ok(Started::Done))
-            .unwrap_or_else(|| Ok(Started::Response((self.responder)(request))))
+            .filter(|level| level >= &self.min_level);
+
+        if let Some(level) = level {
+            trace!("permitting request with access level {}", level);
+            Ok(Started::Done)
+        } else {
+            debug!("rejecting request (access level missing or too low)");
+            Ok(Started::Response((self.responder)(request)))
+        }
     }
 }
 

@@ -58,6 +58,8 @@ fn render(name: &'static str) -> impl Fn(&HttpRequest<UiState>) -> HttpResponse 
 /// redirect back after a successful login.
 fn login_redirect(request: &HttpRequest<UiState>) -> HttpResponse
 {
+    trace!("preparing login redirect");
+
     let mut url = request.url_for_static(RES_LOGIN)
         .expect("Reverse-lookup of login resource failed");
 
@@ -104,6 +106,8 @@ struct LoginForm
 fn post_login() -> impl Fn(HttpRequest<UiState>, Form<LoginForm>) -> HttpResponse
 {
     move |request, form| {
+        trace!("logging in user");
+
         if sec::authenticate(&request, &form.password) {
             // TODO: this is hideous
             let dest = request.query()
