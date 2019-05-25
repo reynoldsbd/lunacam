@@ -13,6 +13,9 @@ use log::{debug, trace};
 
 use serde::Deserialize;
 
+use crate::sec;
+use crate::sec::AccessLevel;
+
 //#endrgegion
 
 
@@ -23,7 +26,7 @@ struct Stream {
     enabled: Option<bool>,
 }
 
-fn post_admin_stream() -> impl Fn(Json<Stream>) -> HttpResponse
+fn patch_admin_stream() -> impl Fn(Json<Stream>) -> HttpResponse
 {
     |stream| {
         if let Some(enabled) = stream.enabled {
@@ -45,7 +48,7 @@ fn post_admin_stream() -> impl Fn(Json<Stream>) -> HttpResponse
 fn res_admin_stream() -> impl FnOnce(&mut Resource<()>)
 {
     |resource| {
-        resource.post().with(post_admin_stream());
+        resource.patch().with(patch_admin_stream());
     }
 }
 
@@ -55,8 +58,13 @@ pub fn scope() -> impl FnOnce(Scope<()>) -> Scope<()>
     |scope| {
         trace!("configuring API scope");
 
-        // TODO: middleware to reject unauthenticated requests
         scope
+            // This makes all API resources admin-only. May need to fall back to per-resource
+            // middleware if we introduce any non-admin API resources.
+            .middleware(sec::require(
+                AccessLevel::Administrator,
+                |_| HttpResponse::Unauthorized().finish()
+            ))
             .resource("/admin/stream", res_admin_stream())
     }
 }

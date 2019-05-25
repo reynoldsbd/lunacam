@@ -4,7 +4,7 @@ function enabledClicked(checkbox) {
     // TODO: show a spinner
 
     fetch('/api/admin/stream', {
-            method: 'POST',
+            method: 'PATCH',
             headers: {
                 'Content-Type': 'application/json'
             },
