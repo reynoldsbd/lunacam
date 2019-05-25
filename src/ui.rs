@@ -76,6 +76,21 @@ fn login_redirect(request: &HttpRequest<UiState>) -> HttpResponse
 
 //#region Actix Application
 
+/// Application state for the UI
+struct UiState
+{
+    secrets: Config<Secrets>,
+    templates: Arc<Tera>,
+}
+
+impl AsRef<Config<Secrets>> for UiState
+{
+    fn as_ref(&self) -> &Config<Secrets>
+    {
+        &self.secrets
+    }
+}
+
 /// Contents of a POSTed login page form
 #[derive(Deserialize)]
 struct LoginForm
@@ -83,7 +98,9 @@ struct LoginForm
     password: String,
 }
 
-/// Returns the login page's POST handler
+/// Handles *POST /login/*
+///
+/// Checks the user's password and authenticates the current session.
 fn post_login() -> impl Fn(HttpRequest<UiState>, Form<LoginForm>) -> HttpResponse
 {
     move |request, form| {
@@ -109,21 +126,6 @@ fn post_login() -> impl Fn(HttpRequest<UiState>, Form<LoginForm>) -> HttpRespons
             // TODO: display user-visible warning
             render("login.html")(&request)
         }
-    }
-}
-
-/// Application state for the UI
-struct UiState
-{
-    secrets: Config<Secrets>,
-    templates: Arc<Tera>,
-}
-
-impl AsRef<Config<Secrets>> for UiState
-{
-    fn as_ref(&self) -> &Config<Secrets>
-    {
-        &self.secrets
     }
 }
 

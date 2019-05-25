@@ -57,7 +57,7 @@ fn app_factory(config: SystemConfig) -> impl Fn() -> App + Clone + Send
                     .secure(false)
             ))
             .handler("/static", static_files)
-            .scope("/api", api::scope())
+            .scope("/api", api::scope(secrets.clone()))
             .scope("", ui::scope(secrets.clone(), templates.clone()))
     }
 }

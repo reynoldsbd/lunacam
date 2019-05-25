@@ -49,6 +49,18 @@ pub struct Secrets
     pub user_pw: String,
 }
 
+impl Secrets
+{
+    /// Resets the current session key to a new, random value
+    ///
+    /// Caller is responsible for ensuring the HTTP server is restarted (otherwise, the old key will
+    /// continue to be used).
+    pub fn reset_session_key(&mut self)
+    {
+        self.session_key = rand::thread_rng().gen();
+    }
+}
+
 /// Ensures that `session_key` always has a random, secure value
 impl Default for Secrets
 {
