@@ -17,7 +17,7 @@ use derive_more::Display;
 
 use futures::future::Future;
 
-use log::{error, warn};
+use log::{debug, error, trace, warn};
 
 use serde::{Deserialize, Serialize};
 use serde::de::DeserializeOwned;
@@ -66,6 +66,8 @@ pub type Result<T> = result::Result<T, Error>;
 fn load_config<T>(file: &mut File) -> Result<T>
 where T: DeserializeOwned
 {
+    debug!("loading configuration from {:?}", file);
+
     file.seek(SeekFrom::Start(0))?;
     let reader = BufReader::new(file);
     Ok(serde_json::from_reader(reader)?)
@@ -75,6 +77,8 @@ where T: DeserializeOwned
 fn store_config<T>(config: &T, file: &mut File) -> Result<()>
 where T: Serialize
 {
+    debug!("storing configuration to {:?}", file);
+
     file.seek(SeekFrom::Start(0))?;
     file.set_len(0)?;
     serde_json::to_writer_pretty(&*file, config)?;
@@ -115,6 +119,7 @@ macro_rules! rwl_write {
 //#region System Configuration
 
 // TODO: use regular config infrastructure to load and watch system configuration
+// TODO: or replace with env vars
 
 /// Critical configuration needed for the system to operate correctly
 #[derive(Deserialize)]
@@ -139,6 +144,7 @@ impl SystemConfig
     /// Loads system configuration from the specified file
     pub fn load<P: AsRef<Path>>(path: P) -> Result<SystemConfig>
     {
+        trace!("loading system configuration");
         load_config(&mut File::open(path)?)
     }
 }
@@ -176,6 +182,7 @@ where T: Serialize + 'static
 
     fn handle(&mut self, _: Flush, _: &mut Context<Self>) -> Self::Result
     {
+        trace!("flushing configuration");
         let config = rwl_read!(self.config);
         store_config(&*config, &mut self.file)
     }
@@ -219,6 +226,7 @@ where T: Serialize
 {
     fn drop(&mut self)
     {
+        trace!("requesting configuration flush");
         Arbiter::spawn(
             self.flusher.send(Flush)
                 .map_err(|err|
@@ -238,6 +246,7 @@ where T: Serialize
 
 // TODO: Watch backing file for changes
 // TODO: Support read-only config, use for system parameters
+// TODO: global hashmap to enforce unique file access?
 
 const CONFIG_ENV: &str = "LUNACAM_CONFIG_PATH";
 const CONFIG_DEFAULT: &str = "./.config";
@@ -247,7 +256,6 @@ fn cfg_path(name: &str) -> PathBuf
 {
     let base_path = std::env::var(CONFIG_ENV)
         .unwrap_or(CONFIG_DEFAULT.to_owned());
-
     let mut path = PathBuf::from(base_path);
     path.push(format!("{}.json", name));
     path
@@ -273,6 +281,8 @@ where T: Default + DeserializeOwned + Serialize + 'static
     /// all instances of `Config`.
     pub fn new(name: &str) -> Result<Self>
     {
+        trace!("initializing {} configuration", name);
+
         // Open backing file, creating it if it does not exist
         let path = cfg_path(name);
         let already_exists = path.exists();
@@ -308,6 +318,7 @@ where T: Default + DeserializeOwned + Serialize + 'static
     /// Current thread is blocked until lock can be acquired.
     pub fn read(&self) -> RwLockReadGuard<T>
     {
+        trace!("configuration read");
         rwl_read!(self.config)
     }
 
@@ -316,6 +327,7 @@ where T: Default + DeserializeOwned + Serialize + 'static
     /// Current thread is blocked until lock can be acquired.
     pub fn write(&self) -> ConfigWriteGuard<T>
     {
+        trace!("configuration write");
         ConfigWriteGuard {
             inner: rwl_write!(self.config),
             flusher: &self.flusher,
