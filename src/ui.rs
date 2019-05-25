@@ -18,8 +18,9 @@ use serde::{Deserialize};
 
 use tera::{Context, Tera};
 
+use crate::config::Config;
 use crate::sec;
-use crate::sec::{AccessLevel, Authenticator};
+use crate::sec::{AccessLevel, Secrets};
 
 //#endregion
 
@@ -52,7 +53,7 @@ fn render(templates: &Tera, name: &str) -> HttpResponse
 ///
 /// Sets the `dest` query parameter to the current request's path, allowing `post_login` to
 /// redirect back after a successful login.
-fn login_redirect(request: &HttpRequest<()>) -> HttpResponse
+fn login_redirect(request: &HttpRequest<UiState>) -> HttpResponse
 {
     let mut url = request.url_for_static(RES_LOGIN)
         .expect("Reverse-lookup of login resource failed");
@@ -73,7 +74,7 @@ fn login_redirect(request: &HttpRequest<()>) -> HttpResponse
 //#region Resource Handlers
 
 /// Returns the admin page's GET handler
-fn get_admin(templates: Arc<Tera>) -> impl Fn(&HttpRequest<()>) -> HttpResponse
+fn get_admin(templates: Arc<Tera>) -> impl Fn(&HttpRequest<UiState>) -> HttpResponse
 {
     move |_| {
         render(&templates, "admin.html")
@@ -81,7 +82,7 @@ fn get_admin(templates: Arc<Tera>) -> impl Fn(&HttpRequest<()>) -> HttpResponse
 }
 
 /// Returns the home page's GET handler
-fn get_home(templates: Arc<Tera>) -> impl Fn(&HttpRequest<()>) -> HttpResponse
+fn get_home(templates: Arc<Tera>) -> impl Fn(&HttpRequest<UiState>) -> HttpResponse
 {
     move |_| {
         render(&templates, "home.html")
@@ -89,7 +90,7 @@ fn get_home(templates: Arc<Tera>) -> impl Fn(&HttpRequest<()>) -> HttpResponse
 }
 
 /// Returns the login page's GET handler
-fn get_login(templates: Arc<Tera>) -> impl Fn(&HttpRequest<()>) -> HttpResponse
+fn get_login(templates: Arc<Tera>) -> impl Fn(&HttpRequest<UiState>) -> HttpResponse
 {
     move |_| {
         render(&templates, "login.html")
@@ -103,12 +104,12 @@ struct LoginForm
 }
 
 /// Returns the login page's POST handler
-fn post_login(auth: Authenticator, templates: Arc<Tera>) -> impl Fn(HttpRequest<()>, Form<LoginForm>) -> HttpResponse
+fn post_login(templates: Arc<Tera>) -> impl Fn(HttpRequest<UiState>, Form<LoginForm>) -> HttpResponse
 {
     // TODO: won't need a handle to sec::Authenticator if we make a static sec::authenticate fn
 
     move |request, form| {
-        if auth.authenticate(&request, &form.password) {
+        if sec::authenticate(&request, &form.password) {
 
             // TODO: this is hideous
             HttpResponse::Found()
@@ -140,13 +141,26 @@ fn post_login(auth: Authenticator, templates: Arc<Tera>) -> impl Fn(HttpRequest<
 
 //#region Actix Application
 
+struct UiState
+{
+    secrets: Config<Secrets>,
+}
+
+impl AsRef<Config<Secrets>> for UiState
+{
+    fn as_ref(&self) -> &Config<Secrets>
+    {
+        &self.secrets
+    }
+}
+
 // Unique resource names
 const RES_ADMIN: &str = "admin";
 const RES_HOME: &str = "home";
 const RES_LOGIN: &str = "login";
 
 /// Configures the admin resource
-fn res_admin(templates: Arc<Tera>) -> impl FnOnce(&mut Resource<()>)
+fn res_admin(templates: Arc<Tera>) -> impl FnOnce(&mut Resource<UiState>)
 {
     |resource| {
         resource.name(RES_ADMIN);
@@ -156,7 +170,7 @@ fn res_admin(templates: Arc<Tera>) -> impl FnOnce(&mut Resource<()>)
 }
 
 /// Configures the home resource
-fn res_home(templates: Arc<Tera>) -> impl FnOnce(&mut Resource<()>)
+fn res_home(templates: Arc<Tera>) -> impl FnOnce(&mut Resource<UiState>)
 {
     |resource| {
         resource.name(RES_HOME);
@@ -166,25 +180,30 @@ fn res_home(templates: Arc<Tera>) -> impl FnOnce(&mut Resource<()>)
 }
 
 /// Configures the login resource
-fn res_login(auth: Authenticator, templates: Arc<Tera>) -> impl FnOnce(&mut Resource<()>)
+fn res_login(templates: Arc<Tera>) -> impl FnOnce(&mut Resource<UiState>)
 {
     |resource| {
         resource.name(RES_LOGIN);
         resource.get().f(get_login(templates.clone()));
-        resource.post().with(post_login(auth, templates));
+        resource.post().with(post_login(templates));
     }
 }
 
 /// Configures LunaCam's UI scope
-pub fn scope(auth: Authenticator, templates: Arc<Tera>) -> impl FnOnce(Scope<()>) -> Scope<()>
+pub fn scope(secrets: Config<Secrets>, templates: Arc<Tera>) -> impl FnOnce(Scope<()>) -> Scope<()>
 {
     move |scope| {
         trace!("configuring UI scope");
 
-        scope
-            .resource("/", res_home(templates.clone()))
-            .resource("/login/", res_login(auth.clone(), templates.clone()))
-            .resource("/admin/", res_admin(templates.clone()))
+        let state = UiState {
+            secrets: secrets,
+        };
+        scope.with_state("", state, |scope| {
+            scope
+                .resource("/", res_home(templates.clone()))
+                .resource("/login/", res_login(templates.clone()))
+                .resource("/admin/", res_admin(templates.clone()))
+        })
     }
 }
 

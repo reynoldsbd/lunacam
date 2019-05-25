@@ -29,7 +29,7 @@ use log::{debug, error, info, trace};
 
 use tera::compile_templates;
 
-use crate::sec::{Authenticator, Secrets};
+use crate::sec::{Secrets};
 use crate::config::{Config, SystemConfig};
 
 //#endregion
@@ -41,7 +41,7 @@ use crate::config::{Config, SystemConfig};
 fn app_factory(config: SystemConfig) -> impl Fn() -> App + Clone + Send
 {
     let config = Arc::new(config);
-    let secrets: Config<Secrets> = Config::new("secrets", &config)
+    let secrets: Config<Secrets> = Config::new("secrets")
         .expect("Failed to initialize secrets");
     let templates = Arc::new(compile_templates!(&format!("{}/**/*", &config.template_path)));
 
@@ -58,7 +58,7 @@ fn app_factory(config: SystemConfig) -> impl Fn() -> App + Clone + Send
             ))
             .handler("/static", static_files)
             .scope("/api", api::scope())
-            .scope("", ui::scope(Authenticator(secrets.clone()), templates.clone()))
+            .scope("", ui::scope(secrets.clone(), templates.clone()))
     }
 }
 

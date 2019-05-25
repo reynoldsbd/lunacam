@@ -239,6 +239,20 @@ where T: Serialize
 // TODO: Watch backing file for changes
 // TODO: Support read-only config, use for system parameters
 
+const CONFIG_ENV: &str = "LUNACAM_CONFIG_PATH";
+const CONFIG_DEFAULT: &str = "./.config";
+
+/// Returns path to the config file with the given name
+fn cfg_path(name: &str) -> PathBuf
+{
+    let base_path = std::env::var(CONFIG_ENV)
+        .unwrap_or(CONFIG_DEFAULT.to_owned());
+
+    let mut path = PathBuf::from(base_path);
+    path.push(format!("{}.json", name));
+    path
+}
+
 /// Manages access to filesystem-backed configuration
 ///
 /// `Config` provides shared access to an instance of `T` with very similar semantics to `RwLock`.
@@ -257,12 +271,10 @@ where T: Default + DeserializeOwned + Serialize + 'static
     ///
     /// `name` is used as name of the file backing the configuration, so it must be unique across
     /// all instances of `Config`.
-    pub fn new(name: &str, sys: &SystemConfig) -> Result<Self>
+    pub fn new(name: &str) -> Result<Self>
     {
         // Open backing file, creating it if it does not exist
-        // TODO: this method should probably just accept a path instead of trying to construct one
-        let mut path = PathBuf::from(&sys.user_config_path);
-        path.push(format!("{}.json", name));
+        let path = cfg_path(name);
         let already_exists = path.exists();
         let mut file = OpenOptions::new()
             .read(true)
@@ -271,16 +283,13 @@ where T: Default + DeserializeOwned + Serialize + 'static
             .open(path)?;
 
         // If file was already present, load its contents
-        let config = if already_exists {
-            load_config(&mut file)?
+        let config;
+        if already_exists {
+            config = load_config(&mut file)?;
         } else {
-            Default::default()
-        };
-
-        // If file is new, write default contents
-        if !already_exists {
+            config = Default::default();
             store_config(&config, &mut file)?;
-        }
+        };
 
         let config = Arc::new(RwLock::new(config));
         let flusher = ConfigFlusher {
