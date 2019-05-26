@@ -16,7 +16,7 @@ function enabledClicked(checkbox) {
         .then(response => {
             // TODO: re-enable control
             // TODO: hide spinner
-            
+
             // TODO: check for and report success
             console.log(response)
         });
@@ -24,7 +24,7 @@ function enabledClicked(checkbox) {
 
 
 // -------------------------------------------------------------------------------------------------
-// Password update functionality
+// Password Update
 // -------------------------------------------------------------------------------------------------
 
 var userPwInput = document.getElementById('user-pw');
@@ -92,3 +92,28 @@ function updatePasswords() {
 userPwInput.oninput = setUpdateButtonEnabled;
 adminPwInput.oninput = setUpdateButtonEnabled;
 updatePwButton.onclick = updatePasswords;
+
+
+// -------------------------------------------------------------------------------------------------
+// Session Reset
+// -------------------------------------------------------------------------------------------------
+
+var sessionResetButton = document.getElementById('session-reset')
+
+function sessionReset() {
+    if (!confirm('All currently logged-in users (including you) will be logged out. Are you sure you want to do this?')) {
+        return;
+    }
+
+    fetch('/api/admin/sessions', {
+            method: 'DELETE',
+            credentials: 'same-origin'
+        })
+        .then(response => {
+
+            // TODO: check for success, then reload page
+            console.log(response)
+        })
+}
+
+sessionResetButton.onclick = sessionReset;
