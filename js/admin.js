@@ -98,21 +98,35 @@ updatePwButton.onclick = updatePasswords;
 // Session Reset
 // -------------------------------------------------------------------------------------------------
 
-var sessionResetButton = document.getElementById('session-reset')
+var sessionResetButton = document.getElementById('session-reset');
+var resetModal = document.getElementById('reset-modal');
 
 function sessionReset() {
     if (!confirm('All currently logged-in users (including you) will be logged out. Are you sure you want to do this?')) {
         return;
     }
 
+    resetModal.classList.add('is-active');
+
     fetch('/api/admin/sessions', {
             method: 'DELETE',
             credentials: 'same-origin'
         })
-        .then(response => {
+        .then(handleSessionResetResponse);
+}
 
-            // TODO: check for success, then reload page
-            console.log(response)
+function handleSessionResetResponse(response) {
+    if (!response.ok) {
+        resetModal.classList.remove('is-active');
+        // TODO: user visible error message
+        console.error('session reset failed');
+        return;
+    }
+
+    // Give the server time to restart, then reload
+    new Promise(r => setTimeout(r, 5000))
+        .then(() => {
+            window.location.replace(window.location.href);
         })
 }
 

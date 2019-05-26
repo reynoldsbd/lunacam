@@ -6,6 +6,8 @@
 
 //#region Usings
 
+use actix::System;
+
 use actix_web::{HttpRequest, HttpResponse, Json, Scope};
 
 use log::{debug, info, trace};
@@ -74,7 +76,14 @@ fn delete_admin_sessions() -> impl Fn(&HttpRequest<ApiState>) -> HttpResponse
             .secrets
             .write()
             .reset_session_key();
-        // TODO: only reset the HTTP server (https://github.com/actix/actix-net/pull/20)
+
+        // Old session key is still being used by Actix middleware pipeline. Ideally, we would just
+        // ask the HTTP server to reload itself, but there isn't really a clean way to do that from
+        // this context (relevant PR: https://github.com/actix/actix-net/pull/20).
+        //
+        // As a workaround, we simply end the current process and allow it to be restarted by
+        // systemd.
+        crate::sys_term(&System::current());
 
         HttpResponse::Ok()
             .finish()
