@@ -29,6 +29,7 @@ struct ApiState
 
 /// Structure of the */admin/passwords* resource
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct PasswordPatch
 {
     admin_pw: Option<String>,
@@ -82,6 +83,7 @@ fn delete_admin_sessions() -> impl Fn(&HttpRequest<ApiState>) -> HttpResponse
 
 /// Structure of the */admin/stream* resource
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct StreamPatch
 {
     enabled: Option<bool>,

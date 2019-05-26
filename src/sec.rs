@@ -44,6 +44,7 @@ use crate::config::Config;
 
 /// Secret values used for authentication and session encryption
 #[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Secrets
 {
     pub admin_pw: String,
