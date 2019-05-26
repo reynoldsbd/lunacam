@@ -60,7 +60,7 @@ pub type Result<T> = result::Result<T, Error>;
 //#endregion
 
 
-//#region Utilities
+//#region File I/O
 
 /// Loads configuration from the given file
 fn load_config<T>(file: &mut File) -> Result<T>
@@ -84,33 +84,6 @@ where T: Serialize
     serde_json::to_writer_pretty(&*file, config)?;
     file.sync_all()?;
     Ok(())
-}
-
-/// Retrieves a read or write guard from a potentially poisoned lock
-///
-/// A warning is logged if the lock is poisoned, but the guard is still returned.
-macro_rules! rwl {
-    ($lock:expr, $op:ident) => {
-        $lock.$op()
-            .unwrap_or_else(|err| {
-                warn!("A configuration lock is poisoned");
-                err.into_inner()
-            })
-    }
-}
-
-/// Retrieves an `RwLock`'s read guard
-///
-/// A warning is logged if the lock is poisoned, but the guard is still returned.
-macro_rules! rwl_read {
-    ($lock:expr) => (rwl!($lock, read))
-}
-
-/// Retrieves an `RwLock`'s write guard
-///
-/// A warning is logged if the lock is poisoned, but the guard is still returned.
-macro_rules! rwl_write {
-    ($lock:expr) => (rwl!($lock, write))
 }
 
 //#endregion

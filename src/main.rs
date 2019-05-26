@@ -1,9 +1,12 @@
 // TODO: actors probably being used overzealously
 
+#[macro_use]
+mod macros;
+
 mod api;
 mod config;
 mod sec;
-mod templates;
+mod tmpl;
 mod ui;
 
 
@@ -24,10 +27,9 @@ use env_logger::Env;
 
 use log::{debug, error, info, trace};
 
-use tera::compile_templates;
-
-use crate::sec::{Secrets};
 use crate::config::{Config, SystemConfig};
+use crate::sec::{Secrets};
+use crate::tmpl::Templates;
 
 //#endregion
 
@@ -40,7 +42,7 @@ fn app_factory(config: SystemConfig) -> impl Fn() -> App + Clone + Send
     let config = Arc::new(config);
     let secrets: Config<Secrets> = Config::new("secrets")
         .expect("Failed to initialize secrets");
-    let templates = Arc::new(compile_templates!(&format!("{}/**/*", &config.template_path)));
+    let templates = Templates::new(&config.template_path);
 
     move || {
         trace!("preparing actix application");
