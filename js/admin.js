@@ -1,7 +1,12 @@
-function enabledClicked(checkbox) {
+// Behavior for the admin page
 
-    // TODO: disable control until a response is received
-    // TODO: show a spinner
+
+//#region Stream Configuration
+
+var streamEnabledSwitch = document.getElementById('stream-enabled');
+
+function toggleStream(checkbox) {
+    streamEnabledSwitch.disabled = true;
 
     fetch('/api/admin/stream', {
             method: 'PATCH',
@@ -14,22 +19,26 @@ function enabledClicked(checkbox) {
             credentials: 'same-origin'
         })
         .then(response => {
-            // TODO: re-enable control
-            // TODO: hide spinner
+            streamEnabledSwitch.disabled = false;
 
-            // TODO: check for and report success
-            console.log(response)
+            if (!response.ok) {
+                streamEnabledSwitch.checked = !streamEnabledSwitch.checked;
+                // TODO: user visible error message
+                console.warn('stream enable/disable failed');
+            }
         });
 }
 
+streamEnabledSwitch.onclick = toggleStream;
 
-// -------------------------------------------------------------------------------------------------
-// Password Update
-// -------------------------------------------------------------------------------------------------
+//#endregion
+
+
+//#region Password Update
 
 var userPwInput = document.getElementById('user-pw');
 var adminPwInput = document.getElementById('admin-pw');
-var updatePwButton = document.getElementById('update-pw')
+var updatePwButton = document.getElementById('update-pw');
 
 // Enables or disables the button for submitting password updates
 function setUpdateButtonEnabled() {
@@ -93,10 +102,10 @@ userPwInput.oninput = setUpdateButtonEnabled;
 adminPwInput.oninput = setUpdateButtonEnabled;
 updatePwButton.onclick = updatePasswords;
 
+//#endregion
 
-// -------------------------------------------------------------------------------------------------
-// Session Reset
-// -------------------------------------------------------------------------------------------------
+
+//#region Session Reset
 
 var sessionResetButton = document.getElementById('session-reset');
 var resetModal = document.getElementById('reset-modal');
@@ -131,3 +140,5 @@ function handleSessionResetResponse(response) {
 }
 
 sessionResetButton.onclick = sessionReset;
+
+//#endregion

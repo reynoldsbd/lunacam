@@ -71,7 +71,7 @@ style := $(repo)/style
 js := $(repo)/js
 
 $(static_target): $(shell find $(style) -type f) $(shell find $(js) -type f)
-	@sass $(style):$(static)
+	@sass --source-map-urls=absolute $(style):$(static)
 	@cp -R $(js) $(static)
 	@touch $(static_target)
 
