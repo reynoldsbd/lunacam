@@ -94,7 +94,7 @@ fn login_redirect(request: &HttpRequest<UiState>) -> HttpResponse
 struct UiState
 {
     secrets: Config<Secrets>,
-    tmpl: Templates
+    templates: Templates
 }
 
 impl AsRef<Config<Secrets>> for UiState
@@ -109,7 +109,7 @@ impl AsRef<Templates> for UiState
 {
     fn as_ref(&self) -> &Templates
     {
-        &self.tmpl
+        &self.templates
     }
 }
 
@@ -119,14 +119,14 @@ const RES_HOME: &str = "home";
 const RES_LOGIN: &str = "login";
 
 /// Configures LunaCam's UI scope
-pub fn scope(secrets: Config<Secrets>, tmpl: Templates) -> impl FnOnce(Scope<()>) -> Scope<()>
+pub fn scope(secrets: Config<Secrets>, templates: Templates) -> impl FnOnce(Scope<()>) -> Scope<()>
 {
     move |scope| {
         trace!("configuring UI scope");
 
         let state = UiState {
             secrets: secrets,
-            tmpl: tmpl,
+            templates: templates,
         };
 
         scope.with_state("", state, |scope| {
