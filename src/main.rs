@@ -1,11 +1,12 @@
-// TODO: how to enable resetting secret?
 // TODO: actors probably being used overzealously
-// TODO: better capitalization for logged messages at info or above
-// TODO: curly brace convention
+
+#[macro_use]
+mod macros;
 
 mod api;
 mod config;
-mod templates;
+mod sec;
+mod tmpl;
 mod ui;
 
 
@@ -17,15 +18,18 @@ use std::sync::Arc;
 use actix::{System, SystemRunner};
 
 use actix_web::App;
+use actix_web::fs::{StaticFiles};
+use actix_web::middleware::{Logger};
+use actix_web::middleware::session::{CookieSessionBackend, SessionStorage};
 use actix_web::server::HttpServer;
 
 use env_logger::Env;
 
 use log::{debug, error, info, trace};
 
-use tera::compile_templates;
-
 use crate::config::{Config, SystemConfig};
+use crate::sec::{Secrets};
+use crate::tmpl::Templates;
 
 //#endregion
 
@@ -33,19 +37,29 @@ use crate::config::{Config, SystemConfig};
 //#region Actix System
 
 /// Returns an application factory callback
-fn app_factory(config: SystemConfig) -> impl Fn() -> Vec<App> + Clone + Send
+fn app_factory(config: SystemConfig) -> impl Fn() -> App + Clone + Send
 {
     let config = Arc::new(config);
-    let secrets = Config::new("secrets", &config)
+    let secrets: Config<Secrets> = Config::new("secrets")
         .expect("Failed to initialize secrets");
-    let templates = Arc::new(compile_templates!(&format!("{}/**/*", &config.template_path)));
+    let templates = Templates::new(&config.template_path);
 
     move || {
-        vec![
-            ui::app(secrets.clone(), templates.clone(), &config),
-            api::app()
-                .prefix("/api"),
-        ]
+        trace!("preparing actix application");
+
+        let static_files = StaticFiles::new(&config.static_path)
+            .expect("Could not load static files");
+
+        App::new()
+            .middleware(Logger::default())
+            .middleware(SessionStorage::new(
+                CookieSessionBackend::private(&secrets.read().session_key)
+                    .name("lc-session")
+                    .secure(false)
+            ))
+            .handler("/static", static_files)
+            .scope("/api", api::scope(secrets.clone()))
+            .scope("", ui::scope(secrets.clone(), templates.clone()))
     }
 }
 
@@ -92,12 +106,12 @@ fn main()
         .write_style("LUNACAM_LOG_STYLE");
     env_logger::init_from_env(env);
 
-    debug!("loading configuration");
+    trace!("loading configuration");
     let args: Vec<_> = env::args().collect();
     let config = SystemConfig::load(&args[1])
         .expect("failed to load configuration");
 
-    debug!("initializing system");
+    trace!("initializing system");
     let runner = sys_init(config);
     info!("initialization complete");
 

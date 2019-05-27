@@ -17,7 +17,7 @@ use derive_more::Display;
 
 use futures::future::Future;
 
-use log::{error, warn};
+use log::{debug, error, trace, warn};
 
 use serde::{Deserialize, Serialize};
 use serde::de::DeserializeOwned;
@@ -60,12 +60,14 @@ pub type Result<T> = result::Result<T, Error>;
 //#endregion
 
 
-//#region Utilities
+//#region File I/O
 
 /// Loads configuration from the given file
 fn load_config<T>(file: &mut File) -> Result<T>
 where T: DeserializeOwned
 {
+    debug!("loading configuration from {:?}", file);
+
     file.seek(SeekFrom::Start(0))?;
     let reader = BufReader::new(file);
     Ok(serde_json::from_reader(reader)?)
@@ -75,38 +77,13 @@ where T: DeserializeOwned
 fn store_config<T>(config: &T, file: &mut File) -> Result<()>
 where T: Serialize
 {
+    debug!("storing configuration to {:?}", file);
+
     file.seek(SeekFrom::Start(0))?;
     file.set_len(0)?;
     serde_json::to_writer_pretty(&*file, config)?;
     file.sync_all()?;
     Ok(())
-}
-
-/// Retrieves a read or write guard from a potentially poisoned lock
-///
-/// A warning is logged if the lock is poisoned, but the guard is still returned.
-macro_rules! rwl {
-    ($lock:expr, $op:ident) => {
-        $lock.$op()
-            .unwrap_or_else(|err| {
-                warn!("A configuration lock is poisoned");
-                err.into_inner()
-            })
-    }
-}
-
-/// Retrieves an `RwLock`'s read guard
-///
-/// A warning is logged if the lock is poisoned, but the guard is still returned.
-macro_rules! rwl_read {
-    ($lock:expr) => (rwl!($lock, read))
-}
-
-/// Retrieves an `RwLock`'s write guard
-///
-/// A warning is logged if the lock is poisoned, but the guard is still returned.
-macro_rules! rwl_write {
-    ($lock:expr) => (rwl!($lock, write))
 }
 
 //#endregion
@@ -115,6 +92,7 @@ macro_rules! rwl_write {
 //#region System Configuration
 
 // TODO: use regular config infrastructure to load and watch system configuration
+// TODO: or replace with env vars
 
 /// Critical configuration needed for the system to operate correctly
 #[derive(Deserialize)]
@@ -129,9 +107,6 @@ pub struct SystemConfig
 
     /// Path to HTML templates
     pub template_path: String,
-
-    /// Path to user configuration storage
-    pub user_config_path: String,
 }
 
 impl SystemConfig
@@ -139,6 +114,7 @@ impl SystemConfig
     /// Loads system configuration from the specified file
     pub fn load<P: AsRef<Path>>(path: P) -> Result<SystemConfig>
     {
+        trace!("loading system configuration");
         load_config(&mut File::open(path)?)
     }
 }
@@ -176,6 +152,7 @@ where T: Serialize + 'static
 
     fn handle(&mut self, _: Flush, _: &mut Context<Self>) -> Self::Result
     {
+        trace!("flushing configuration");
         let config = rwl_read!(self.config);
         store_config(&*config, &mut self.file)
     }
@@ -219,6 +196,7 @@ where T: Serialize
 {
     fn drop(&mut self)
     {
+        trace!("requesting configuration flush");
         Arbiter::spawn(
             self.flusher.send(Flush)
                 .map_err(|err|
@@ -238,6 +216,20 @@ where T: Serialize
 
 // TODO: Watch backing file for changes
 // TODO: Support read-only config, use for system parameters
+// TODO: global hashmap to enforce unique file access?
+
+const CONFIG_ENV: &str = "LUNACAM_CONFIG_PATH";
+const CONFIG_DEFAULT: &str = "./.config";
+
+/// Returns path to the config file with the given name
+fn cfg_path(name: &str) -> PathBuf
+{
+    let base_path = std::env::var(CONFIG_ENV)
+        .unwrap_or(CONFIG_DEFAULT.to_owned());
+    let mut path = PathBuf::from(base_path);
+    path.push(format!("{}.json", name));
+    path
+}
 
 /// Manages access to filesystem-backed configuration
 ///
@@ -257,12 +249,12 @@ where T: Default + DeserializeOwned + Serialize + 'static
     ///
     /// `name` is used as name of the file backing the configuration, so it must be unique across
     /// all instances of `Config`.
-    pub fn new(name: &str, sys: &SystemConfig) -> Result<Self>
+    pub fn new(name: &str) -> Result<Self>
     {
+        trace!("initializing {} configuration", name);
+
         // Open backing file, creating it if it does not exist
-        // TODO: this method should probably just accept a path instead of trying to construct one
-        let mut path = PathBuf::from(&sys.user_config_path);
-        path.push(format!("{}.json", name));
+        let path = cfg_path(name);
         let already_exists = path.exists();
         let mut file = OpenOptions::new()
             .read(true)
@@ -271,16 +263,13 @@ where T: Default + DeserializeOwned + Serialize + 'static
             .open(path)?;
 
         // If file was already present, load its contents
-        let config = if already_exists {
-            load_config(&mut file)?
+        let config;
+        if already_exists {
+            config = load_config(&mut file)?;
         } else {
-            Default::default()
-        };
-
-        // If file is new, write default contents
-        if !already_exists {
+            config = Default::default();
             store_config(&config, &mut file)?;
-        }
+        };
 
         let config = Arc::new(RwLock::new(config));
         let flusher = ConfigFlusher {
@@ -299,6 +288,7 @@ where T: Default + DeserializeOwned + Serialize + 'static
     /// Current thread is blocked until lock can be acquired.
     pub fn read(&self) -> RwLockReadGuard<T>
     {
+        trace!("configuration read");
         rwl_read!(self.config)
     }
 
@@ -307,6 +297,7 @@ where T: Default + DeserializeOwned + Serialize + 'static
     /// Current thread is blocked until lock can be acquired.
     pub fn write(&self) -> ConfigWriteGuard<T>
     {
+        trace!("configuration write");
         ConfigWriteGuard {
             inner: rwl_write!(self.config),
             flusher: &self.flusher,
