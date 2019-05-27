@@ -107,9 +107,6 @@ pub struct SystemConfig
 
     /// Path to HTML templates
     pub template_path: String,
-
-    /// Path to user configuration storage
-    pub user_config_path: String,
 }
 
 impl SystemConfig
