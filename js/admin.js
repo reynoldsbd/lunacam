@@ -23,8 +23,7 @@ function toggleStream(checkbox) {
 
             if (!response.ok) {
                 streamEnabledSwitch.checked = !streamEnabledSwitch.checked;
-                // TODO: user visible error message
-                console.warn('stream enable/disable failed');
+                showNotification('danger', 'Failed to update stream');
             }
         });
 }
@@ -93,8 +92,9 @@ function updatePasswords() {
             adminPwInput.value = '';
             updatePwButton.classList.remove('is-loading');
 
-            // TODO: check for and report success
-            console.log(response)
+            if (!response.ok) {
+                showNotification('danger', 'Failed to update passwords.');
+            }
         });
 }
 
@@ -127,8 +127,7 @@ function sessionReset() {
 function handleSessionResetResponse(response) {
     if (!response.ok) {
         resetModal.classList.remove('is-active');
-        // TODO: user visible error message
-        console.error('session reset failed');
+        showNotification('danger', 'Failed to reset sessions.');
         return;
     }
 
