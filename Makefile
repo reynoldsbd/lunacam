@@ -7,16 +7,19 @@ repo := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 ####################################################################################################
 
 target_dir := $(repo)/.targets
-clean_artifacts += $(target_dir)
 
 $(target_dir):
 	@mkdir -p $(target_dir)
 
+clean-targets:
+	@echo cleaning pseudo-target db
+	@rm -rf $(target_dir)
+.PHONY: clean-targets
+clean_targets += clean-targets
+
 
 ####################################################################################################
 # Docker image used to cross-compile ("xc") binaries for the Raspberry Pi
-#
-# TODO: store CARGO_HOME in a persisted volume (otherwise, Cargo's cache is always empty)
 ####################################################################################################
 
 xc_dir := $(repo)/build/xc
@@ -24,18 +27,19 @@ xc_img_name := lunacam-xc
 xc_img_target := $(target_dir)/xc_img
 
 $(xc_img_target): $(shell find $(xc_dir) -type f) $(target_dir)
+	@echo building cross-compilation image
 	@docker build -t $(xc_img_name) $(xc_dir)
 	@touch $(xc_img_target)
 
 xc-img: $(xc_img_target)
 .PHONY: xc-img
 
-xc-img-clean:
-	@echo cleaning xc-img
+clean-xc-img:
+	@echo cleaning cross-compilation image
 	@docker image rm -f $(xc_img_name) 2> /dev/null
 	@rm -rf $(xc_img_target)
-.PHONY: xc-img-clean
-clean_targets += xc-img-clean
+.PHONY: clean-xc-img
+clean_targets += clean-xc-img
 
 
 ####################################################################################################
@@ -43,22 +47,23 @@ clean_targets += xc-img-clean
 ####################################################################################################
 
 srv_manifest := $(repo)/Cargo.toml
-srv := $(repo)/target/arm-unknown-linux-gnueabihf/debug/lunacam
+srv := $(repo)/target/arm-unknown-linux-gnueabihf/release/lunacam
 xc_cache_vol_name := lunacam-xc-cache
 
 $(srv): $(shell find $(repo)/src -type f) $(srv_manifest) $(xc_img_target)
+	@echo building server binary
 	@docker run -it --rm -v $(repo):/source -v $(xc_cache_vol_name):/root/.cargo -w /source \
-		$(xc_img_name) cargo build --target arm-unknown-linux-gnueabihf
+		$(xc_img_name) cargo build --target arm-unknown-linux-gnueabihf --release
 	@touch $(srv)
 
 srv: $(srv)
 .PHONY: srv
 
-srv-clean:
-	@echo cleaning srv
+clean-srv:
+	@echo cleaning server binary
 	@cargo clean
-.PHONY: srv-clean
-clean_targets += srv-clean
+.PHONY: clean-srv
+clean_targets += clean-srv
 
 
 ####################################################################################################
@@ -70,10 +75,21 @@ static_target := $(target_dir)/static
 style := $(repo)/style
 js := $(repo)/js
 
-$(static_target): $(shell find $(style) -type f) $(shell find $(js) -type f)
+$(static_target): $(shell find $(style) -type f) $(shell find $(js) -type f) $(target_dir)
+	@echo building static resources
 	@sass --source-map-urls=absolute $(style):$(static)
 	@cp -R $(js) $(static)
 	@touch $(static_target)
+
+static: $(static_target)
+.PHONY: static
+
+clean-static:
+	@echo cleaning static resources
+	@rm -rf $(static)
+	@rm -rf $(static_target)
+.PHONY: clean-static
+clean_targets += clean-static
 
 
 ####################################################################################################
@@ -106,9 +122,15 @@ $(stg_target): \
 	@cp -R $(templates)/* $(stg)/root/usr/local/share/lunacam/templates
 	@touch $(stg_target)
 
-# TODO: I don't think this stg target is needed
 stg: $(stg_target)
 .PHONY: stg
+
+clean-stg:
+	@echo cleaning staging directory
+	@rm -rf $(stg)
+	@rm -rf $(stg_target)
+.PHONY: clean-stg
+clean_targets += clean-stg
 
 
 ####################################################################################################
@@ -120,8 +142,19 @@ sd_img_name := lunacam-sd
 sd_img_target := $(target_dir)/sd_img
 
 $(sd_img_target): $(shell find $(sd_dir) -type f) $(target_dir)
+	@echo building SD card builder image
 	@docker build -t $(sd_img_name) $(sd_dir)
 	@touch $(sd_img_target)
+
+sd-img: $(sd_img_target)
+.PHONY: sd-img
+
+clean-sd-img:
+	@echo cleaning SD card builder image
+	@docker image rm -f $(sd_img_name) 2> /dev/null
+	@rm -rf $(sd_img_target)
+.PHONY: clean-sd-img
+clean_targets += clean-sd-img
 
 
 ####################################################################################################
@@ -137,6 +170,12 @@ $(sd): $(stg_target) $(sd_img_target)
 
 sd: $(sd)
 .PHONY: sd
+
+clean-sd:
+	@echo cleaning SD card image
+	@rm -rf $(sd)
+.PHONY: clean-sd
+clean_targets += clean-sd
 
 
 ####################################################################################################
@@ -176,6 +215,4 @@ run: $(shell find $(repo)/src -type f) $(srv_manifest) $(static_target)
 ####################################################################################################
 
 clean: $(clean_targets)
-	@echo cleaning...
-	@rm -rf $(clean_artifacts)
 .PHONY: clean
