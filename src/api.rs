@@ -14,14 +14,14 @@ use actix_web::{HttpRequest, HttpResponse, Json, Scope};
 
 use log::{debug, info, trace};
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::config::Config;
 use crate::sec;
 use crate::sec::{AccessLevel, Secrets};
 use crate::stream::StreamManager;
 
-//#endrgegion
+//#endregion
 
 
 //#region Actix application
@@ -95,17 +95,36 @@ fn delete_admin_sessions() -> impl Fn(&HttpRequest<ApiState>) -> HttpResponse
 }
 
 /// Structure of the */admin/stream* resource
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct StreamPatch
+struct StreamResource
 {
     enabled: Option<bool>,
+}
+
+impl From<&StreamManager> for StreamResource
+{
+    fn from(smgr: &StreamManager) -> Self
+    {
+        let config = smgr.config.read();
+
+        StreamResource {
+            enabled: Some(config.enabled),
+        }
+    }
+}
+
+fn get_admin_stream() -> impl Fn(&HttpRequest<ApiState>) -> Json<StreamResource>
+{
+    |request| {
+        Json(StreamResource::from(request.state().smgr.as_ref()))
+    }
 }
 
 /// Handles *PATCH /admin/stream*
 ///
 /// Reconfigures the video stream as directed by the user
-fn patch_admin_stream() -> impl Fn(HttpRequest<ApiState>, Json<StreamPatch>) -> HttpResponse
+fn patch_admin_stream() -> impl Fn(HttpRequest<ApiState>, Json<StreamResource>) -> HttpResponse
 {
     |request, stream| {
         trace!("patch stream payload: {:?}", stream);
@@ -151,6 +170,7 @@ pub fn scope(
                     r.delete().f(delete_admin_sessions());
                 })
                 .resource("/admin/stream", |r| {
+                    r.get().f(get_admin_stream());
                     r.patch().with(patch_admin_stream());
                 })
         })

@@ -14,9 +14,9 @@ use crate::config::Config;
 
 /// Operational parameters for the video stream
 #[derive(Default, Deserialize, Serialize)]
-struct StreamConfiguration
+pub struct StreamConfiguration
 {
-    enabled: bool,
+    pub enabled: bool,
 }
 
 //#endregion
@@ -27,7 +27,8 @@ struct StreamConfiguration
 /// Manages lifecycle of the video stream
 pub struct StreamManager
 {
-    config: Config<StreamConfiguration>,
+    // TODO: Is there a more controlled way to expose these details?
+    pub config: Config<StreamConfiguration>,
 }
 
 impl StreamManager
