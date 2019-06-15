@@ -7,15 +7,16 @@ var streamEnabledSwitch = document.getElementById('stream-enabled');
 
 function toggleStream(checkbox) {
     streamEnabledSwitch.disabled = true;
+    let body = {
+        enabled: checkbox.target.checked
+    };
 
     fetch('/api/admin/stream', {
             method: 'PATCH',
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({
-                enabled: checkbox.checked
-            }),
+            body: JSON.stringify(body),
             credentials: 'same-origin'
         })
         .then(response => {

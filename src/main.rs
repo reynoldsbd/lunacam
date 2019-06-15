@@ -1,11 +1,10 @@
-// TODO: actors probably being used overzealously
-
 #[macro_use]
 mod macros;
 
 mod api;
 mod config;
 mod sec;
+mod stream;
 mod tmpl;
 mod ui;
 
@@ -29,6 +28,7 @@ use log::{debug, error, info, trace};
 
 use crate::config::{Config, SystemConfig};
 use crate::sec::{Secrets};
+use crate::stream::StreamManager;
 use crate::tmpl::Templates;
 
 //#endregion
@@ -42,6 +42,7 @@ fn app_factory(config: SystemConfig) -> impl Fn() -> App + Clone + Send
     let config = Arc::new(config);
     let secrets: Config<Secrets> = Config::new("secrets")
         .expect("Failed to initialize secrets");
+    let smgr = Arc::new(StreamManager::load());
     let templates = Templates::new(&config.template_path);
 
     move || {
@@ -58,7 +59,7 @@ fn app_factory(config: SystemConfig) -> impl Fn() -> App + Clone + Send
                     .secure(false)
             ))
             .handler("/static", static_files)
-            .scope("/api", api::scope(secrets.clone()))
+            .scope("/api", api::scope(smgr.clone(), secrets.clone()))
             .scope("", ui::scope(secrets.clone(), templates.clone()))
     }
 }
