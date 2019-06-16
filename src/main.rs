@@ -3,6 +3,7 @@ mod macros;
 
 mod api;
 mod config;
+mod prochost;
 mod sec;
 mod stream;
 mod tmpl;
