@@ -185,7 +185,7 @@ clean_targets += clean-sd
 # your workstation, (2) setup SSH keys and ssh-agent, and (3) setup passwordless sudo on the Pi.
 ####################################################################################################
 
-pi_host := lunacam-dev.local
+pi_host := lunacam-dev
 
 PI_CP = scp -r $(1) $(pi_host):
 PI_CMD := ssh $(pi_host)
