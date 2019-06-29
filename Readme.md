@@ -113,6 +113,20 @@ fi
 You will be prompted to set a password upon full login. However, by default, *this password is not
 required by sudo* (required in order to use `make deploy`).
 
+### Expand Root Partition
+
+The generated SD card image weighs in at 2Gb so it can fit on a variety of SD cards. If your SD card
+is larger than this, you may wish to resize the filesystem to make use of all available space.
+
+The easiest way to do this is to run the following command as root *after* logging in to the booted
+system. If the first command warns about being unable to reload the partition table, you will need
+to reboot before running the second command.
+
+```shell
+echo ", +" | sfdisk -N 2 /dev/mmcblk0
+resize2fs /dev/mmcblk0p2
+```
+
 ## Image Creation
 
 Once you are finished customization, open a WSL shell to the directory containing LunaCam's source
