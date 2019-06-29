@@ -10,6 +10,14 @@ staging="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 # Install dependencies
 pacman --noconfirm -Syu --needed nginx ffmpeg
 
+# Disable root and delete default user
+usermod -p '!' root
+if id -u alarm &> /dev/null
+then
+    echo "    --> deleting user alarm"
+    userdel -r alarm
+fi
+
 # Install items from staging/root to the system
 files=$(cd $staging/root && find . -type f)
 for file in $files
@@ -18,6 +26,8 @@ do
     install -D $staging/root/$file /$file
 done
 
+# Fixup file permissions not preserved by git
+chmod 440 /etc/sudoers
 
 # Configure startup services
 systemctl enable systemd-networkd
@@ -37,5 +47,6 @@ then
 fi
 if [ -f $staging/local.sh ]
 then
+    echo "--> running $staging/local.sh"
     $staging/local.sh
 fi

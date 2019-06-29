@@ -37,6 +37,10 @@ For cases where drop-in configuration is not sufficient, you may also provide cu
 script is run as *root* and **inside** the new system, so commands like `systemctl enable foo` will
 have the desired effect of enabling the *foo* service on the new system.
 
+> **Warning:** */system/local.sh* and the contents of */system/root.local/* are copied onto the new
+> SD card image. Anybody with access to the image will be able to see these files and any secrets
+> they contain (e.g. network or user passwords).
+
 ### Network Configuration
 
 Most of LunaCam's features can be controlled using its UI, but at the very least you should
@@ -67,6 +71,8 @@ DHCP=yes
 MulticastDNS=yes
 ```
 
+If you wish, specify a hostname with */system/root.local/etc/hostname*.
+
 Finally, create */system/local.sh* and add the following to enable WiFi at boot time:
 
 ```bash
@@ -75,15 +81,37 @@ Finally, create */system/local.sh* and add the following to enable WiFi at boot 
 systemctl enable wpa_supplicant@wlan0
 ```
 
-### Secrets
+### User Account
 
-Both */system/root.local* and */system/local.sh* are ignored by the source control system. So, if
-you are a developer working on LunaCam, you may safely store secrets here without risk of
-accidentally committing them to source control.
+Remote access is disabled by default. If you wish to access the new system using SSH, you must
+arrange for the creation of a user account.
 
-However, remember that these files are copied into the SD card image. In other words, anybody with
-access to your image will also have access to any secrets you've added as part of image
-customization.
+Start by copying the contents of your [public SSH key](https://wiki.archlinux.org/index.php/SSH_keys)
+into the the file */system/root.local/etc/skel/.ssh/authorized_keys*. For example:
+
+```shell
+mkdir -p ./system/root.local/etc/skel/.ssh
+cp $HOME/.ssh/id_rsa.pub ./system/root.local/etc/skel/.ssh/authorized_keys
+```
+
+Then, add the following lines to */system/local.sh*, replacing `user` with your desired username.
+
+```shell
+# Fixup permissions for ~/.ssh
+chmod 700 /etc/skel/.ssh
+chmod 640 /etc/skel/.ssh/authorized_keys
+
+# Create account
+if ! id -u user &> /dev/null
+then
+  echo "    --> creating user"
+  useradd -m -G wheel user
+  passwd -d -e user
+fi
+```
+
+You will be prompted to set a password upon full login. However, by default, *this password is not
+required by sudo* (required in order to use `make deploy`).
 
 ## Image Creation
 
