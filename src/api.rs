@@ -6,19 +6,22 @@
 
 //#region Usings
 
+use std::sync::Arc;
+
 use actix::System;
 
 use actix_web::{HttpRequest, HttpResponse, Json, Scope};
 
 use log::{debug, info, trace};
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::config::Config;
 use crate::sec;
 use crate::sec::{AccessLevel, Secrets};
+use crate::stream::StreamManager;
 
-//#endrgegion
+//#endregion
 
 
 //#region Actix application
@@ -27,6 +30,7 @@ use crate::sec::{AccessLevel, Secrets};
 struct ApiState
 {
     secrets: Config<Secrets>,
+    smgr: Arc<StreamManager>,
 }
 
 /// Structure of the */admin/passwords* resource
@@ -91,24 +95,45 @@ fn delete_admin_sessions() -> impl Fn(&HttpRequest<ApiState>) -> HttpResponse
 }
 
 /// Structure of the */admin/stream* resource
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct StreamPatch
+struct StreamResource
 {
     enabled: Option<bool>,
+}
+
+impl From<&StreamManager> for StreamResource
+{
+    fn from(smgr: &StreamManager) -> Self
+    {
+        let config = smgr.config.read();
+
+        StreamResource {
+            enabled: Some(config.enabled),
+        }
+    }
+}
+
+fn get_admin_stream() -> impl Fn(&HttpRequest<ApiState>) -> Json<StreamResource>
+{
+    |request| {
+        Json(StreamResource::from(request.state().smgr.as_ref()))
+    }
 }
 
 /// Handles *PATCH /admin/stream*
 ///
 /// Reconfigures the video stream as directed by the user
-fn patch_admin_stream() -> impl Fn(Json<StreamPatch>) -> HttpResponse
+fn patch_admin_stream() -> impl Fn(HttpRequest<ApiState>, Json<StreamResource>) -> HttpResponse
 {
-    |stream| {
-        trace!("configuring video stream");
+    |request, stream| {
+        trace!("patch stream payload: {:?}", stream);
+
+        let smgr = &request.state().smgr;
 
         if let Some(enabled) = stream.enabled {
             debug!("setting stream enabled status to {}", enabled);
-            // TODO: smgr.set_enabled(stream.enabled)
+            smgr.set_enabled(enabled);
         }
 
         HttpResponse::Ok()
@@ -117,13 +142,17 @@ fn patch_admin_stream() -> impl Fn(Json<StreamPatch>) -> HttpResponse
 }
 
 /// Configures LunaCam's API scope
-pub fn scope(secrets: Config<Secrets>) -> impl FnOnce(Scope<()>) -> Scope<()>
+pub fn scope(
+    smgr: Arc<StreamManager>,
+    secrets: Config<Secrets>
+) -> impl FnOnce(Scope<()>) -> Scope<()>
 {
     |scope| {
         trace!("configuring API scope");
 
         let state = ApiState {
             secrets: secrets,
+            smgr: smgr,
         };
 
         scope.with_state("", state, |scope| {
@@ -141,6 +170,7 @@ pub fn scope(secrets: Config<Secrets>) -> impl FnOnce(Scope<()>) -> Scope<()>
                     r.delete().f(delete_admin_sessions());
                 })
                 .resource("/admin/stream", |r| {
+                    r.get().f(get_admin_stream());
                     r.patch().with(patch_admin_stream());
                 })
         })

@@ -11,20 +11,5 @@
 
 {% block extrajs %}
 <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
-<script type="text/javascript">
-    $(document).ready(function() {
-        // Start the HLS stream
-        var video = document.getElementById('video');
-        if (Hls.isSupported()) {
-            var hls = new Hls();
-            hls.loadSource('/stream/video0.m3u8');
-            hls.attachMedia(video);
-            hls.on(Hls.Events.MANIFEST_PARSED, function() { video.play(); });
-        }
-        else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-            video.src = '/stream/video0.m3u8';
-            video.addEventListener('loadmetadata', function() { video.play(); });
-        }
-    });
-</script>
+<script src="/static/js/home.js"></script>
 {% endblock extrajs %}

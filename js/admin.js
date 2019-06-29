@@ -5,17 +5,30 @@
 
 var streamEnabledSwitch = document.getElementById('stream-enabled');
 
+function loadStreamState() {
+    fetch('/api/admin/stream', {
+            method: 'GET',
+            credentials: 'same-origin'
+        })
+        .then(response => response.json())
+        .then(data => {
+            streamEnabledSwitch.checked = data.enabled;
+            streamEnabledSwitch.disabled = false;
+        });
+}
+
 function toggleStream(checkbox) {
     streamEnabledSwitch.disabled = true;
+    let body = {
+        enabled: checkbox.target.checked
+    };
 
     fetch('/api/admin/stream', {
             method: 'PATCH',
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({
-                enabled: checkbox.checked
-            }),
+            body: JSON.stringify(body),
             credentials: 'same-origin'
         })
         .then(response => {
@@ -141,3 +154,8 @@ function handleSessionResetResponse(response) {
 sessionResetButton.onclick = sessionReset;
 
 //#endregion
+
+
+window.onload = function() {
+    loadStreamState();
+};
