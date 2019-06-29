@@ -1,11 +1,21 @@
 //! Video stream management
 
+// TODO: error handling
+// TODO: futures
+
 
 //#region Usings
+
+use std::process::{Command};
+
+use actix::{Actor, Addr};
+
+use log::{debug};
 
 use serde::{Deserialize, Serialize};
 
 use crate::config::Config;
+use crate::prochost::{ProcessHost, StartProcess, StopProcess};
 
 //#endregion
 
@@ -19,6 +29,37 @@ pub struct StreamConfiguration
     pub enabled: bool,
 }
 
+impl StreamConfiguration
+{
+    fn cmd(&self) -> Command
+    {
+        let mut cmd = Command::new("ffmpeg");
+
+        cmd.args(&[
+            // General configuration
+            "-hide_banner",
+            "-loglevel", "error",
+
+            // Input stream
+            "-f", "v4l2",
+            "-input_format", "h264",
+            "-video_size", "1280x720",
+            "-i", "/dev/video0",
+
+            // Operation
+            "-c:v", "copy",
+            "-c:a", "aac",
+
+            // Output stream
+            "-f", "hls",
+            "-hls_flags", "delete_segments",
+            "/tmp/lunacam/hls/video0.m3u8"
+        ]);
+
+        cmd
+    }
+}
+
 //#endregion
 
 
@@ -27,8 +68,10 @@ pub struct StreamConfiguration
 /// Manages lifecycle of the video stream
 pub struct StreamManager
 {
-    // TODO: Is there a more controlled way to expose these details?
+    // TODO: would be cool if this didn't have to be pub
     pub config: Config<StreamConfiguration>,
+
+    tchost: Addr<ProcessHost>,
 }
 
 impl StreamManager
@@ -36,9 +79,21 @@ impl StreamManager
     /// Initializes and returns `StreamManager`
     pub fn load() -> StreamManager
     {
+        let config: Config<StreamConfiguration> = Config::new("stream")
+            .expect("Failed to load stream configuration");
+        let tchost = ProcessHost::new(config.read().cmd())
+            .start();
+
+        {
+            let config = config.read();
+            if config.enabled {
+                tchost.do_send(StartProcess);
+            }
+        }
+
         StreamManager {
-            config: Config::new("stream")
-                .expect("Failed to load stream configuration"),
+            config: config,
+            tchost: tchost,
         }
     }
 
@@ -53,7 +108,14 @@ impl StreamManager
             config.enabled = enabled;
         }
 
-        // TODO: stop/start the transcoding process
+        if enabled {
+            debug!("starting transcoder");
+            self.tchost.do_send(StartProcess);
+
+        } else {
+            debug!("stopping transcoder");
+            self.tchost.do_send(StopProcess);
+        }
     }
 }
 
