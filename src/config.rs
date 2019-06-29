@@ -218,7 +218,7 @@ where T: Serialize
 // TODO: Support read-only config, use for system parameters
 // TODO: global hashmap to enforce unique file access?
 
-const CONFIG_ENV: &str = "LUNACAM_CONFIG_PATH";
+const CONFIG_ENV: &str = "STATE_DIRECTORY";
 const CONFIG_DEFAULT: &str = "./.config";
 
 /// Returns path to the config file with the given name

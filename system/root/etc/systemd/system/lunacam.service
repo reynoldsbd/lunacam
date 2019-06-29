@@ -4,6 +4,7 @@ After=network.target network-online.target nss-lookup.target
 
 [Service]
 User=lunacam
+StateDirectory=lunacam
 ExecStart=/usr/local/bin/lunacam /etc/lunacam/config.json
 Restart=on-failure
 RestartSec=5s
