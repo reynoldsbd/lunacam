@@ -1,0 +1,10 @@
+[package]
+name = "lunacam-portal"
+version = "0.1.0"
+authors = ["Bobby Reynolds <bobby@reynoldsbd.net>"]
+edition = "2018"
+
+[dependencies]
+actix-web = "1.0"
+hotwatch = "0.4"
+tera = "1.0.0-beta.13"
