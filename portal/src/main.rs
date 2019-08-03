@@ -1,5 +1,6 @@
 use std::env;
 use std::sync::{Arc, RwLock};
+use actix_files::{Files};
 use actix_web::{App, HttpResponse, HttpServer, Responder};
 use actix_web::web::{self, Data};
 use hotwatch::{Event, Hotwatch};
@@ -94,6 +95,7 @@ fn main()
     HttpServer::new(move || {
             App::new()
                 .register_data(templates.clone())
+                .service(Files::new("/static", "./static"))
                 .route("/", web::get().to(index))
         })
         .bind("127.0.0.1:8000").unwrap()

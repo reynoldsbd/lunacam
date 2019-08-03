@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "bulma": "^0.7.5",
+    "bulma-switch": "^2.0.0"
+  }
+}

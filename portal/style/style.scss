@@ -1,0 +1,25 @@
+@charset "utf-8";
+
+@import "bulma";
+@import "bulma-switch";
+
+#login-container {
+    justify-content: center;
+
+    .box.level-item {
+        padding: 2rem;
+
+        .title {
+            margin-bottom: 2rem;
+        }
+
+        .control.with-buttons {
+            display: flex;
+            justify-content: center;
+        }
+    }
+}
+
+.field-label {
+    white-space: nowrap;
+}

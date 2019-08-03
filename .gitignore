@@ -2,6 +2,9 @@
 /target
 **/*.rs.bk
 
+# JS stuff
+node_modules/
+
 # Developer configuration
 /config.json
 /system/local.sh
@@ -13,3 +16,4 @@ lunacam.img
 /.static
 /.targets
 /.config
+/portal/static
