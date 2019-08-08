@@ -4,6 +4,7 @@ use actix_files::{Files};
 use actix_web::{App, HttpResponse, HttpServer, Responder};
 use actix_web::web::{self, Data};
 use hotwatch::{Event, Hotwatch};
+use serde::{Serialize};
 use tera::{Context, Tera};
 
 //#region Templates
@@ -16,12 +17,11 @@ impl Templates
     {
         let templates = self.clone();
 
-        move |event|
-        {
+        move |event| {
+
             match event {
 
                 Event::Create(_) | Event::Write(_) | Event::Remove(_) | Event::Rename(_, _) => {
-
                     let mut templates = templates.0.write()
                         .expect("Templates::make_reloader: failed to get write lock on templates");
                     templates.full_reload()
@@ -29,12 +29,10 @@ impl Templates
                 },
 
                 Event::Error(err, _) => {
-
                     panic!("Templates::make_reloader: {}", err);
                 },
 
                 _ => {
-
                     println!("Templates::make_reloader: ignoring hotwatch event {:?}", event);
                 },
             }
@@ -81,9 +79,39 @@ impl Clone for Templates
 
 //#endregion
 
+//#region Models
+
+#[derive(Serialize)]
+struct Camera
+{
+    name: String,
+    id: String,
+}
+
+//#endregion
+
 fn index(templates: Data<Templates>) -> impl Responder
 {
     templates.render("index.html", Context::new())
+}
+
+fn admin(templates: Data<Templates>) -> impl Responder
+{
+    let mut context = Context::new();
+    
+    // TODO: get from db
+    context.insert("cameras", &[
+        Camera {
+            name: "Living Room".into(),
+            id: "living-room".into(),
+        },
+        Camera {
+            name: "Bedroom".into(),
+            id: "bedroom".into(),
+        },
+    ]);
+
+    templates.render("admin.html", context)
 }
 
 fn main()
@@ -97,6 +125,7 @@ fn main()
                 .register_data(templates.clone())
                 .service(Files::new("/static", "./static"))
                 .route("/", web::get().to(index))
+                .route("/admin/", web::get().to(admin))
         })
         .bind("127.0.0.1:8000").unwrap()
         .run().unwrap()

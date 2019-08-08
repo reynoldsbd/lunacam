@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block title %}Administration{% endblock title %}
+
+{% block content %}
+<div class="container">
+
+    <h3 class="title has-text-centered">Administration</h3>
+
+    <div class="box">
+
+        <h4 class="title is-4">Camera Management</h4>
+
+        {% for camera in cameras %}
+        <hr />
+        <div class="level">
+            <div class="level-left">
+                <div class="level-item">{{ camera.name }}</div>
+            </div>
+            <div class="level-right">
+                <div class="level-item">
+                    <div class="field is-narrow">
+                        <div class="control">
+                            <input type="checkbox" class="switch" id="{{ camera.id }}-enabled">
+                            <label for="{{ camera.id }}-enabled"></label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+
+    </div>
+</div>
+{% endblock content %}
