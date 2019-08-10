@@ -3,7 +3,9 @@ use std::sync::{Arc, RwLock};
 use actix_files::{Files};
 use actix_web::{App, HttpResponse, HttpServer, Responder};
 use actix_web::web::{self, Data};
+use env_logger::Env;
 use hotwatch::{Event, Hotwatch};
+use log::{error, trace};
 use serde::{Serialize};
 use tera::{Context, Tera};
 
@@ -24,16 +26,17 @@ impl Templates
                 Event::Create(_) | Event::Write(_) | Event::Remove(_) | Event::Rename(_, _) => {
                     let mut templates = templates.0.write()
                         .expect("Templates::make_reloader: failed to get write lock on templates");
-                    templates.full_reload()
-                        .expect("Templates::make_reloader: failed to reload templates");
+                    if let Err(err) = templates.full_reload() {
+                        error!("Failed to reload templates: {}", err);
+                    }
                 },
 
                 Event::Error(err, _) => {
-                    panic!("Templates::make_reloader: {}", err);
+                    error!("Error while watching template directory: {}", err);
                 },
 
                 _ => {
-                    println!("Templates::make_reloader: ignoring hotwatch event {:?}", event);
+                    trace!("ignoring hotwatch event {:?}", event);
                 },
             }
         }
@@ -116,6 +119,11 @@ fn admin(templates: Data<Templates>) -> impl Responder
 
 fn main()
 {
+    let env = Env::default()
+        .filter_or("LC_LOG", "info")
+        .write_style("LC_LOG_STYLE");
+    env_logger::init_from_env(env);
+
     let mut hotwatch = Hotwatch::new()
         .expect("main: failed to initialize Hotwatch");
     let templates = Data::new(Templates::load(&mut hotwatch));
