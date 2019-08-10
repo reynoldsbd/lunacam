@@ -4,8 +4,6 @@ class CamEntry extends HTMLElement {
 
         super();
 
-        console.log('creating new camentry');
-
         this.body = document.getElementById('cam-entry-template')
             .content
             .cloneNode(true);
