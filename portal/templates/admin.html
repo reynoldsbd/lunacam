@@ -3,33 +3,47 @@
 {% block title %}Administration{% endblock title %}
 
 {% block content %}
+
+<template id="cam-entry-template">
+
+    <hr />
+
+    <div class="level">
+        <div class="level-left">
+            <span id="cam-name" class="level-item">CAMERA NAME</span>
+        </div>
+        <div class="level-right">
+            <div class="field is-narrow level-item">
+                <div class="control">
+                    <input type="checkbox" id="cam-enabled" class="switch">
+                    <label id="cam-enabled-label"></label>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</template>
+
 <div class="container">
 
     <h3 class="title has-text-centered">Administration</h3>
 
-    <div class="box">
+    <div id="cam-list" class="box">
 
-        <h4 class="title is-4">Camera Management</h4>
-
-        {% for camera in cameras %}
-        <hr />
         <div class="level">
             <div class="level-left">
-                <div class="level-item">{{ camera.name }}</div>
-            </div>
-            <div class="level-right">
-                <div class="level-item">
-                    <div class="field is-narrow">
-                        <div class="control">
-                            <input type="checkbox" class="switch" id="{{ camera.id }}-enabled">
-                            <label for="{{ camera.id }}-enabled"></label>
-                        </div>
-                    </div>
-                </div>
+                <h5 class="title is-5 level-item">Camera Management</h5>
             </div>
         </div>
+
+        {% for camera in cameras %}
+        <cam-entry cam-name="{{ camera.name }}" cam-id="{{ camera.id }}"></cam-entry>
         {% endfor %}
 
     </div>
 </div>
 {% endblock content %}
+
+{% block extrajs %}
+<script src="/static/js/admin.js"></script>
+{% endblock %}

@@ -98,7 +98,7 @@ fn index(templates: Data<Templates>) -> impl Responder
 fn admin(templates: Data<Templates>) -> impl Responder
 {
     let mut context = Context::new();
-    
+
     // TODO: get from db
     context.insert("cameras", &[
         Camera {
@@ -123,6 +123,7 @@ fn main()
     HttpServer::new(move || {
             App::new()
                 .register_data(templates.clone())
+                .service(Files::new("/static/js", "./js"))
                 .service(Files::new("/static", "./static"))
                 .route("/", web::get().to(index))
                 .route("/admin/", web::get().to(admin))
