@@ -8,18 +8,99 @@
 
     <hr />
 
-    <div class="level">
+    <div id="header" class="level">
         <div class="level-left">
-            <span id="cam-name" class="level-item">CAMERA NAME</span>
+            <span id="cam-name-label" class="level-item">CAMERA NAME</span>
         </div>
         <div class="level-right">
-            <div class="field is-narrow level-item">
-                <div class="control">
-                    <input type="checkbox" id="cam-enabled" class="switch">
-                    <label id="cam-enabled-label"></label>
+            <span class="icon"><i id="dropdown-indicator" class="fas fa-chevron-down"></i></span>
+        </div>
+    </div>
+
+    <div id="form-wrapper">
+
+        <div class="field is-horizontal">
+            <div class="field-label">
+                <label class="label">Stream Enabled</label>
+            </div>
+            <div class="field-body">
+                <div class="field is-narrow">
+                    <div class="control">
+                        <input type="checkbox" id="cam-enabled" class="switch">
+                        <label id="cam-enabled-label"></label>
+                    </div>
                 </div>
             </div>
         </div>
+
+        <div class="field is-horizontal">
+            <div class="field-label is-normal">
+                <label class="label">Camera Name</label>
+            </div>
+            <div class="field-body">
+                <div class="field">
+                    <div class="control is-expanded">
+                        <input type="text" id="cam-name-field" class="input" placeholder="name...">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="field is-horizontal">
+            <div class="field-label is-normal">
+                <label class="label">Orientation</label>
+            </div>
+            <div class="field-body">
+                <div class="field">
+                    <div class="control is-expanded">
+                        <div class="select is-fullwidth">
+                            <select>
+                                <option>Landscape</option>
+                                <option>Portrait</option>
+                                <option>Inverted Landscape</option>
+                                <option>Inverted Portrait</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="field is-horizontal">
+            <div class="field-label is-normal">
+                <label class="label">Device Hostname</label>
+            </div>
+            <div class="field-body">
+                <div class="field">
+                    <div class="control is-expanded">
+                        <input type="text" id="cam-name-field" class="input" placeholder="hostname...">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="field is-horizontal">
+            <div class="field-label is-normal">
+                <label class="label">Device Key</label>
+            </div>
+            <div class="field-body">
+                <div class="field">
+                    <div class="control is-expanded">
+                        <input type="password" id="cam-name-field" class="input" placeholder="key...">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="field is-grouped is-grouped-right">
+            <p class="control">
+                <button class="button is-primary">Save</button>
+            </p>
+            <p class="control">
+                <button class="button is-light">Cancel</button>
+            </p>
+        </div>
+
     </div>
 
 </template>

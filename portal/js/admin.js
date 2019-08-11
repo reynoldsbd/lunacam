@@ -9,16 +9,23 @@ class CamEntry extends HTMLElement {
             .cloneNode(true);
         this.bodyAppended = false;
 
-        // TODO: this.nameLabel
-        this.name = this.body.getElementById('cam-name');
-        this.name.removeAttribute('id');
+        let elements = {
+            dropdownIndicator: 'dropdown-indicator',
+            enabledSwitch: 'cam-enabled',
+            enabledSwitchLabel: 'cam-enabled-label',
+            formWrapper: 'form-wrapper',
+            header: 'header',
+            nameLabel: 'cam-name-label',
+            nameField: 'cam-name-field',
+        };
+        Object.keys(elements).forEach(propertyName => {
+            this[propertyName] = this.body.getElementById(elements[propertyName]);
+            this[propertyName].removeAttribute('id');
+        });
 
-        this.enabledSwitch = this.body.getElementById('cam-enabled');
-        this.enabledSwitch.removeAttribute('id');
-        this.enabledSwitchLabel = this.body.getElementById('cam-enabled-label');
-        this.enabledSwitchLabel.removeAttribute('id');
-
-        // TODO: callbacks
+        this.formWrapper.hidden = true;
+        this.formHidden = true;
+        this.header.onclick = () => this.toggleForm();
     }
 
     connectedCallback() {
@@ -42,13 +49,27 @@ class CamEntry extends HTMLElement {
     attributeChangedCallback(name, _, newValue) {
         switch (name) {
             case 'cam-name':
-                this.name.innerText = newValue;
+                this.nameLabel.innerText = newValue;
                 break;
             case 'cam-id':
                 let switchId = newValue + '-enabled';
                 this.enabledSwitch.setAttribute('id', switchId);
                 this.enabledSwitchLabel.setAttribute('for', switchId);
                 break;
+        }
+    }
+
+    toggleForm() {
+        if (this.formHidden) {
+            this.dropdownIndicator.classList.remove('fa-chevron-down');
+            this.dropdownIndicator.classList.add('fa-chevron-up');
+            this.formWrapper.hidden = false;
+            this.formHidden = false;
+        } else {
+            this.dropdownIndicator.classList.remove('fa-chevron-up');
+            this.dropdownIndicator.classList.add('fa-chevron-down');
+            this.formWrapper.hidden = true;
+            this.formHidden = true;
         }
     }
 }

@@ -131,7 +131,6 @@ fn main()
     HttpServer::new(move || {
             App::new()
                 .register_data(templates.clone())
-                .service(Files::new("/static/js", "./js"))
                 .service(Files::new("/static", "./static"))
                 .route("/", web::get().to(index))
                 .route("/admin/", web::get().to(admin))
