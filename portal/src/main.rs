@@ -1,86 +1,17 @@
-use std::env;
-use std::sync::{Arc, RwLock};
+#[macro_use]
+mod macros;
+
+mod templates;
+
 use actix_files::{Files};
-use actix_web::{App, HttpResponse, HttpServer, Responder};
+use actix_web::{App, HttpServer, Responder};
 use actix_web::web::{self, Data};
 use env_logger::Env;
-use hotwatch::{Event, Hotwatch};
-use log::{error, trace};
+use hotwatch::{Hotwatch};
 use serde::{Serialize};
-use tera::{Context, Tera};
+use tera::{Context};
+use crate::templates::Templates;
 
-//#region Templates
-
-struct Templates(Arc<RwLock<Tera>>);
-
-impl Templates
-{
-    fn make_reloader(&self) -> impl Fn(Event) + Send + 'static
-    {
-        let templates = self.clone();
-
-        move |event| {
-
-            match event {
-
-                Event::Create(_) | Event::Write(_) | Event::Remove(_) | Event::Rename(_, _) => {
-                    let mut templates = templates.0.write()
-                        .expect("Templates::make_reloader: failed to get write lock on templates");
-                    if let Err(err) = templates.full_reload() {
-                        error!("Failed to reload templates: {}", err);
-                    }
-                },
-
-                Event::Error(err, _) => {
-                    error!("Error while watching template directory: {}", err);
-                },
-
-                _ => {
-                    trace!("ignoring hotwatch event {:?}", event);
-                },
-            }
-        }
-    }
-
-    fn load(hotwatch: &mut Hotwatch) -> Self
-    {
-        let mut path = env::current_dir()
-            .expect("Templates::load: failed to get current directory");
-        path.push("templates");
-
-        let pattern = format!("{}/**/*", path.display());
-        let templates = Tera::new(&pattern)
-            .expect("Templates::load: failed to load templates");
-        let templates = Templates(Arc::new(RwLock::new(templates)));
-
-        hotwatch.watch(&path, templates.make_reloader())
-            .expect("Templates::load: failed to watch template path");
-
-        templates
-    }
-
-    fn render(&self, name: &str, context: Context) -> impl Responder
-    {
-        let body = self.0.read()
-            .expect("Templates::render: failed to get read lock on templates")
-            .render(name, context)
-            .expect("Templates::render: failed to render template");
-
-        HttpResponse::Ok()
-            .content_type("text/html")
-            .body(body)
-    }
-}
-
-impl Clone for Templates
-{
-    fn clone(&self) -> Self
-    {
-        Templates(self.0.clone())
-    }
-}
-
-//#endregion
 
 //#region Models
 

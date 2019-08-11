@@ -8,7 +8,7 @@ curdir := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 
 portal_bin := $(repo)/target/debug/lunacam-portal
 $(portal_bin):
-	@cargo build
+	@cargo build -q
 
 compile: $(portal_bin)
 .PHONY: compile
@@ -51,6 +51,8 @@ static: $(stylesheets) $(jsfiles) $(webfonts)
 # Running
 ####################################################################################################
 
+export LC_LOG ?= info,lunacam_portal=debug
+export LC_TEMPLATES ?= $(curdir)/templates
 run: compile static
-	@cargo run
+	@cargo run -q
 .PHONY: run
