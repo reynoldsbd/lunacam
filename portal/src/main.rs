@@ -1,7 +1,8 @@
 #[macro_use]
-mod macros;
+extern crate derive_more;
 
-mod templates;
+#[macro_use]
+extern crate diesel;
 
 use actix_files::{Files};
 use actix_web::{App, HttpServer, Responder};
@@ -10,6 +11,15 @@ use env_logger::Env;
 use hotwatch::{Hotwatch};
 use serde::{Serialize};
 use tera::{Context};
+
+#[macro_use]
+mod macros;
+
+mod api;
+mod camera;
+mod schema;
+mod templates;
+
 use crate::templates::Templates;
 
 
@@ -58,11 +68,14 @@ fn main()
     let mut hotwatch = Hotwatch::new()
         .expect("main: failed to initialize Hotwatch");
     let templates = Data::new(Templates::load(&mut hotwatch));
+    let static_dir = std::env::var("LC_STATIC")
+        .expect("main: could not read LC_STATIC");
 
     HttpServer::new(move || {
             App::new()
                 .register_data(templates.clone())
-                .service(Files::new("/static", "./static"))
+                .service(web::scope("/api").configure(api::configure))
+                .service(Files::new("/static", &static_dir))
                 .route("/", web::get().to(index))
                 .route("/admin/", web::get().to(admin))
         })

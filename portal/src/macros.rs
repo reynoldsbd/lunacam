@@ -32,3 +32,22 @@ macro_rules! rwl_write {
 }
 
 //#endregion
+
+
+//#region Error Handling
+
+/// Unwraps a result, but return early instead of panicking
+macro_rules! unwrap_or_return {
+    ($result:expr) => ({
+        use log::error;
+        match $result {
+            Ok(result) => result,
+            Err(err) => {
+                error!("{}", err);
+                return;
+            }
+        }
+    })
+}
+
+//#endregion

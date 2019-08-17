@@ -52,7 +52,9 @@ static: $(stylesheets) $(jsfiles) $(webfonts)
 ####################################################################################################
 
 export LC_LOG ?= info,lunacam_portal=debug
+export LC_STATIC ?= $(static_dir)
 export LC_TEMPLATES ?= $(curdir)/templates
+export DATABASE_URL ?= $(curdir)/lunacam.db
 run: compile static
 	@cargo run -q
 .PHONY: run
