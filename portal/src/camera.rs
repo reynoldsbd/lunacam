@@ -72,6 +72,7 @@ pub struct NewCamera {
 
 
 /// Represents a streaming camera controlled by this server
+#[derive(Serialize)]
 #[derive(AsChangeset, Identifiable, Insertable, Queryable)]
 #[table_name = "cameras"]
 pub struct Camera

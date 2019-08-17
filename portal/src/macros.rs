@@ -20,6 +20,7 @@ macro_rules! _rwl {
 /// Retrieves an `RwLock`'s read guard
 ///
 /// A warning is logged if the lock is poisoned, but the guard is still returned.
+#[allow(unused_macros)]
 macro_rules! rwl_read {
     ($lock:expr) => (_rwl!($lock, read))
 }

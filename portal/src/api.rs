@@ -204,8 +204,8 @@ pub fn configure(service: &mut ServiceConfig)
 {
     let database_url = unwrap_or_return!(env::var("DATABASE_URL"));
     let connection = unwrap_or_return!(SqliteConnection::establish(&database_url));
-
     service.data(connection);
+
     service.route("/cameras", web::get().to(get_cameras));
     service.route("/cameras", web::put().to(put_camera));
     service.route("/cameras/{id}", web::get().to(get_camera));
