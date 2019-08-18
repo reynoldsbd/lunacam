@@ -15,8 +15,10 @@ class CamEntry extends HTMLElement {
             enabledSwitchLabel: 'cam-enabled-label',
             formWrapper: 'form-wrapper',
             header: 'header',
+            hostnameField: 'cam-hostname-field',
             nameLabel: 'cam-name-label',
             nameField: 'cam-name-field',
+            orientationSelect: 'cam-orientation-select'
         };
         Object.keys(elements).forEach(propertyName => {
             this[propertyName] = this.body.getElementById(elements[propertyName]);
@@ -41,20 +43,33 @@ class CamEntry extends HTMLElement {
 
     static get observedAttributes() {
         return [
-            'cam-name',
+            'cam-enabled',
+            'cam-hostname',
             'cam-id',
+            'cam-name',
+            'cam-orientation',
         ];
     }
 
     attributeChangedCallback(name, _, newValue) {
         switch (name) {
-            case 'cam-name':
-                this.nameLabel.innerText = newValue;
+            case 'cam-enabled':
+                this.enabledSwitch.checked = (newValue == 'true');
+                break;
+            case 'cam-hostname':
+                this.hostnameField.value = newValue;
                 break;
             case 'cam-id':
                 let switchId = newValue + '-enabled';
                 this.enabledSwitch.setAttribute('id', switchId);
                 this.enabledSwitchLabel.setAttribute('for', switchId);
+                break;
+            case 'cam-name':
+                this.nameField.value = newValue;
+                this.nameLabel.innerText = newValue;
+                break;
+            case 'cam-orientation':
+                this.orientationSelect.value = newValue;
                 break;
         }
     }
