@@ -65,11 +65,13 @@ type Result<T> = std::result::Result<T, ApiError>;
 
 /// Defines the JSON structure of a camera
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct CameraResource
 {
     enabled: Option<bool>,
     hostname: Option<String>,
     id: Option<i32>,
+    #[serde(skip_serializing)]
     device_key: Option<String>,
     friendly_name: Option<String>,
     orientation: Option<Orientation>,
@@ -155,13 +157,13 @@ fn patch_camera(
     path: Path<(i32,)>,
     raw: Json<CameraResource>,
     db: Data<SqliteConnection>,
-) -> Result<()>
+) -> Result<Json<CameraResource>>
 {
     let raw = raw.into_inner();
     let mut camera = Camera::get(path.0, &db)?;
 
     // Sanity check
-    if raw.id != Some(camera.id) {
+    if raw.id.is_some() && raw.id != Some(camera.id) {
         return Err(ApiError::Custom(StatusCode::NOT_FOUND, "id mismatch"));
     }
 
@@ -182,7 +184,7 @@ fn patch_camera(
     }
     camera.save(&db)?;
 
-    Ok(())
+    Ok(Json(camera.into()))
 }
 
 fn delete_camera(
