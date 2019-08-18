@@ -30,9 +30,9 @@ $(static_dir)/css/%.css: $(curdir)/style/%.scss
 
 jsfiles := \
 	$(static_dir)/js/base.js \
-	$(static_dir)/js/admin.js
+	$(static_dir)/js/admin/cameras.js
 $(static_dir)/js/%.js: $(curdir)/js/%.js
-	@mkdir -p $(static_dir)/js
+	@mkdir -p $(dir $@)
 	@cp $< $@
 
 webfonts_src := $(curdir)/node_modules/@fortawesome/fontawesome-free/webfonts
