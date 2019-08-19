@@ -15,6 +15,7 @@ class CamEntry extends HTMLElement {
 
         let elements = {
             cancelButton: 'cancel-button',
+            deleteButton: 'delete-button',
             dropdownIndicator: 'dropdown-indicator',
             enabledSwitch: 'cam-enabled',
             enabledSwitchLabel: 'cam-enabled-label',
@@ -38,6 +39,8 @@ class CamEntry extends HTMLElement {
         this.activeSubmission = false;
         this.saveButton.onclick = e => this.submitForm(e);
         this.cancelButton.onclick = e => this.cancelEntry(e);
+
+        this.deleteButton.onclick = e => this.deleteEntry(e);
     }
 
     connectedCallback() {
@@ -216,6 +219,31 @@ class CamEntry extends HTMLElement {
             this.nameField.value = this.getAttribute('cam-name');
             this.orientationSelect.value = this.getAttribute('cam-orientation');
             this.keyField.value = DUMMY_KEY;
+        }
+    }
+
+    deleteEntry(_event) {
+
+        if (!confirm('Are you sure you want to delete this camera?')) {
+            return;
+        }
+
+        fetch('/api/cameras/' + this.getAttribute('cam-id'), {
+                method: 'DELETE',
+                credentials: 'same-origin'
+            })
+            .then(r => this.handleDeletionResponse(r));
+    }
+
+    handleDeletionResponse(response) {
+
+        if (response.ok) {
+            this.showMessage('Camera successfully deleted', 'success');
+            this.parentElement.removeChild(this);
+
+        } else {
+            response.json()
+                .then(e => this.showMessage(e.message, 'error'));
         }
     }
 }
