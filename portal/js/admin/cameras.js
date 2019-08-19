@@ -39,6 +39,7 @@ class CamEntry extends HTMLElement {
         this.deleteButton.onclick = e => this.onDeleteButtonClicked(e);
         this.enabledSwitch.onclick = e => this.onEnabledSwitchClicked(e);
         this.header.onclick = e => this.onHeaderClicked(e);
+        this.keyField.onfocus = e => this.onKeyFieldFocused(e);
         this.saveButton.onclick = e => this.onSaveButtonClicked(e);
 
         // Other initialization
@@ -268,6 +269,13 @@ class CamEntry extends HTMLElement {
             this.showForm();
         } else {
             this.hideForm();
+        }
+    }
+
+    onKeyFieldFocused(_) {
+
+        if (this.keyField.value == DUMMY_KEY) {
+            this.keyField.select();
         }
     }
 
