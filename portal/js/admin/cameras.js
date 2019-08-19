@@ -13,6 +13,7 @@ class CamEntry extends HTMLElement {
             .cloneNode(true);
         this.bodyAppended = false;
 
+        // Bind template elements to properties of this object
         let elements = {
             cancelButton: 'cancel-button',
             deleteButton: 'delete-button',
@@ -33,11 +34,15 @@ class CamEntry extends HTMLElement {
             this[propertyName].removeAttribute('id');
         });
 
+        // Bind event handlers
         this.cancelButton.onclick = e => this.onCancelButtonClicked(e);
         this.deleteButton.onclick = e => this.onDeleteButtonClicked(e);
         this.enabledSwitch.onclick = e => this.onEnabledSwitchClicked(e);
         this.header.onclick = e => this.onHeaderClicked(e);
         this.saveButton.onclick = e => this.onSaveButtonClicked(e);
+
+        // Other initialization
+        this.keyField.value = DUMMY_KEY;
     }
 
     connectedCallback() {
@@ -295,6 +300,7 @@ function addCamera() {
     newCamEntry.hideDeleteButton();
     newCamEntry.header.hidden = true;
     newCamEntry.showForm();
+    newCamEntry.keyField.value = '';
     cameraList.appendChild(newCamEntry);
 }
 
