@@ -33,14 +33,11 @@ class CamEntry extends HTMLElement {
             this[propertyName].removeAttribute('id');
         });
 
-        this.header.onclick = () => this.toggleForm();
-        this.header.hidden = true;
-
-        this.activeSubmission = false;
-        this.saveButton.onclick = e => this.submitForm(e);
-        this.cancelButton.onclick = e => this.cancelEntry(e);
-
-        this.deleteButton.onclick = e => this.deleteEntry(e);
+        this.cancelButton.onclick = e => this.onCancelButtonClicked(e);
+        this.deleteButton.onclick = e => this.onDeleteButtonClicked(e);
+        this.enabledSwitch.onclick = e => this.onEnabledSwitchClicked(e);
+        this.header.onclick = e => this.onHeaderClicked(e);
+        this.saveButton.onclick = e => this.onSaveButtonClicked(e);
     }
 
     connectedCallback() {
@@ -74,7 +71,7 @@ class CamEntry extends HTMLElement {
                 break;
             case 'cam-id':
                 this.header.hidden = false;
-                this.hideForm();
+                this.showDeleteButton();
                 let switchId = newValue + '-enabled';
                 this.enabledSwitch.setAttribute('id', switchId);
                 this.enabledSwitchLabel.setAttribute('for', switchId);
@@ -132,17 +129,21 @@ class CamEntry extends HTMLElement {
         this.formWrapper.hidden = true;
     }
 
-    toggleForm() {
-        if (this.formWrapper.hidden) {
-            this.showForm();
-        } else {
-            this.hideForm();
-        }
+    showDeleteButton() {
+        this.deleteButton.classList.add('button')
+        this.deleteButton.hidden = false;
+    }
+
+    hideDeleteButton() {
+        this.deleteButton.classList.remove('button');
+        this.deleteButton.hidden = true;
     }
 
     //#endregion
 
-    submitForm(_event) {
+    //#region API Interaction
+
+    uploadCamera(camera) {
 
         // Only allow one in-flight submission at a time
         if (this.activeSubmission) {
@@ -153,14 +154,9 @@ class CamEntry extends HTMLElement {
         this.saveButton.disabled = true;
         this.saveButton.classList.add('is-loading');
         this.cancelButton.disabled = true;
+        this.enabledSwitch.disabled = true;
 
         let url = '/api/cameras';
-        let body = {
-            enabled: this.enabledSwitch.checked,
-            hostname: this.hostnameField.value,
-            friendlyName: this.nameField.value,
-            orientation: this.orientationSelect.value,
-        };
         let init = {
             headers: {
                 'Content-Type': 'application/json'
@@ -170,33 +166,29 @@ class CamEntry extends HTMLElement {
 
         if (this.hasAttribute('cam-id')) {
             url += '/' + this.getAttribute('cam-id');
-            body.deviceKey = this.keyField.value;
             init.method = 'PATCH';
         } else {
             init.method = 'PUT';
-            if (this.keyField.value != DUMMY_KEY) {
-                body.deviceKey = this.keyField.value;
-            }
         }
-        init.body = JSON.stringify(body);
+        init.body = JSON.stringify(camera);
 
         fetch(url, init)
-            .then(r => this.handleSubmissionResponse(r));
+            .then(r => this.handleUploadResponse(r));
     }
 
-    handleSubmissionResponse(response) {
+    handleUploadResponse(response) {
 
         this.activeSubmission = false;
         this.saveButton.disabled = false;
         this.saveButton.classList.remove('is-loading');
         this.cancelButton.disabled = false;
+        this.enabledSwitch.disabled = false;
 
         let jsonPromise = response.json();
 
         if (response.ok) {
             jsonPromise.then(c => {
                 this.reload(c);
-                this.showForm();
                 this.showMessage('Camera changes were saved successfully', 'success');
             });
 
@@ -205,37 +197,19 @@ class CamEntry extends HTMLElement {
         }
     }
 
-    cancelEntry(_event) {
+    deleteCamera() {
 
-        // If this entry is unsaved, delete it when the cancel button is pressed
-        if (!this.hasAttribute('cam-id')) {
-            this.parentElement.removeChild(this);
+        let url = '/api/cameras/' + this.getAttribute('cam-id');
+        let init = {
+            method: 'DELETE',
+            credentials: 'same-origin',
+        };
 
-        // Otherwise, this entry corresponds to an existing camera. Reset form contents to initial
-        // values and disable controls.
-        } else {
-            this.enabledSwitch.checked = (this.getAttribute('cam-enabled') == 'true');
-            this.hostnameField.value = this.getAttribute('cam-hostname');
-            this.nameField.value = this.getAttribute('cam-name');
-            this.orientationSelect.value = this.getAttribute('cam-orientation');
-            this.keyField.value = DUMMY_KEY;
-        }
+        fetch(url, init)
+            .then(r => this.handleDeleteResponse(r));
     }
 
-    deleteEntry(_event) {
-
-        if (!confirm('Are you sure you want to delete this camera?')) {
-            return;
-        }
-
-        fetch('/api/cameras/' + this.getAttribute('cam-id'), {
-                method: 'DELETE',
-                credentials: 'same-origin'
-            })
-            .then(r => this.handleDeletionResponse(r));
-    }
-
-    handleDeletionResponse(response) {
+    handleDeleteResponse(response) {
 
         if (response.ok) {
             this.showMessage('Camera successfully deleted', 'success');
@@ -246,6 +220,67 @@ class CamEntry extends HTMLElement {
                 .then(e => this.showMessage(e.message, 'error'));
         }
     }
+
+    //#endregion
+
+    //#region Event Handlers
+
+    onCancelButtonClicked(_) {
+
+        // If this entry is unsaved, delete it when the cancel button is pressed
+        if (!this.hasAttribute('cam-id')) {
+            this.parentElement.removeChild(this);
+
+        // Otherwise, reset form contents to initial values
+        } else {
+            this.enabledSwitch.checked = (this.getAttribute('cam-enabled') == 'true');
+            this.hostnameField.value = this.getAttribute('cam-hostname');
+            this.nameField.value = this.getAttribute('cam-name');
+            this.orientationSelect.value = this.getAttribute('cam-orientation');
+            this.keyField.value = DUMMY_KEY;
+        }
+    }
+
+    onDeleteButtonClicked(_) {
+
+        if (confirm('Are you sure you want to delete this camera?')) {
+            this.deleteCamera();
+        }
+    }
+
+    onEnabledSwitchClicked(_) {
+
+        let camera = {
+            enabled: this.enabledSwitch.checked,
+        };
+
+        this.uploadCamera(camera);
+    }
+
+    onHeaderClicked(_) {
+
+        if (this.formWrapper.hidden) {
+            this.showForm();
+        } else {
+            this.hideForm();
+        }
+    }
+
+    onSaveButtonClicked(_) {
+
+        let camera = {
+            hostname: this.hostnameField.value,
+            friendlyName: this.nameField.value,
+            orientation: this.orientationSelect.value,
+        };
+        if (!this.hasAttribute('cam-id') || this.keyField.value != DUMMY_KEY) {
+            camera.deviceKey = this.keyField.value;
+        }
+
+        this.uploadCamera(camera);
+    }
+
+    //#endregion
 }
 
 customElements.define('cam-entry', CamEntry);
@@ -256,7 +291,10 @@ var cameraList = document.getElementById('cam-list');
 
 function addCamera() {
 
-    let newCamEntry = new CamEntry();
+    let newCamEntry = document.createElement('cam-entry');
+    newCamEntry.hideDeleteButton();
+    newCamEntry.header.hidden = true;
+    newCamEntry.showForm();
     cameraList.appendChild(newCamEntry);
 }
 
