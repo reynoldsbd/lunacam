@@ -6,14 +6,14 @@
 
 <template id="cam-entry-template">
 
-    <hr />
-
-    <div id="header" class="level">
-        <div class="level-left">
-            <span id="cam-name-label" class="level-item">CAMERA NAME</span>
-        </div>
-        <div class="level-right">
-            <span class="icon"><i id="dropdown-indicator" class="fas fa-chevron-down"></i></span>
+    <div hidden id="header">
+        <div class="level">
+            <div class="level-left">
+                <span id="cam-name-label" class="level-item">CAMERA NAME</span>
+            </div>
+            <div class="level-right">
+                <span class="icon"><i id="dropdown-indicator" class="fas fa-chevron-down"></i></span>
+            </div>
         </div>
     </div>
 
@@ -86,7 +86,7 @@
             <div class="field-body">
                 <div class="field">
                     <div class="control is-expanded">
-                        <input type="password" id="cam-key-field" class="input" value="......" placeholder="key...">
+                        <input type="password" id="cam-key-field" class="input" placeholder="key...">
                     </div>
                 </div>
             </div>
@@ -94,38 +94,42 @@
 
         <div class="field is-grouped is-grouped-right">
             <p class="control">
-                <button id="save-button" class="button is-primary" disabled>Save</button>
+                <button id="save-button" class="button is-primary">Save</button>
             </p>
             <p class="control">
-                <button id="cancel-button" class="button is-light" disabled>Cancel</button>
+                <button id="cancel-button" class="button is-light">Cancel</button>
             </p>
         </div>
 
     </div>
 
+    <hr />
+
 </template>
 
 <div class="container">
 
-    <h3 class="title has-text-centered">Administration</h3>
+    <h3 class="title has-text-centered">Camera Administration</h3>
 
-    <div id="cam-list" class="box">
+    <div class="box">
 
-        <div class="level">
-            <div class="level-left">
-                <h5 class="title is-5 level-item">Camera Management</h5>
-            </div>
+        <div id="cam-list">
+            {% for camera in cameras %}
+            <cam-entry
+                cam-enabled="{{ camera.enabled }}"
+                cam-hostname="{{ camera.hostname }}"
+                cam-id="{{ camera.id }}"
+                cam-name="{{ camera.friendly_name }}"
+                cam-orientation="{{ camera.orientation }}">
+            </cam-entry>
+            {% endfor %}
         </div>
 
-        {% for camera in cameras %}
-        <cam-entry
-            cam-enabled="{{ camera.enabled }}"
-            cam-hostname="{{ camera.hostname }}"
-            cam-id="{{ camera.id }}"
-            cam-name="{{ camera.friendly_name }}"
-            cam-orientation="{{ camera.orientation }}">
-        </cam-entry>
-        {% endfor %}
+        <div class="field is-grouped is-grouped-centered">
+            <p class="control">
+                <button id="add-button" class="button is-primary">Add New Camera</button>
+            </p>
+        </div>
 
     </div>
 </div>
