@@ -8,6 +8,10 @@ $fa-font-path: "fa-fonts";
 @import "regular";
 @import "solid";
 
+#message-area .notification {
+    margin-bottom: 1rem;
+}
+
 .dropdown-menu-header {
     margin-bottom: 0.75rem;
 }

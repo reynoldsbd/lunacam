@@ -94,23 +94,6 @@ class CamEntry extends HTMLElement {
 
     //#endregion
 
-    showMessage(message, level) {
-
-        // TODO: needs to be user-visible
-
-        switch (level) {
-            case 'success':
-                console.log('Success: ' + message);
-                break;
-            case 'error':
-                console.error('Error: ' + message);
-                break;
-            default:
-                console.warn('Unknown log level \"' + level + '\"');
-                console.log(level + ': ' + message);
-        }
-    }
-
     reload(camera) {
 
         this.setAttribute('cam-enabled', camera.enabled);
@@ -149,7 +132,7 @@ class CamEntry extends HTMLElement {
 
     //#region API Interaction
 
-    uploadCamera(camera) {
+    uploadCamera(camera, showSuccessMessage = true) {
 
         // Only allow one in-flight submission at a time
         if (this.activeSubmission) {
@@ -179,10 +162,10 @@ class CamEntry extends HTMLElement {
         init.body = JSON.stringify(camera);
 
         fetch(url, init)
-            .then(r => this.handleUploadResponse(r));
+            .then(r => this.handleUploadResponse(r, showSuccessMessage));
     }
 
-    handleUploadResponse(response) {
+    handleUploadResponse(response, showSuccessMessage) {
 
         this.activeSubmission = false;
         this.saveButton.disabled = false;
@@ -195,11 +178,13 @@ class CamEntry extends HTMLElement {
         if (response.ok) {
             jsonPromise.then(c => {
                 this.reload(c);
-                this.showMessage('Camera changes were saved successfully', 'success');
+                if (showSuccessMessage) {
+                    showMessage('Camera changes were saved successfully', 'success');
+                }
             });
 
         } else {
-            jsonPromise.then(e => this.showMessage(e.message, 'error'));
+            jsonPromise.then(e => showMessage(e.message, 'error'));
         }
     }
 
@@ -218,12 +203,12 @@ class CamEntry extends HTMLElement {
     handleDeleteResponse(response) {
 
         if (response.ok) {
-            this.showMessage('Camera successfully deleted', 'success');
+            showMessage('Camera successfully deleted', 'success');
             this.parentElement.removeChild(this);
 
         } else {
             response.json()
-                .then(e => this.showMessage(e.message, 'error'));
+                .then(e => showMessage(e.message, 'error'));
         }
     }
 
@@ -260,7 +245,7 @@ class CamEntry extends HTMLElement {
             enabled: this.enabledSwitch.checked,
         };
 
-        this.uploadCamera(camera);
+        this.uploadCamera(camera, false);
     }
 
     onHeaderClicked(_) {

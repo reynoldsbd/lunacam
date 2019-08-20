@@ -32,6 +32,13 @@
             </div>
         </nav>
 
+        <template id="message-banner-template">
+            <div class="notification" id="notification">
+                <span id="message"></span>
+                <button class="delete" id="delete-button"></button>
+            </div>
+        </template>
+
         <section class="section">
             {% block content %}
             {% endblock content %}
