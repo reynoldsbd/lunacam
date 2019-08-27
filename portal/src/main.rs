@@ -21,8 +21,8 @@ mod ui;
 
 use crate::templates::Templates;
 
-fn main()
-{
+fn main() {
+    
     let env = Env::default()
         .filter_or("LC_LOG", "info")
         .write_style("LC_LOG_STYLE");
