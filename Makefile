@@ -1,45 +1,75 @@
 repo := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
+build := $(repo)/build
 
-
-####################################################################################################
-# Files in .targets are used to represent non-file dependencies, like Docker objects. This allows
-# make to correctly track such dependencies and run their recipes only when needed.
-####################################################################################################
-
-target_dir := $(repo)/.targets
-
-$(target_dir):
-	@mkdir -p $(target_dir)
-
-clean-targets:
-	@echo cleaning pseudo-target db
-	@rm -rf $(target_dir)
-.PHONY: clean-targets
-clean_targets += clean-targets
 
 
 ####################################################################################################
-# Docker image used to cross-compile ("xc") binaries for the Raspberry Pi
+# Daemon
 ####################################################################################################
 
-xc_dir := $(repo)/build/xc
-xc_img_name := lunacam-xc
-xc_img_target := $(target_dir)/xc_img
+daemon:
+	@$(MAKE) --no-print-directory -C daemon
 
-$(xc_img_target): $(shell find $(xc_dir) -type f) $(target_dir)
-	@echo building cross-compilation image
-	@docker build -t $(xc_img_name) $(xc_dir)
-	@touch $(xc_img_target)
+run-daemon:
+	@$(MAKE) --no-print-directory -C daemon run
 
-xc-img: $(xc_img_target)
-.PHONY: xc-img
+clean-daemon:
+	@$(MAKE) --no-print-directory -C daemon clean
 
-clean-xc-img:
-	@echo cleaning cross-compilation image
-	@docker image rm -f $(xc_img_name) 2> /dev/null
-	@rm -rf $(xc_img_target)
-.PHONY: clean-xc-img
-clean_targets += clean-xc-img
+.PHONY: daemon run-daemon clean-daemon
+
+
+
+####################################################################################################
+# Files under $(pseudo) represent non-file dependencies (e.g. Docker images)
+####################################################################################################
+
+pseudo := $(build)/pseudo
+$(pseudo):
+	@mkdir -p $(pseudo)
+
+
+
+####################################################################################################
+# The crossbuild Docker image is used to cross-compile binaries for the Raspberry Pi
+####################################################################################################
+
+crossbuild := $(pseudo)/crossbuild
+crossbuild_dir := $(repo)/tools/crossbuild
+crossbuild_img := lc-crossbuild
+crossbuild_cache := lc-crossbuild-cache
+crossbuild_cmd := docker run -it --rm   \
+	-v $(repo):/source                  \
+	-v $(crossbuild_cache):/root/.cargo \
+	-w /source                          \
+	$(crossbuild_img)
+
+$(crossbuild): $(shell find $(crossbuild_dir) -type f) $(pseudo)
+	@docker build -t $(crossbuild_img) $(crossbuild_dir)
+	@touch $(crossbuild)
+
+pi_triple := arm-unknown-linux-gnueabihf
+crossbuild_out_dir := $(build)/target/$(pi_triple)/release
+crossbuild_daemon := $(crossbuild_out_dir)/lunacam-daemon
+
+$(crossbuild_daemon): $(crossbuild)
+	@$(crossbuild_cmd) make  \
+		--no-print-directory \
+		--directory /source  \
+		target=$(pi_triple)  \
+		profile=release      \
+		daemon
+
+crossbuild: $(crossbuild_daemon)
+
+clean-crossbuild:
+	@$(crossbuild_cmd) cargo clean --target $(pi_triple) --release
+	@docker image rm -f $(crossbuild_img) 2> /dev/null
+	@docker volume rm $(crossbuild_cache)
+	@rm -rf $(crossbuild)
+
+.PHONY: crossbuild clean-crossbuild
+
 
 
 ####################################################################################################

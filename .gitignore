@@ -1,3 +1,6 @@
+# Out-of-source build tree
+/build
+
 # Rust stuff
 /target
 **/*.rs.bk
