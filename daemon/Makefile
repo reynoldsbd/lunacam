@@ -1,5 +1,10 @@
-repo := $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/..)
-build := $(repo)/build
+include $(repo)/tools/make/pal.mk
+include $(repo)/tools/make/rust.mk
+
+
+
+all: daemon
+.PHONY: all
 
 
 
@@ -7,22 +12,10 @@ build := $(repo)/build
 # Daemon binary
 ####################################################################################################
 
-profile ?= debug
-ifeq "$(profile)" "release"
-profile_arg := --release
-endif
+daemon := $(RUST_OUT_DIR)/lunacam-daemon
 
-ifdef target
-target_dir := $(build)/target/$(target)
-target_arg := --target $(target)
-else
-target_dir := $(build)/target
-endif
-
-daemon := $(target_dir)/$(profile)/lunacam-daemon
-
-$(daemon): Cargo.toml ../Cargo.lock $(shell find src -type f)
-	@cargo build $(target_arg) $(profile_arg)
+$(daemon): $(RUST_DEPS)
+	@$(RUST_BUILD_CMD)
 
 daemon: $(daemon)
 .PHONY: daemon
@@ -34,10 +27,10 @@ daemon: $(daemon)
 ####################################################################################################
 
 export LC_LOG ?= info,lunacam_daemon=debug
-export DATABASE_URL := $(build)/run/daemon.db
+export DATABASE_URL ?= $(build)/run/daemon.db
 
 run: daemon
-	@mkdir -p $(dir $(DATABASE_URL))
+	@$(PAL_CREATE_DIR) $(dir $(DATABASE_URL))
 	@diesel migration run
 	@cargo run -q
 .PHONY: run
@@ -50,10 +43,5 @@ run: daemon
 
 clean:
 	@cargo clean
-	@rm -f $(DATABASE_URL)
+	@$(call PAL_RM,$(DATABASE_URL))
 .PHONY: clean
-
-
-
-all: daemon
-.PHONY: all
