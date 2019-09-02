@@ -16,6 +16,7 @@ daemon := $(RUST_OUT_DIR)/lunacam-daemon
 
 $(daemon): $(RUST_DEPS)
 	@$(RUST_BUILD_CMD)
+	@$(call PAL_TOUCH_FILE,$(daemon))
 
 daemon: $(daemon)
 .PHONY: daemon
@@ -27,13 +28,25 @@ daemon: $(daemon)
 ####################################################################################################
 
 export LC_LOG ?= info,lunacam_daemon=debug
-export DATABASE_URL ?= $(build)/run/daemon.db
+export STATE_DIRECTORY ?= $(build)/run
 
 run: daemon
-	@$(PAL_CREATE_DIR) $(dir $(DATABASE_URL))
+	@$(PAL_CREATE_DIR) $(STATE_DIRECTORY)
 	@diesel migration run
 	@cargo run -q
 .PHONY: run
+
+
+
+####################################################################################################
+# Installation
+#
+# Technically, all is a prereq of install. However, this dependency is intentionally left out to
+# prevent accidentally trying to cross-compile during imagebuild.
+####################################################################################################
+
+install: install.sh
+	@./install.sh
 
 
 
@@ -43,5 +56,5 @@ run: daemon
 
 clean:
 	@cargo clean
-	@$(call PAL_RM,$(DATABASE_URL))
+	@$(call PAL_RM,$(STATE_DIRECTORY)/daemon.db)
 .PHONY: clean

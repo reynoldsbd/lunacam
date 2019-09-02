@@ -13,10 +13,10 @@ endif
 
 
 ifdef RUST_TARGET
-RUST_OUT_DIR = $(build)/target/$(RUST_TARGET)/$(RUST_PROFILE)
+export RUST_OUT_DIR = $(build)/target/$(RUST_TARGET)/$(RUST_PROFILE)
 RUST_TARGET_ARG = --target $(RUST_TARGET)
 else
-RUST_OUT_DIR = $(build)/target/$(RUST_PROFILE)
+export RUST_OUT_DIR = $(build)/target/$(RUST_PROFILE)
 endif
 
 

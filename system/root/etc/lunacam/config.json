@@ -1,5 +1,0 @@
-{
-    "listen": "localhost:8000",
-    "staticPath": "/usr/local/share/lunacam/static",
-    "templatePath": "/usr/local/share/lunacam/templates"
-}

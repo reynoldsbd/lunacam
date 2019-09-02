@@ -16,6 +16,7 @@ portal := $(call RUST_BIN_PATH,lunacam-portal)
 
 $(portal): $(RUST_DEPS)
 	@$(RUST_BUILD_CMD)
+	@$(call PAL_TOUCH_FILE,$(portal))
 
 portal: $(portal)
 .PHONY: portal

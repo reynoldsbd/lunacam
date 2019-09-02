@@ -7,8 +7,5 @@ RUN (mkdir /img && bsdtar -xpf /alarm-base.tar.gz -C /img) || true
 
 RUN pacman --noconfirm -Syu base-devel git parted qemu qemu-arch-extra dosfstools e2fsprogs psmisc \
     mtools
-COPY scripts/aur-install.sh /scripts/aur-install.sh
-RUN /scripts/aur-install.sh qemu-user-static-bin
-
-COPY scripts/ /scripts/
-CMD ["/scripts/build.sh"]
+COPY aur-install.sh /usr/bin/aur-install
+RUN aur-install qemu-user-static-bin

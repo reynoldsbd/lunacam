@@ -1,23 +1,6 @@
 # Out-of-source build tree
 /build
 
-# Rust stuff
-/target
-**/*.rs.bk
-
-# JS stuff
-node_modules/
-
-# Developer configuration
-/config.json
-/system/local.sh
-/system/root.local
-
-# Build artifacts
-lunacam.img
-/.staging
-/.static
-/.targets
-/.config
-/portal/static
-lunacam.db
+# Local customizations
+sysroot.local/
+install.local.sh

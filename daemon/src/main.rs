@@ -1,6 +1,9 @@
 #[macro_use]
 extern crate diesel;
 
+#[macro_use]
+extern crate diesel_migrations;
+
 use actix_web::{App, HttpServer};
 use actix_web::web;
 use diesel::prelude::*;
@@ -36,6 +39,9 @@ impl Default for Orientation {
 }
 
 
+embed_migrations!();
+
+
 fn main() {
 
     let env = Env::default()
@@ -43,9 +49,12 @@ fn main() {
         .write_style("LC_LOG_STYLE");
     env_logger::init_from_env(env);
 
-    let db_url = std::env::var("DATABASE_URL")
+    let state_dir = std::env::var("STATE_DIRECTORY")
         .unwrap();
+    let db_url = format!("{}/daemon.db", state_dir);
     let db_conn = SqliteConnection::establish(&db_url)
+        .unwrap();
+    embedded_migrations::run(&db_conn)
         .unwrap();
 
     let rt = Runtime::new()
@@ -58,6 +67,6 @@ fn main() {
             App::new()
                 .service(web::scope("/api").configure(api::configure))
         )
-        .bind("127.0.0.1:8000").unwrap()
+        .bind("127.0.0.1:9350").unwrap()
         .run().unwrap();
 }

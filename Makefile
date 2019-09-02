@@ -1,8 +1,15 @@
-# TODO: repo -> LC_SOURCE_ROOT and build -> LC_BUILD_ROOT
+# TODO: remove non-LC_* vars
 export repo := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 export build := $(repo)/build
+export LC_SOURCE := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
+export LC_BUILD := $(LC_SOURCE)/build
+export LC_TOOLS := $(LC_SOURCE)/tools
 
-include $(repo)/tools/make/pal.mk
+include $(LC_TOOLS)/make/pal.mk
+
+
+
+FORCE:
 
 
 
@@ -18,6 +25,9 @@ run-daemon:
 
 clean-daemon:
 	@$(MAKE) --no-print-directory -C daemon clean
+
+install-daemon:
+	@$(MAKE) --no-print-directory -C daemon install
 
 .PHONY: daemon run-daemon clean-daemon
 
@@ -35,6 +45,9 @@ run-portal:
 
 clean-portal:
 	@$(MAKE) --no-print-directory -C portal clean
+
+install-portal:
+	@$(MAKE) --no-print-directory -C portal install
 
 .PHONY: portal run-portal clean-portal
 
@@ -80,13 +93,15 @@ crossbuild_out_dir := $(build)/target/$(pi_triple)/release
 crossbuild_daemon := $(crossbuild_out_dir)/lunacam-daemon
 crossbuild_portal := $(crossbuild_out_dir)/lunacam-portal
 
-$(crossbuild_daemon): $(crossbuild)
+$(crossbuild_daemon): $(crossbuild) FORCE
 	@$(crossbuild_cmd) daemon
+	@$(call PAL_TOUCH_FILE,$(crossbuild_daemon))
 
-$(crossbuild_portal): $(crossbuild)
+$(crossbuild_portal): $(crossbuild) FORCE
 	@$(crossbuild_cmd) portal
+	@$(call PAL_TOUCH_FILE,$(crossbuild_portal))
 
-crossbuild: $(crossbuild_daemon)
+crossbuild: $(crossbuild_daemon) $(crossbuild_portal)
 
 clean-crossbuild:
 	@$(call PAL_RM,$(crossbuild_out_dir))
@@ -95,6 +110,57 @@ clean-crossbuild:
 	@$(call PAL_RM,$(crossbuild))
 
 .PHONY: crossbuild clean-crossbuild
+
+
+
+####################################################################################################
+# The imagebuild Docker image is used to build a bootable SD card image
+####################################################################################################
+
+imagebuild_ctx := $(pseudo)/imagebuild-ctx
+imagebuild_ctx_dir := $(LC_BUILD)/imagebuild
+
+$(imagebuild_ctx): $(LC_TOOLS)/imagebuild/aur-install.sh $(pseudo)
+	@$(PAL_CREATE_DIR) $(imagebuild_ctx_dir)
+	@cp $(LC_TOOLS)/imagebuild/aur-install.sh $(imagebuild_ctx_dir)/aur-install.sh
+	@$(call PAL_TOUCH_FILE,$(imagebuild_ctx))
+
+imagebuild := $(pseudo)/imagebuild
+imagebuild_dir := $(repo)/tools/imagebuild
+imagebuild_img := lc-imagebuild
+
+$(imagebuild): $(LC_TOOLS)/imagebuild/Dockerfile $(imagebuild_ctx) $(pseudo)
+	@docker build -t $(imagebuild_img) -f $(LC_TOOLS)/imagebuild/Dockerfile $(imagebuild_ctx_dir)
+	@$(call PAL_TOUCH_FILE,$(imagebuild))
+
+imagebuild: $(imagebuild)
+
+imagebuild_cmd := docker run
+imagebuild_cmd += -it --rm --privileged
+imagebuild_cmd += --tmpfs /tmp
+imagebuild_cmd += -v $(repo):/source
+imagebuild_cmd += -w /source
+imagebuild_cmd += $(imagebuild_img)
+imagebuild_cmd += /source/tools/imagebuild/build.sh
+
+daemon_image := $(build)/images/lc-daemon.img
+portal_image := $(build)/images/lc-portal.img
+
+$(daemon_image): $(crossbuild_daemon) $(imagebuild)
+	@$(imagebuild_cmd) daemon
+
+daemon-image: $(daemon_image)
+
+$(portal_image): $(crossbuild_portal) $(imagebuild)
+	@$(imagebuild_cmd) portal
+
+portal-image: $(portal_image)
+
+clean-imagebuild:
+	@docker image rm -f $(imagebuild_img)
+	@$(call PAL_RM,$(imagebuild))
+
+.PHONY: imagebuild daemon-image portal-image clean-imagebuild
 
 
 ####################################################################################################
@@ -138,50 +204,6 @@ clean-crossbuild:
 # clean_targets += clean-stg
 
 
-####################################################################################################
-# Docker image used to prepare the SD card image containing LunaCam
-####################################################################################################
-
-# sd_dir := $(repo)/build/sd
-# sd_img_name := lunacam-sd
-# sd_img_target := $(target_dir)/sd_img
-
-# $(sd_img_target): $(shell find $(sd_dir) -type f) $(target_dir)
-# 	@echo building SD card builder image
-# 	@docker build -t $(sd_img_name) $(sd_dir)
-# 	@touch $(sd_img_target)
-
-# sd-img: $(sd_img_target)
-# .PHONY: sd-img
-
-# clean-sd-img:
-# 	@echo cleaning SD card builder image
-# 	@docker image rm -f $(sd_img_name) 2> /dev/null
-# 	@rm -rf $(sd_img_target)
-# .PHONY: clean-sd-img
-# clean_targets += clean-sd-img
-
-
-####################################################################################################
-# Builds the LunaCam SD card image
-####################################################################################################
-
-# sd := $(repo)/lunacam.img
-# sd_ctr_name := lunacam-sd
-
-# $(sd): $(stg_target) $(sd_img_target)
-# 	@docker run -it --rm --privileged --tmpfs /tmp -v $(stg):/mnt -v $(repo):/out \
-# 		--name $(sd_ctr_name) $(sd_img_name)
-
-# sd: $(sd)
-# .PHONY: sd
-
-# clean-sd:
-# 	@echo cleaning SD card image
-# 	@rm -rf $(sd)
-# .PHONY: clean-sd
-# clean_targets += clean-sd
-
 
 ####################################################################################################
 # Deploys complete LunaCam installation to a connected Raspberry Pi
@@ -204,20 +226,3 @@ clean-crossbuild:
 # 	@$(PI_CMD) sudo systemctl daemon-reload
 # 	@$(PI_CMD) sudo systemctl restart lunacam
 # .PHONY: deploy
-
-
-####################################################################################################
-# Runs LunaCam on the local machine
-####################################################################################################
-
-# run: $(shell find $(repo)/src -type f) $(srv_manifest) $(static_target)
-# 	@cargo run -- config.json
-# .PHONY: run
-
-
-####################################################################################################
-# Cleanup
-####################################################################################################
-
-# clean: $(clean_targets)
-# .PHONY: clean

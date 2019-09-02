@@ -1,16 +1,16 @@
 #!/bin/bash
 
-# Uses QEMU and chroot to run the specified command within the hosted Arch ARM system. Expects
-# exactly 2 arguments:
-# 1. Absolute path of extracted Arch ARM filesystem
-# 2. Path of program or script to run within emulated chroot. This path
+# Uses QEMU and chroot to run the specified command within the hosted Arch ARM system. $1 is used as
+# the root of the hosted system, $2 is the command to run inside that system, and all remaining args
+# are passed through to $2.
 
 set -e
 root=$1
 cmd=$2
+shift 2
 
 
-# Use QEMU and binfmt_misc for emulating ARM
+# Use QEMU and binfmt_misc to emulate ARM
 cp $(which qemu-arm-static) $root/usr/bin/qemu-arm-static
 
 # Use the host's resolv.conf to enable DNS resolution from the hosted system
@@ -27,14 +27,13 @@ mount --bind /proc $root/proc
 mount --bind /dev $root/dev
 mount --bind /dev/pts $root/dev/pts
 mount --bind /tmp $root/tmp
-mkdir -p $root/scripts
-mount --bind /scripts $root/scripts
-mount --bind /mnt $root/mnt
+mkdir -p $root/source
+mount --bind /source $root/source
 
 
 # Do the chroot
 echo "alarm-chroot.sh: running command \"$cmd\""
-chroot $root $cmd 2>&1 | sed 's/^/    /'
+chroot $root $cmd "$@" 2>&1 | sed 's/^/    /'
 cmdStatus=${PIPESTATUS[0]}
 
 
@@ -42,9 +41,8 @@ cmdStatus=${PIPESTATUS[0]}
 fuser -sk $root || true
 
 # Clean up mount points
-umount $root/mnt
-umount $root/scripts
-rmdir $root/scripts
+umount $root/source
+rmdir $root/source
 umount $root/tmp
 umount $root/dev/pts
 umount $root/dev

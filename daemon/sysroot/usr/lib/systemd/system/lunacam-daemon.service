@@ -1,0 +1,13 @@
+[Unit]
+Description=LunaCam Daemon
+ReloadPropagatedFrom=dev-video0.device
+
+[Service]
+User=lunacam
+StateDirectory=lunacam
+ExecStart=/usr/bin/lunacam-daemon
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target
