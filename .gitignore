@@ -4,3 +4,6 @@
 # Local customizations
 sysroot.local/
 install.local.sh
+
+# Editor configuration
+.vscode/
