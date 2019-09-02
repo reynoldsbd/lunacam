@@ -1,7 +1,7 @@
 //! User interface
 
 use actix_web::{Responder};
-use actix_web::web::{self, Data, ServiceConfig};
+use actix_web::web::{self, Data, Path, ServiceConfig};
 use diesel::prelude::*;
 use diesel::sqlite::SqliteConnection;
 use log::{error};
@@ -10,9 +10,29 @@ use crate::camera::Camera;
 use crate::templates::Templates;
 
 
-fn index(templates: Data<Templates>) -> impl Responder
+fn index(db: Data<SqliteConnection>, templates: Data<Templates>) -> impl Responder
 {
-    templates.render("index.html", Context::new())
+    let mut context = Context::new();
+    context.insert(
+        "cameras",
+        &Camera::get_all(&db)
+            .expect("camera_admin: failed to get camera list")
+    );
+
+    templates.render("index.html", context)
+}
+
+
+fn camera(path: Path<(i32,)>, db: Data<SqliteConnection>, templates: Data<Templates>) -> impl Responder {
+
+    let mut context = Context::new();
+    context.insert(
+        "camera",
+        &Camera::get(path.0, &db)
+            .expect("camera: failed to get specified camera")
+    );
+
+    templates.render("camera.html", context)
 }
 
 
@@ -41,6 +61,7 @@ pub fn configure(templates: Templates, db_url: String) -> impl FnOnce(&mut Servi
         }
 
         service.route("/", web::get().to(index));
+        service.route("/cameras/{id}", web::get().to(camera));
         service.route("/admin/cameras", web::get().to(camera_admin));
     }
 }

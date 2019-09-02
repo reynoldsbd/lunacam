@@ -52,6 +52,7 @@ $(STATIC_DIR)/css/%.css: style/%.scss $(pkg)
 	@$(sass_cmd) $< $@
 
 jsfiles := $(STATIC_DIR)/js/base.js
+jsfiles += $(STATIC_DIR)/js/camera.js
 jsfiles += $(STATIC_DIR)/js/admin/cameras.js
 $(STATIC_DIR)/js/%.js: js/%.js
 	@$(PAL_CREATE_DIR) $(dir $@)

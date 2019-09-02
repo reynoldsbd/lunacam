@@ -3,10 +3,28 @@
 {% block title %}Cameras{% endblock title %}
 
 {% block content %}
-<div class="container has-text-centered">
-    <h1 class="title">Cameras</h1>
-    <p>
-        todo: list of cameras
-    </p>
+<div class="container">
+
+    <h3 class="title has-text-centered">Choose a Camera</h3>
+
+    <div class="box">
+        {% for camera in cameras %}
+            <a href="/cameras/{{ camera.id }}">
+                <div class="level">
+                    <div class="level-left">
+                        <span class="level-item">{{ camera.friendly_name }}</span>
+                    </div>
+                    <div class="level-right">
+                        <span class="icon level-item"><i class="fas fa-arrow-right"></i></span>
+                    </div>
+                </div>
+            </a>
+
+            {% if not loop.last %}
+            <hr />
+            {% endif %}
+        {% endfor %}
+    </div>
+
 </div>
 {% endblock content %}
