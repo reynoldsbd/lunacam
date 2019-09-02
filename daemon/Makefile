@@ -32,7 +32,6 @@ export STATE_DIRECTORY ?= $(build)/run
 
 run: daemon
 	@$(PAL_CREATE_DIR) $(STATE_DIRECTORY)
-	@diesel migration run
 	@cargo run -q
 .PHONY: run
 

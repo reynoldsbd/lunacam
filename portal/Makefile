@@ -77,12 +77,10 @@ static: $(stylesheets) $(jsfiles) $(webfonts)
 export LC_LOG ?= info,lunacam_portal=debug
 export LC_STATIC ?= $(STATIC_DIR)
 export LC_TEMPLATES ?= $(PAL_CURRENT_DIR)/templates
-export DATABASE_URL ?= $(build)/run/portal.db
 export STATE_DIRECTORY ?= $(build)/run
 
 run: portal static
-	@$(PAL_CREATE_DIR) $(dir $(DATABASE_URL))
-	@diesel migration run
+	@$(PAL_CREATE_DIR) $(STATE_DIRECTORY)
 	@cargo run -q
 .PHONY: run
 
