@@ -18,6 +18,9 @@ start_x=1
 gpu_mem=128
 EOL
 
+echo "install.sh (daemon): configuring system"
+systemctl enable lunacam-daemon
+
 if [ -d sysroot.local ]
 then
     echo "install.sh (daemon): installing local sysroot"

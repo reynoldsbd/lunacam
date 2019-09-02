@@ -41,24 +41,24 @@ $(pkg): package.json yarn.lock
 # Static files
 ####################################################################################################
 
-static_dir := $(build)/portal/static
+export STATIC_DIR := $(build)/portal/static
 
 sass_cmd := sass
 sass_cmd += -I $(pkg_dir)/bulma
 sass_cmd += -I $(pkg_dir)/bulma-switch/dist/css
 sass_cmd += -I $(pkg_dir)/@fortawesome/fontawesome-free/scss
-stylesheets := $(static_dir)/css/style.css
-$(static_dir)/css/%.css: style/%.scss $(pkg)
+stylesheets := $(STATIC_DIR)/css/style.css
+$(STATIC_DIR)/css/%.css: style/%.scss $(pkg)
 	@$(sass_cmd) $< $@
 
-jsfiles := $(static_dir)/js/base.js
-jsfiles += $(static_dir)/js/admin/cameras.js
-$(static_dir)/js/%.js: js/%.js
+jsfiles := $(STATIC_DIR)/js/base.js
+jsfiles += $(STATIC_DIR)/js/admin/cameras.js
+$(STATIC_DIR)/js/%.js: js/%.js
 	@$(PAL_CREATE_DIR) $(dir $@)
 	@cp $< $@
 
 webfonts_src := $(pkg_dir)/@fortawesome/fontawesome-free/webfonts
-webfonts_dest := $(static_dir)/css/fa-fonts
+webfonts_dest := $(STATIC_DIR)/css/fa-fonts
 webfonts := $(addprefix $(webfonts_dest)/,$(notdir $(call PAL_ENUM_DIR,$(webfonts_src))))
 $(webfonts_dest)/%: $(webfonts_src)/% $(pkg)
 	@$(PAL_CREATE_DIR) $(webfonts_dest)
@@ -75,15 +75,28 @@ static: $(stylesheets) $(jsfiles) $(webfonts)
 ####################################################################################################
 
 export LC_LOG ?= info,lunacam_portal=debug
-export LC_STATIC ?= $(static_dir)
+export LC_STATIC ?= $(STATIC_DIR)
 export LC_TEMPLATES ?= $(PAL_CURRENT_DIR)/templates
 export DATABASE_URL ?= $(build)/run/portal.db
+export STATE_DIRECTORY ?= $(build)/run
 
 run: portal static
 	@$(PAL_CREATE_DIR) $(dir $(DATABASE_URL))
 	@diesel migration run
 	@cargo run -q
 .PHONY: run
+
+
+
+####################################################################################################
+# Installation
+#
+# Technically, all is a prereq of install. However, this dependency is intentionally left out to
+# prevent accidentally trying to cross-compile during imagebuild.
+####################################################################################################
+
+install: install.sh
+	@./install.sh
 
 
 

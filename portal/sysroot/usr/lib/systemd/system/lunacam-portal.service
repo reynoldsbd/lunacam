@@ -1,0 +1,13 @@
+[Unit]
+Description=LunaCam Portal
+
+[Service]
+User=lunacam
+StateDirectory=lunacam
+Environment=LC_TEMPLATES=/usr/share/lunacam/templates
+ExecStart=/usr/bin/lunacam-portal
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target

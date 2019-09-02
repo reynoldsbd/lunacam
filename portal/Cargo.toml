@@ -9,6 +9,7 @@ actix-files = "0.1"
 actix-web = "1.0"
 derive_more = "0.15"
 diesel = {version = "1.4", features = ["sqlite"] }
+diesel_migrations = "1.4"
 env_logger = "0.6"
 hotwatch = "0.4"
 libsqlite3-sys = { version = "0.12", features = ["bundled"] }

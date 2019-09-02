@@ -1,10 +1,10 @@
 //! User interface
 
-use std::env;
 use actix_web::{Responder};
 use actix_web::web::{self, Data, ServiceConfig};
 use diesel::prelude::*;
 use diesel::sqlite::SqliteConnection;
+use log::{error};
 use tera::{Context};
 use crate::camera::Camera;
 use crate::templates::Templates;
@@ -30,16 +30,17 @@ fn camera_admin(db: Data<SqliteConnection>, templates: Data<Templates>) -> impl 
 
 
 /// Configures an Actix service to serve the UI
-pub fn configure(templates: Templates) -> impl FnOnce(&mut ServiceConfig)
+pub fn configure(templates: Templates, db_url: String) -> impl FnOnce(&mut ServiceConfig)
 {
     move |service| {
-            let database_url = unwrap_or_return!(env::var("DATABASE_URL"));
-            let connection = unwrap_or_return!(SqliteConnection::establish(&database_url));
-            service.data(connection);
+        service.data(templates);
 
-            service.data(templates);
+        match SqliteConnection::establish(&db_url) {
+            Ok(conn) => { service.data(conn); },
+            Err(err) => error!("Failed to connect to database: {}", err),
+        }
 
-            service.route("/", web::get().to(index));
-            service.route("/admin/cameras", web::get().to(camera_admin));
+        service.route("/", web::get().to(index));
+        service.route("/admin/cameras", web::get().to(camera_admin));
     }
 }

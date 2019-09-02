@@ -1,6 +1,5 @@
 //! Web API
 
-use std::env;
 use actix_web::{HttpResponse};
 use actix_web::dev::{Body};
 use actix_web::error::{ResponseError};
@@ -202,15 +201,18 @@ fn delete_camera(
 
 
 /// Configures an Actix service to serve the API
-pub fn configure(service: &mut ServiceConfig)
+pub fn configure(db_url: String) -> impl Fn(&mut ServiceConfig)
 {
-    let database_url = unwrap_or_return!(env::var("DATABASE_URL"));
-    let connection = unwrap_or_return!(SqliteConnection::establish(&database_url));
-    service.data(connection);
+    move |service| {
+        match SqliteConnection::establish(&db_url) {
+            Ok(conn) => { service.data(conn); },
+            Err(err) => error!("Failed to connect to database: {}", err),
+        }
 
-    service.route("/cameras", web::get().to(get_cameras));
-    service.route("/cameras", web::put().to(put_camera));
-    service.route("/cameras/{id}", web::get().to(get_camera));
-    service.route("/cameras/{id}", web::patch().to(patch_camera));
-    service.route("/cameras/{id}", web::delete().to(delete_camera));
+        service.route("/cameras", web::get().to(get_cameras));
+        service.route("/cameras", web::put().to(put_camera));
+        service.route("/cameras/{id}", web::get().to(get_camera));
+        service.route("/cameras/{id}", web::patch().to(patch_camera));
+        service.route("/cameras/{id}", web::delete().to(delete_camera));
+    }
 }
