@@ -1,64 +1,10 @@
 //! Camera management
 
-use std::io::Write;
-use diesel::backend::{Backend};
-use diesel::deserialize::{self, FromSql};
 use diesel::prelude::*;
-use diesel::serialize::{self, Output, ToSql};
-use diesel::sql_types::Integer;
+use lc_api::{CameraSettings, Orientation};
 use log::{debug, trace};
-use serde::{Deserialize, Serialize};
+use serde::{Serialize};
 use crate::schema::cameras;
-
-
-/// Video stream orientation
-#[derive(Clone, Copy, Debug)]
-#[derive(Deserialize, Serialize)]
-#[derive(AsExpression, FromSqlRow)]
-#[serde(rename_all = "camelCase")]
-#[sql_type = "Integer"]
-pub enum Orientation
-{
-    Landscape,
-    Portrait,
-    InvertedLandscape,
-    InvertedPortrait,
-}
-
-impl<B> FromSql<Integer, B> for Orientation
-where
-    B: Backend,
-    i32: FromSql<Integer, B>,
-{
-    fn from_sql(bytes: Option<&B::RawValue>) -> deserialize::Result<Self>
-    {
-        match i32::from_sql(bytes)? {
-            0 => Ok(Orientation::Landscape),
-            1 => Ok(Orientation::Portrait),
-            2 => Ok(Orientation::InvertedLandscape),
-            3 => Ok(Orientation::InvertedPortrait),
-            other => Err(format!("Unrecognized value \"{}\"", other).into()),
-        }
-    }
-}
-
-impl<B> ToSql<Integer, B> for Orientation
-where
-    B: Backend,
-    i32: ToSql<Integer, B>,
-{
-    fn to_sql<W: Write>(&self, out: &mut Output<W, B>) -> serialize::Result
-    {
-        let val = match *self {
-            Orientation::Landscape => 0,
-            Orientation::Portrait => 1,
-            Orientation::InvertedLandscape => 2,
-            Orientation::InvertedPortrait => 3,
-        };
-
-        val.to_sql(out)
-    }
-}
 
 
 /// Information needed to create a new camera
@@ -143,5 +89,18 @@ impl Camera
             .execute(db)?;
 
         Ok(())
+    }
+}
+
+impl Into<CameraSettings> for Camera {
+    fn into(self) -> CameraSettings {
+        CameraSettings {
+            enabled: Some(self.enabled),
+            hostname: Some(self.hostname),
+            id: Some(self.id),
+            device_key: None,
+            friendly_name: Some(self.friendly_name),
+            orientation: Some(self.orientation),
+        }
     }
 }

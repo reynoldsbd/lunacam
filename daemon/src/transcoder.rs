@@ -10,13 +10,13 @@ use std::sync::Mutex;
 use std::time::{Duration, Instant};
 use diesel::sqlite::SqliteConnection;
 use lazy_static::lazy_static;
+use lc_api::{Orientation, StreamSettings};
 use log::{debug, error, info, trace, warn};
 use serde::{Deserialize, Serialize};
 use tokio::executor::{Executor, SpawnError};
 use tokio::prelude::*;
 use tokio::sync::oneshot::{self, Sender};
 use tokio::timer::{Interval};
-use crate::{Orientation};
 use crate::settings::{self, SettingsError};
 
 
@@ -64,6 +64,15 @@ pub type Result<T> = std::result::Result<T, TranscoderError>;
 pub struct TranscoderState {
     pub enabled: bool,
     pub orientation: Orientation,
+}
+
+impl Into<StreamSettings> for TranscoderState {
+    fn into(self) -> StreamSettings {
+        StreamSettings {
+            enabled: Some(self.enabled),
+            orientation: Some(self.orientation),
+        }
+    }
 }
 
 /// Hosts and monitors the transcoder process

@@ -1,37 +1,18 @@
 //! Daemon API
 
 use actix_web::web::{self, Json, ServiceConfig};
-use serde::{Deserialize, Serialize};
-use crate::Orientation;
-use crate::transcoder::{self, TranscoderState};
+use lc_api::{ApiResult, StreamSettings};
+use crate::transcoder;
 
 
-//#region Stream Resource
+fn get_stream() -> ApiResult<Json<StreamSettings>> {
 
-#[derive(Deserialize, Serialize)]
-struct StreamResource {
-    enabled: Option<bool>,
-    orientation: Option<Orientation>,
+    Ok(Json(transcoder::get_state().into()))
 }
 
-impl From<TranscoderState> for StreamResource {
-    fn from(status: TranscoderState) -> Self {
-        Self {
-            enabled: Some(status.enabled),
-            orientation: Some(status.orientation),
-        }
-    }
-}
+fn patch_stream(stream: Json<StreamSettings>) -> ApiResult<Json<StreamSettings>> {
 
-
-fn get_stream() -> Json<StreamResource> {
-
-    Json(transcoder::get_state().into())
-}
-
-fn patch_stream(raw: Json<StreamResource>) -> Json<StreamResource> {
-
-    if let Some(enabled) = raw.enabled {
+    if let Some(enabled) = stream.enabled {
         if enabled {
             transcoder::enable().unwrap();
         } else {
@@ -39,14 +20,12 @@ fn patch_stream(raw: Json<StreamResource>) -> Json<StreamResource> {
         }
     }
 
-    if let Some(orientation) = raw.orientation {
+    if let Some(orientation) = stream.orientation {
         transcoder::set_orientation(orientation).unwrap();
     }
 
-    Json(transcoder::get_state().into())
+    Ok(Json(transcoder::get_state().into()))
 }
-
-//#endregion
 
 
 pub fn configure(service: &mut ServiceConfig) {

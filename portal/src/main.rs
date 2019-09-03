@@ -1,7 +1,4 @@
 #[macro_use]
-extern crate derive_more;
-
-#[macro_use]
 extern crate diesel;
 
 #[macro_use]

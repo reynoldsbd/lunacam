@@ -23,5 +23,6 @@ tera = "0.11"
 [workspace]
 members = [
     "daemon",
-    "portal"
+    "lc_api",
+    "portal",
 ]

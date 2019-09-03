@@ -9,7 +9,6 @@ use actix_web::web;
 use diesel::prelude::*;
 use diesel::sqlite::SqliteConnection;
 use env_logger::Env;
-use serde::{Deserialize, Serialize};
 use tokio::runtime::{Runtime};
 
 #[macro_use]
@@ -19,24 +18,6 @@ mod api;
 mod schema;
 mod settings;
 mod transcoder;
-
-
-// TODO: move to lc_common crate
-#[derive(Clone, Copy, Debug, PartialEq)]
-#[derive(Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub enum Orientation {
-    Landscape,
-    Portrait,
-    InvertedLandscape,
-    InvertedPortrait,
-}
-
-impl Default for Orientation {
-    fn default() -> Self {
-        Self::Landscape
-    }
-}
 
 
 embed_migrations!();
