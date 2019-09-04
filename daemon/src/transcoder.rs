@@ -113,7 +113,7 @@ fn start_transcoder(host: &mut Host) -> Result<()> {
             // Output stream
             "-f", "hls",
             "-hls_flags", "delete_segments",
-            "/tmp/lunacam/hls/video0.m3u8",
+            "/tmp/lunacam/hls/stream.m3u8",
         ]);
     host.tc_proc = Some(cmd.spawn()?);
 
