@@ -1,5 +1,6 @@
 include $(repo)/tools/make/pal.mk
 include $(repo)/tools/make/rust.mk
+include $(repo)/tools/make/deploy.mk
 
 
 
@@ -46,6 +47,26 @@ run: daemon
 
 install: install.sh
 	@./install.sh
+
+
+
+####################################################################################################
+# Deployment
+####################################################################################################
+
+DEPLOY_COMPONENT = daemon
+
+deploy_env = RUST_OUT_DIR=$(DEPLOY_DEST)
+
+deploy:
+	@$(DEPLOY_INIT)
+	@$(call DEPLOY_FILES,$(daemon))
+	@$(call DEPLOY_FILES,sysroot)
+	@$(call DEPLOY_FILES,install.sh)
+	@$(call DEPLOY_CMD,chmod +x install.sh)
+	@$(call DEPLOY_CMD,./install.sh,$(deploy_env))
+	@$(call DEPLOY_CMD,systemctl daemon-reload)
+	@$(call DEPLOY_CMD,systemctl restart lunacam-daemon)
 
 
 

@@ -3,7 +3,15 @@
 # Installs LunaCam Daemon on Arch ARM
 
 set -e
-. $LC_TOOLS/imagebuild/install-helpers.sh
+
+function install_dir {
+    files=$(cd $1 && find -type f | cut -c 3-)
+    for file in $files
+    do
+        echo "--> installing $2/$file"
+        install -D $1/$file $2/$file
+    done
+}
 
 echo "install.sh (daemon): installing dependencies"
 pacman --noconfirm -Syuq --needed ffmpeg
@@ -20,17 +28,5 @@ EOL
 
 echo "install.sh (daemon): configuring system"
 systemctl enable lunacam-daemon
-
-if [ -d sysroot.local ]
-then
-    echo "install.sh (daemon): installing local sysroot"
-    install_dir sysroot.local
-fi
-
-if [ -f install.local.sh ]
-then
-    echo "install.sh (daemon): running local install script"
-    ./install.local.sh
-fi
 
 echo "install.sh (daemon): installation complete"

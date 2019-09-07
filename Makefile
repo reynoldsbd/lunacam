@@ -89,6 +89,9 @@ clean-daemon: $(pseudo)
 install-daemon: $(pseudo)
 	@$(MAKE) --no-print-directory -C daemon install
 
+deploy-daemon: $(pseudo) $(crossbuild_daemon)
+	@$(MAKE) --no-print-directory -C daemon deploy RUST_TARGET=$(pi_triple) RUST_PROFILE=release
+
 .PHONY: daemon run-daemon clean-daemon deploy-daemon
 
 
@@ -108,6 +111,9 @@ clean-portal: $(pseudo)
 
 install-portal: $(pseudo)
 	@$(MAKE) --no-print-directory -C portal install
+
+deploy-portal: $(pseudo) $(crossbuild_portal)
+	@$(MAKE) --no-print-directory -C portal deploy RUST_TARGET=$(pi_triple) RUST_PROFILE=release
 
 .PHONY: portal run-portal clean-portal deploy-portal
 
@@ -202,27 +208,3 @@ clean-imagebuild:
 # 	@rm -rf $(stg_target)
 # .PHONY: clean-stg
 # clean_targets += clean-stg
-
-
-
-####################################################################################################
-# Deploys complete LunaCam installation to a connected Raspberry Pi
-#
-# For this to work, you need to (1) configure a user account on the Pi using the same username as on
-# your workstation, (2) setup SSH keys and ssh-agent, and (3) setup passwordless sudo on the Pi.
-####################################################################################################
-
-# pi_host ?= lunacam-dev
-
-# PI_CP = scp -r $(1) $(pi_host):
-# PI_CMD := ssh $(pi_host)
-
-# deploy: $(stg_target)
-# 	@echo copying staging artifacts to pi
-# 	@$(call PI_CP,$(stg))
-# 	@echo installing LunaCam
-# 	@$(PI_CMD) sudo ./$(notdir $(stg))/install.sh ./$(notdir $(stg))
-# 	@echo resetting services
-# 	@$(PI_CMD) sudo systemctl daemon-reload
-# 	@$(PI_CMD) sudo systemctl restart lunacam
-# .PHONY: deploy

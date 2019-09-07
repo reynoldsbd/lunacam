@@ -21,7 +21,9 @@ endif
 
 
 ifdef PAL_WINDOWS
+ifndef RUST_TARGET
 RUST_BIN_SUFFIX = .exe
+endif
 endif
 
 
