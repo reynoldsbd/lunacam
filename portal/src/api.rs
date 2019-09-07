@@ -6,7 +6,7 @@ use diesel::prelude::*;
 use diesel::sqlite::{SqliteConnection};
 use lc_api::{ApiResult, CameraSettings};
 use log::{error};
-use crate::camera::{Camera, NewCamera};
+use crate::camera::{Camera};
 
 
 //#region CRUD for Cameras
@@ -16,36 +16,20 @@ fn put_camera(
     raw: Json<CameraSettings>,
 ) -> ApiResult<Json<CameraSettings>>
 {
-    let raw = raw.into_inner();
+    let mut raw = raw.into_inner();
 
     // Validate input
     if raw.id.is_some() {
         Err((StatusCode::BAD_REQUEST, "cannot specify id when creating new camera resource"))?;
     }
-    let new_camera = NewCamera {
-        hostname: raw.hostname
-            .ok_or((StatusCode::BAD_REQUEST, "hostname is required"))?,
-        device_key: raw.device_key
-            .ok_or((StatusCode::BAD_REQUEST, "device_key is required"))?,
-        friendly_name: raw.friendly_name
-            .ok_or((StatusCode::BAD_REQUEST, "friendly_name is required"))?,
-    };
 
-    let mut camera = Camera::create(new_camera, &db)?;
+    let hostname = raw.hostname.take()
+        .ok_or((StatusCode::BAD_REQUEST, "hostname is required"))?;
+    let key = raw.device_key.take()
+        .ok_or((StatusCode::BAD_REQUEST, "deviceKey is required"))?;
+    let mut camera = Camera::create(hostname, key, &db)?;
 
-    // TODO: replace with encapsulated camera api
-    let mut save_needed = false;
-    if let Some(enabled) = raw.enabled {
-        camera.enabled = enabled;
-        save_needed = true;
-    }
-    if let Some(orientation) = raw.orientation {
-        camera.orientation = orientation;
-        save_needed = true;
-    }
-    if save_needed {
-        camera.save(&db)?;
-    }
+    camera.update(raw, &db)?;
 
     Ok(Json(camera.into()))
 }
@@ -76,30 +60,15 @@ fn patch_camera(
     db: Data<SqliteConnection>,
 ) -> ApiResult<Json<CameraSettings>>
 {
-    let raw = raw.into_inner();
+    let mut raw = raw.into_inner();
     let mut camera = Camera::get(path.0, &db)?;
 
     // Sanity check
-    if raw.id.is_some() && raw.id != Some(camera.id) {
-        Err((StatusCode::NOT_FOUND, "id mismatch"))?;
+    if raw.id.is_some() && raw.id.take() != Some(camera.id()) {
+        Err((StatusCode::BAD_REQUEST, "id mismatch"))?;
     }
 
-    if let Some(enabled) = raw.enabled {
-        camera.enabled = enabled;
-    }
-    if let Some(hostname) = raw.hostname {
-        camera.hostname = hostname;
-    }
-    if let Some(device_key) = raw.device_key {
-        camera.device_key = device_key;
-    }
-    if let Some(friendly_name) = raw.friendly_name {
-        camera.friendly_name = friendly_name;
-    }
-    if let Some(orientation) = raw.orientation {
-        camera.orientation = orientation;
-    }
-    camera.save(&db)?;
+    camera.update(raw, &db)?;
 
     Ok(Json(camera.into()))
 }
