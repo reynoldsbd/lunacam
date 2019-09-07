@@ -14,46 +14,6 @@ FORCE:
 
 
 ####################################################################################################
-# Daemon
-####################################################################################################
-
-daemon:
-	@$(MAKE) --no-print-directory -C daemon
-
-run-daemon:
-	@$(MAKE) --no-print-directory -C daemon run
-
-clean-daemon:
-	@$(MAKE) --no-print-directory -C daemon clean
-
-install-daemon:
-	@$(MAKE) --no-print-directory -C daemon install
-
-.PHONY: daemon run-daemon clean-daemon
-
-
-
-####################################################################################################
-# Portal
-####################################################################################################
-
-portal:
-	@$(MAKE) --no-print-directory -C portal
-
-run-portal:
-	@$(MAKE) --no-print-directory -C portal run
-
-clean-portal:
-	@$(MAKE) --no-print-directory -C portal clean
-
-install-portal:
-	@$(MAKE) --no-print-directory -C portal install
-
-.PHONY: portal run-portal clean-portal
-
-
-
-####################################################################################################
 # Files under $(pseudo) represent non-file dependencies (e.g. Docker images)
 ####################################################################################################
 
@@ -110,6 +70,46 @@ clean-crossbuild:
 	@$(call PAL_RM,$(crossbuild))
 
 .PHONY: crossbuild clean-crossbuild
+
+
+
+####################################################################################################
+# Daemon
+####################################################################################################
+
+daemon: $(pseudo)
+	@$(MAKE) --no-print-directory -C daemon
+
+run-daemon: $(pseudo)
+	@$(MAKE) --no-print-directory -C daemon run
+
+clean-daemon: $(pseudo)
+	@$(MAKE) --no-print-directory -C daemon clean
+
+install-daemon: $(pseudo)
+	@$(MAKE) --no-print-directory -C daemon install
+
+.PHONY: daemon run-daemon clean-daemon deploy-daemon
+
+
+
+####################################################################################################
+# Portal
+####################################################################################################
+
+portal: $(pseudo)
+	@$(MAKE) --no-print-directory -C portal
+
+run-portal: $(pseudo)
+	@$(MAKE) --no-print-directory -C portal run
+
+clean-portal: $(pseudo)
+	@$(MAKE) --no-print-directory -C portal clean
+
+install-portal: $(pseudo)
+	@$(MAKE) --no-print-directory -C portal install
+
+.PHONY: portal run-portal clean-portal deploy-portal
 
 
 

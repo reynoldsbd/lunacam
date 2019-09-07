@@ -58,13 +58,11 @@ $(STATIC_DIR)/js/%.js: js/%.js
 	@$(PAL_CREATE_DIR) $(dir $@)
 	@cp $< $@
 
-webfonts_src := $(pkg_dir)/@fortawesome/fontawesome-free/webfonts
-webfonts_dest := $(STATIC_DIR)/css/fa-fonts
-webfonts := $(addprefix $(webfonts_dest)/,$(notdir $(call PAL_ENUM_DIR,$(webfonts_src))))
-$(webfonts_dest)/%: $(webfonts_src)/% $(pkg)
-	@$(PAL_CREATE_DIR) $(webfonts_dest)
-	@cp $< $@
-	@$(call PAL_TOUCH_FILE,$@)
+webfonts := $(pseudo)/webfonts
+$(webfonts): $(pkg)
+	@$(PAL_CREATE_DIR) $(STATIC_DIR)/css
+	@cp -r $(pkg_dir)/@fortawesome/fontawesome-free/webfonts $(STATIC_DIR)/css
+	@$(call PAL_TOUCH_FILE,$(webfonts))
 
 static: $(stylesheets) $(jsfiles) $(webfonts)
 .PHONY: static
