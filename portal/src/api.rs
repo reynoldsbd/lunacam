@@ -2,19 +2,30 @@
 
 use actix_web::http::{StatusCode};
 use actix_web::web::{self, Data, Json, Path, ServiceConfig};
+use diesel::r2d2::PoolError;
 use lc_api::{ApiResult, CameraSettings};
-use crate::{ConnectionPool};
-use crate::camera::{Camera};
+use crate::{ConnectionPool, PooledConnection};
+use crate::camera::CameraManager;
+
+
+struct Resources {
+    pool: ConnectionPool,
+}
+
+impl CameraManager for Resources {
+    fn get_connection(&self) -> Result<PooledConnection, PoolError> {
+        self.pool.get()
+    }
+}
 
 
 //#region CRUD for Cameras
 
 fn put_camera(
-    pool: Data<ConnectionPool>,
+    resources: Data<Resources>,
     raw: Json<CameraSettings>,
 ) -> ApiResult<Json<CameraSettings>>
 {
-    let conn = pool.get()?;
     let mut raw = raw.into_inner();
 
     // Validate input
@@ -26,28 +37,32 @@ fn put_camera(
         .ok_or((StatusCode::BAD_REQUEST, "hostname is required"))?;
     let key = raw.device_key.take()
         .ok_or((StatusCode::BAD_REQUEST, "deviceKey is required"))?;
-    let mut camera = Camera::create(hostname, key, &conn)?;
+    let mut camera = resources.create_camera(hostname, key)
+        .unwrap();
 
-    camera.update(raw, &conn)?;
+    camera.update(raw)
+        .unwrap();
 
     Ok(Json(camera.into()))
 }
 
 fn get_camera(
+    resources: Data<Resources>,
     path: Path<(i32,)>,
-    pool: Data<ConnectionPool>,
 ) -> ApiResult<Json<CameraSettings>>
 {
-    let conn = pool.get()?;
-    Ok(Json(Camera::get(path.0, &conn)?.into()))
+    let camera = resources.get_camera(path.0)
+        .unwrap();
+
+    Ok(Json(camera.into()))
 }
 
 fn get_cameras(
-    pool: Data<ConnectionPool>,
+    resources: Data<Resources>,
 ) -> ApiResult<Json<Vec<CameraSettings>>>
 {
-    let conn = pool.get()?;
-    let cameras = Camera::get_all(&conn)?
+    let cameras = resources.get_cameras()
+        .unwrap()
         .into_iter()
         .map(|cam| cam.into())
         .collect();
@@ -58,31 +73,34 @@ fn get_cameras(
 fn patch_camera(
     path: Path<(i32,)>,
     raw: Json<CameraSettings>,
-    pool: Data<ConnectionPool>,
+    resources: Data<Resources>,
 ) -> ApiResult<Json<CameraSettings>>
 {
-    let conn = pool.get()?;
     let mut raw = raw.into_inner();
-    let mut camera = Camera::get(path.0, &conn)?;
+    let mut camera = resources.get_camera(path.0)
+        .unwrap();
 
     // Sanity check
     if raw.id.is_some() && raw.id.take() != Some(camera.id()) {
         Err((StatusCode::BAD_REQUEST, "id mismatch"))?;
     }
 
-    camera.update(raw, &conn)?;
+    camera.update(raw)
+        .unwrap();
 
     Ok(Json(camera.into()))
 }
 
 fn delete_camera(
     path: Path<(i32,)>,
-    pool: Data<ConnectionPool>,
+    resources: Data<Resources>,
 ) -> ApiResult<()>
 {
-    let conn = pool.get()?;
-    Camera::get(path.0, &conn)?
-        .delete(&conn)?;
+    let camera = resources.get_camera(path.0)
+        .unwrap();
+
+    camera.delete()
+        .unwrap();
 
     Ok(())
 }
@@ -94,7 +112,9 @@ fn delete_camera(
 pub fn configure(pool: ConnectionPool) -> impl FnOnce(&mut ServiceConfig)
 {
     move |service| {
-        service.data(pool);
+        service.data(Resources {
+            pool: pool
+        });
 
         service.route("/cameras", web::get().to(get_cameras));
         service.route("/cameras", web::put().to(put_camera));

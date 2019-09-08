@@ -3,9 +3,10 @@
 use std::sync::Arc;
 use actix_web::{Responder};
 use actix_web::web::{self, Data, Path, ServiceConfig};
+use diesel::r2d2::PoolError;
 use tera::{Context};
-use crate::{ConnectionPool};
-use crate::camera::Camera;
+use crate::{ConnectionPool, PooledConnection};
+use crate::camera::CameraManager;
 use crate::templates::{TemplateCollection};
 
 
@@ -14,18 +15,20 @@ struct UiResources {
     templates: Arc<dyn TemplateCollection>,
 }
 
+impl CameraManager for UiResources {
+    fn get_connection(&self) -> Result<PooledConnection, PoolError> {
+        self.pool.get()
+    }
+}
 
-fn index(resources: Data<UiResources>) -> impl Responder
-{
-    let conn = resources.pool.get()
+
+fn index(resources: Data<UiResources>) -> impl Responder {
+
+    let cameras = resources.get_cameras()
         .unwrap();
 
     let mut context = Context::new();
-    context.insert(
-        "cameras",
-        &Camera::get_all(&conn)
-            .expect("camera_admin: failed to get camera list")
-    );
+    context.insert("cameras", &cameras);
 
     resources.templates.response("index.html", context)
         .unwrap()
@@ -34,32 +37,24 @@ fn index(resources: Data<UiResources>) -> impl Responder
 
 fn camera(path: Path<(i32,)>, resources: Data<UiResources>) -> impl Responder {
 
-    let conn = resources.pool.get()
+    let camera = resources.get_camera(path.0)
         .unwrap();
 
     let mut context = Context::new();
-    context.insert(
-        "camera",
-        &Camera::get(path.0, &conn)
-            .expect("camera: failed to get specified camera")
-    );
+    context.insert("camera", &camera);
 
     resources.templates.response("camera.html", context)
         .unwrap()
 }
 
 
-fn camera_admin(resources: Data<UiResources>) -> impl Responder
-{
-    let conn = resources.pool.get()
+fn camera_admin(resources: Data<UiResources>) -> impl Responder {
+
+    let cameras = resources.get_cameras()
         .unwrap();
 
     let mut context = Context::new();
-    context.insert(
-        "cameras",
-        &Camera::get_all(&conn)
-            .expect("camera_admin: failed to get camera list")
-    );
+    context.insert("cameras", &cameras);
 
     resources.templates.response("admin/cameras.html", context)
         .unwrap()

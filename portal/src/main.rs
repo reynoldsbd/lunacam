@@ -12,7 +12,7 @@ use std::env;
 use actix_files::{Files};
 use actix_web::{App, HttpServer};
 use actix_web::web::{self};
-use diesel::r2d2::{ConnectionManager, Pool};
+use diesel::r2d2::{self, ConnectionManager, Pool};
 use diesel::sqlite::SqliteConnection;
 use env_logger::Env;
 
@@ -27,6 +27,7 @@ embed_migrations!();
 
 
 type ConnectionPool = Pool<ConnectionManager<SqliteConnection>>;
+type PooledConnection = r2d2::PooledConnection<ConnectionManager<SqliteConnection>>;
 
 
 fn main() {

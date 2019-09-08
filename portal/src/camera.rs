@@ -1,10 +1,25 @@
 //! Camera management
 
 use diesel::prelude::*;
+use diesel::result::Error as DieselError;
+use diesel::r2d2::PoolError;
 use lc_api::{CameraSettings, Orientation};
 use log::{debug, info, trace};
 use serde::{Serialize};
+use crate::PooledConnection;
 use crate::schema::cameras;
+
+
+/// Error type returned by camera module
+#[derive(Debug, Display, From)]
+pub enum CameraError {
+    Database(DieselError),
+    Pool(PoolError),
+}
+
+
+/// Result type returned by the camera module
+pub type Result<T> = std::result::Result<T, CameraError>;
 
 
 /// Information needed to create a new camera
@@ -21,8 +36,7 @@ struct NewCamera {
 #[derive(Serialize)]
 #[derive(AsChangeset, Identifiable, Insertable, Queryable)]
 #[table_name = "cameras"]
-pub struct Camera
-{
+struct CameraRow {
     id: i32,
     friendly_name: String,
     hostname: String,
@@ -31,65 +45,39 @@ pub struct Camera
     orientation: Orientation,
 }
 
-impl Camera
+
+#[derive(Serialize)]
+pub struct Camera<'a, M> {
+    #[serde(flatten)]
+    row: CameraRow,
+    #[serde(skip)]
+    manager: &'a M,
+}
+
+
+impl<'a, M> Camera<'a, M>
+where M: CameraManager
 {
-    /// Creates a new camera in the database
-    pub fn create(
-        hostname: String,
-        device_key: String,
-        db: &SqliteConnection,
-    ) -> QueryResult<Self>
-    {
-        let camera = NewCamera {
-            hostname: hostname.clone(),
-            device_key: device_key,
-            friendly_name: hostname,
-        };
-
-        debug!("adding new camera to database");
-        diesel::insert_into(cameras::table)
-            .values(camera)
-            .execute(db)?;
-
-        // Yuck. But this is the only option when using SQLite.
-        // https://github.com/diesel-rs/diesel/issues/376
-        // TODO: this technically isn't thread-safe
-        trace!("retrieving new camera from database");
-        cameras::table.order(cameras::id.desc())
-            .first(db)
-    }
+    // TODO: update, delete
 
     /// Deletes this camera from the database
-    pub fn delete(self, db: &SqliteConnection) -> QueryResult<()>
-    {
-        debug!("deleting camera {}", self.id);
-        diesel::delete(&self)
-            .execute(db)?;
+    pub fn delete(self) -> Result<()> {
+
+        debug!("deleting camera {}", self.row.id);
+        let conn = self.manager.get_connection()?;
+        diesel::delete(&self.row)
+            .execute(&conn)?;
 
         Ok(())
     }
 
-    /// Gets all cameras from the database
-    pub fn get_all(db: &SqliteConnection) -> QueryResult<Vec<Self>>
-    {
-        use crate::schema::cameras::dsl::*;
-
-        trace!("retrieving all cameras from database");
-        cameras.load(db)
-    }
-
-    /// Gets the specified camera from the database
-    pub fn get(cam_id: i32, db: &SqliteConnection) -> QueryResult<Self>
-    {
-        use crate::schema::cameras::dsl::*;
-
-        trace!("retrieving camera {} from database", cam_id);
-        cameras.find(cam_id)
-            .get_result(db)
+    /// Gets the ID of this camera
+    pub fn id(&self) -> i32 {
+        self.row.id
     }
 
     /// Updates camera settings
-    pub fn update(&mut self, settings: CameraSettings, db: &SqliteConnection) -> QueryResult<()> {
+    pub fn update(&mut self, settings: CameraSettings) -> Result<()> {
 
         assert!(settings.id.is_none());
 
@@ -98,39 +86,39 @@ impl Camera
         let mut do_save = false;
 
         if let Some(friendly_name) = settings.friendly_name {
-            if self.friendly_name != friendly_name {
-                self.friendly_name = friendly_name;
+            if self.row.friendly_name != friendly_name {
+                self.row.friendly_name = friendly_name;
                 do_save = true;
             }
         }
 
         if let Some(enabled) = settings.enabled {
-            if self.enabled != enabled {
-                self.enabled = enabled;
+            if self.row.enabled != enabled {
+                self.row.enabled = enabled;
                 do_update = true;
                 do_save = true;
             }
         }
 
         if let Some(orientation) = settings.orientation {
-            if self.orientation != orientation {
-                self.orientation = orientation;
+            if self.row.orientation != orientation {
+                self.row.orientation = orientation;
                 do_update = true;
                 do_save = true;
             }
         }
 
         if let Some(hostname) = settings.hostname {
-            if self.hostname != hostname {
-                self.hostname = hostname;
+            if self.row.hostname != hostname {
+                self.row.hostname = hostname;
                 do_connect = true;
                 do_save = true;
             }
         }
 
         if let Some(device_key) = settings.device_key {
-            if self.device_key != device_key {
-                self.device_key = device_key;
+            if self.row.device_key != device_key {
+                self.row.device_key = device_key;
                 do_connect = true;
                 do_save = true;
             }
@@ -141,35 +129,96 @@ impl Camera
         }
 
         if do_update {
-            info!("reconfiguring {}", self.hostname);
+            info!("reconfiguring {}", self.row.hostname);
             // TODO: send PATCH to camera host
         }
 
         if do_save {
-            debug!("saving changes to camera {}", self.id);
-            diesel::update(self as &_)
-                .set(self as &_)
-                .execute(db)?;
+            debug!("saving changes to camera {}", self.row.id);
+            let conn = self.manager.get_connection()?;
+            diesel::update(&self.row)
+                .set(&self.row)
+                .execute(&conn)?;
         }
 
         Ok(())
     }
+}
 
-    /// Gets the ID of this camera
-    pub fn id(&self) -> i32 {
-        self.id
+impl<'a, M> Into<CameraSettings> for Camera<'a, M> {
+    fn into(self) -> CameraSettings {
+        CameraSettings {
+            enabled: Some(self.row.enabled),
+            hostname: Some(self.row.hostname),
+            id: Some(self.row.id),
+            device_key: None,
+            friendly_name: Some(self.row.friendly_name),
+            orientation: Some(self.row.orientation),
+        }
     }
 }
 
-impl Into<CameraSettings> for Camera {
-    fn into(self) -> CameraSettings {
-        CameraSettings {
-            enabled: Some(self.enabled),
-            hostname: Some(self.hostname),
-            id: Some(self.id),
-            device_key: None,
-            friendly_name: Some(self.friendly_name),
-            orientation: Some(self.orientation),
-        }
+
+pub trait CameraManager: Sized {
+
+    /// Gets a pooled database connection
+    fn get_connection(&self) -> std::result::Result<PooledConnection, PoolError>;
+
+    /// Creates a new camera in the database
+    fn create_camera(&self, hostname: String, key: String) -> Result<Camera<Self>> {
+
+        let conn = self.get_connection()?;
+
+        let new_cam = NewCamera {
+            hostname: hostname.clone(),
+            device_key: key,
+            friendly_name: hostname,
+        };
+
+        debug!("adding new camera to database");
+        diesel::insert_into(cameras::table)
+            .values(new_cam)
+            .execute(&conn)?;
+
+        // Yuck. But this is the only option when using SQLite.
+        // https://github.com/diesel-rs/diesel/issues/376
+        // TODO: this technically isn't thread-safe
+        let cam_row = cameras::table.order(cameras::id.desc())
+            .first(&conn)?;
+
+        Ok(Camera {
+            row: cam_row,
+            manager: self,
+        })
+    }
+
+    /// Gets the specified camera from the database
+    fn get_camera(&self, id: i32) -> Result<Camera<Self>> {
+
+        trace!("retrieving camera {} from database", id);
+        let conn = self.get_connection()?;
+        let camera = cameras::table.find(id)
+            .get_result(&conn)?;
+
+        Ok(Camera {
+            row: camera,
+            manager: self,
+        })
+    }
+
+    /// Gets all cameras from the database
+    fn get_cameras(&self) -> Result<Vec<Camera<Self>>> {
+
+        trace!("retrieving all cameras from database");
+        let conn = self.get_connection()?;
+        let cameras = cameras::table.load(&conn)?
+            .into_iter()
+            .map(|c| Camera {
+                row: c,
+                manager: self,
+            })
+            .collect();
+
+        Ok(cameras)
     }
 }
