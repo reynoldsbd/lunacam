@@ -17,6 +17,17 @@ macro_rules! _rwl {
     })
 }
 
+macro_rules! lock_unwrap {
+    ($lock:expr) => ({
+        use log::warn;
+        $lock.lock()
+            .unwrap_or_else(|err| {
+                warn!("A lock is poisoned");
+                err.into_inner()
+            })
+    })
+}
+
 /// Retrieves an `RwLock`'s read guard
 ///
 /// A warning is logged if the lock is poisoned, but the guard is still returned.

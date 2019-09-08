@@ -1,16 +1,23 @@
 //! User interface
 
+use std::sync::Arc;
 use actix_web::{Responder};
 use actix_web::web::{self, Data, Path, ServiceConfig};
 use tera::{Context};
 use crate::{ConnectionPool};
 use crate::camera::Camera;
-use crate::templates::Templates;
+use crate::templates::{TemplateCollection};
 
 
-fn index(pool: Data<ConnectionPool>, templates: Data<Templates>) -> impl Responder
+struct UiResources {
+    pool: ConnectionPool,
+    templates: Arc<dyn TemplateCollection>,
+}
+
+
+fn index(resources: Data<UiResources>) -> impl Responder
 {
-    let conn = pool.get()
+    let conn = resources.pool.get()
         .unwrap();
 
     let mut context = Context::new();
@@ -20,13 +27,14 @@ fn index(pool: Data<ConnectionPool>, templates: Data<Templates>) -> impl Respond
             .expect("camera_admin: failed to get camera list")
     );
 
-    templates.render("index.html", context)
+    resources.templates.response("index.html", context)
+        .unwrap()
 }
 
 
-fn camera(path: Path<(i32,)>, pool: Data<ConnectionPool>, templates: Data<Templates>) -> impl Responder {
+fn camera(path: Path<(i32,)>, resources: Data<UiResources>) -> impl Responder {
 
-    let conn = pool.get()
+    let conn = resources.pool.get()
         .unwrap();
 
     let mut context = Context::new();
@@ -36,13 +44,14 @@ fn camera(path: Path<(i32,)>, pool: Data<ConnectionPool>, templates: Data<Templa
             .expect("camera: failed to get specified camera")
     );
 
-    templates.render("camera.html", context)
+    resources.templates.response("camera.html", context)
+        .unwrap()
 }
 
 
-fn camera_admin(pool: Data<ConnectionPool>, templates: Data<Templates>) -> impl Responder
+fn camera_admin(resources: Data<UiResources>) -> impl Responder
 {
-    let conn = pool.get()
+    let conn = resources.pool.get()
         .unwrap();
 
     let mut context = Context::new();
@@ -52,16 +61,19 @@ fn camera_admin(pool: Data<ConnectionPool>, templates: Data<Templates>) -> impl 
             .expect("camera_admin: failed to get camera list")
     );
 
-    templates.render("admin/cameras.html", context)
+    resources.templates.response("admin/cameras.html", context)
+        .unwrap()
 }
 
 
 /// Configures an Actix service to serve the UI
-pub fn configure(templates: Templates, pool: ConnectionPool) -> impl FnOnce(&mut ServiceConfig)
+pub fn configure(templates: Arc<dyn TemplateCollection>, pool: ConnectionPool) -> impl FnOnce(&mut ServiceConfig)
 {
     move |service| {
-        service.data(templates);
-        service.data(pool);
+        service.data(UiResources {
+            pool: pool,
+            templates: templates,
+        });
 
         service.route("/", web::get().to(index));
         service.route("/cameras/{id}", web::get().to(camera));
