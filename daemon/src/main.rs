@@ -11,9 +11,6 @@ use diesel::sqlite::SqliteConnection;
 use env_logger::Env;
 use tokio::runtime::{Runtime};
 
-#[macro_use]
-mod macros;
-
 mod api;
 mod schema;
 mod settings;

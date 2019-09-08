@@ -5,6 +5,7 @@ use std::sync::{Arc, Mutex, RwLock};
 use actix_web::{HttpResponse};
 use hotwatch::{Error as HotwatchError, Event, Hotwatch};
 use lazy_static::lazy_static;
+use lcutil::{do_lock, do_read, do_write};
 use log::{debug, error, trace};
 use tera::{Context, Error as TeraError, Tera};
 
@@ -55,7 +56,7 @@ impl WatchedTemplateCollection {
 
                 Event::Create(_) | Event::Write(_) | Event::Remove(_) | Event::Rename(_, _) => {
                     debug!("reloading templates");
-                    let mut templates = rwl_write!(self.0);
+                    let mut templates = do_write!(self.0);
                     if let Err(err) = templates.full_reload() {
                         error!("failed to reload templates: {}", err);
                     }
@@ -91,7 +92,7 @@ impl TemplateCollection for WatchedTemplateCollection {
 
     fn render(&self, name: &str, context: Context) -> Result<String> {
 
-        let templates = rwl_read!(self.0);
+        let templates = do_read!(self.0);
 
         Ok(templates.render(name, context)?)
     }
@@ -120,7 +121,7 @@ lazy_static! {
 pub fn load() -> Result<Arc<impl TemplateCollection>> {
 
     // Get or create the static Hotwatch instance
-    let mut hotwatch = lock_unwrap!(HOTWATCH);
+    let mut hotwatch = do_lock!(HOTWATCH);
     if hotwatch.is_none() {
         hotwatch.replace(Hotwatch::new()?);
     }

@@ -11,6 +11,7 @@ use std::time::{Duration, Instant};
 use diesel::sqlite::SqliteConnection;
 use lazy_static::lazy_static;
 use lc_api::{Orientation, StreamSettings};
+use lcutil::{do_lock};
 use log::{debug, error, info, trace, warn};
 use serde::{Deserialize, Serialize};
 use tokio::executor::{Executor, SpawnError};
@@ -125,7 +126,7 @@ fn watchdog_tick() {
 
     trace!("watchdog tick");
 
-    let mut host = lock_unwrap!(HOST);
+    let mut host = do_lock!(HOST);
 
     assert!(host.tc_proc.is_some(), "transcoder is not running");
     assert!(host.wdg_chan.is_some(), "watchdog is not running");
@@ -229,7 +230,7 @@ const TC_STATUS_SETTING: &str = "transcoderStatus";
 pub fn initialize<T>(exec: T, conn: SqliteConnection) -> Result<()>
 where T: Executor + Send + 'static
 {
-    let mut host = lock_unwrap!(HOST);
+    let mut host = do_lock!(HOST);
 
     assert!(host.db_conn.is_none(), "multiple calls to transcoder::initialize");
 
@@ -253,7 +254,7 @@ where T: Executor + Send + 'static
 pub fn get_state() -> TranscoderState {
 
     trace!("retrieving transcoder status");
-    lock_unwrap!(HOST)
+    do_lock!(HOST)
         .status
 }
 
@@ -273,7 +274,7 @@ fn flush_settings(host: &Host) -> Result<()> {
 /// Starts the transcoding process if it is not already running
 pub fn enable() -> Result<()> {
 
-    let mut host = lock_unwrap!(HOST);
+    let mut host = do_lock!(HOST);
 
     if host.status.enabled {
         trace!("transcoder is already running");
@@ -294,7 +295,7 @@ pub fn enable() -> Result<()> {
 /// Stops the transcoding process if it is running
 pub fn disable() -> Result<()> {
 
-    let mut host = lock_unwrap!(HOST);
+    let mut host = do_lock!(HOST);
 
     if !host.status.enabled {
         trace!("transcoder is not running");
@@ -318,7 +319,7 @@ pub fn disable() -> Result<()> {
 /// stream already uses the specified orientation, no action is performed.
 pub fn set_orientation(orientation: Orientation) -> Result<()> {
 
-    let mut host = lock_unwrap!(HOST);
+    let mut host = do_lock!(HOST);
 
     if host.status.orientation == orientation {
         trace!("orientation is already {:?}", orientation);

@@ -16,9 +16,6 @@ use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::sqlite::SqliteConnection;
 use env_logger::Env;
 
-#[macro_use]
-mod macros;
-
 mod api;
 mod camera;
 mod schema;
