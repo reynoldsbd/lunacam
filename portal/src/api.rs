@@ -2,20 +2,19 @@
 
 use actix_web::http::{StatusCode};
 use actix_web::web::{self, Data, Json, Path, ServiceConfig};
-use diesel::prelude::*;
-use diesel::sqlite::{SqliteConnection};
 use lc_api::{ApiResult, CameraSettings};
-use log::{error};
+use crate::{ConnectionPool};
 use crate::camera::{Camera};
 
 
 //#region CRUD for Cameras
 
 fn put_camera(
-    db: Data<SqliteConnection>,
+    pool: Data<ConnectionPool>,
     raw: Json<CameraSettings>,
 ) -> ApiResult<Json<CameraSettings>>
 {
+    let conn = pool.get()?;
     let mut raw = raw.into_inner();
 
     // Validate input
@@ -27,26 +26,28 @@ fn put_camera(
         .ok_or((StatusCode::BAD_REQUEST, "hostname is required"))?;
     let key = raw.device_key.take()
         .ok_or((StatusCode::BAD_REQUEST, "deviceKey is required"))?;
-    let mut camera = Camera::create(hostname, key, &db)?;
+    let mut camera = Camera::create(hostname, key, &conn)?;
 
-    camera.update(raw, &db)?;
+    camera.update(raw, &conn)?;
 
     Ok(Json(camera.into()))
 }
 
 fn get_camera(
     path: Path<(i32,)>,
-    db: Data<SqliteConnection>,
+    pool: Data<ConnectionPool>,
 ) -> ApiResult<Json<CameraSettings>>
 {
-    Ok(Json(Camera::get(path.0, &db)?.into()))
+    let conn = pool.get()?;
+    Ok(Json(Camera::get(path.0, &conn)?.into()))
 }
 
 fn get_cameras(
-    db: Data<SqliteConnection>,
+    pool: Data<ConnectionPool>,
 ) -> ApiResult<Json<Vec<CameraSettings>>>
 {
-    let cameras = Camera::get_all(&db)?
+    let conn = pool.get()?;
+    let cameras = Camera::get_all(&conn)?
         .into_iter()
         .map(|cam| cam.into())
         .collect();
@@ -57,29 +58,31 @@ fn get_cameras(
 fn patch_camera(
     path: Path<(i32,)>,
     raw: Json<CameraSettings>,
-    db: Data<SqliteConnection>,
+    pool: Data<ConnectionPool>,
 ) -> ApiResult<Json<CameraSettings>>
 {
+    let conn = pool.get()?;
     let mut raw = raw.into_inner();
-    let mut camera = Camera::get(path.0, &db)?;
+    let mut camera = Camera::get(path.0, &conn)?;
 
     // Sanity check
     if raw.id.is_some() && raw.id.take() != Some(camera.id()) {
         Err((StatusCode::BAD_REQUEST, "id mismatch"))?;
     }
 
-    camera.update(raw, &db)?;
+    camera.update(raw, &conn)?;
 
     Ok(Json(camera.into()))
 }
 
 fn delete_camera(
     path: Path<(i32,)>,
-    db: Data<SqliteConnection>,
+    pool: Data<ConnectionPool>,
 ) -> ApiResult<()>
 {
-    Camera::get(path.0, &db)?
-        .delete(&db)?;
+    let conn = pool.get()?;
+    Camera::get(path.0, &conn)?
+        .delete(&conn)?;
 
     Ok(())
 }
@@ -88,13 +91,10 @@ fn delete_camera(
 
 
 /// Configures an Actix service to serve the API
-pub fn configure(db_url: String) -> impl Fn(&mut ServiceConfig)
+pub fn configure(pool: ConnectionPool) -> impl FnOnce(&mut ServiceConfig)
 {
     move |service| {
-        match SqliteConnection::establish(&db_url) {
-            Ok(conn) => { service.data(conn); },
-            Err(err) => error!("Failed to connect to database: {}", err),
-        }
+        service.data(pool);
 
         service.route("/cameras", web::get().to(get_cameras));
         service.route("/cameras", web::put().to(put_camera));
