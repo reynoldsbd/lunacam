@@ -1,18 +1,12 @@
 //! Types used by the LunaCam web API
 
 #[macro_use]
-extern crate derive_more;
-
-#[macro_use]
 extern crate diesel;
 
 use serde::{Deserialize, Serialize};
 
 mod orientation;
 pub use orientation::Orientation;
-
-mod result;
-pub use result::{ApiError, ApiResult};
 
 
 /// Video stream settings

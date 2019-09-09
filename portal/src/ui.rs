@@ -1,9 +1,9 @@
 //! User interface
 
 use std::sync::Arc;
-use actix_web::{Responder};
+use actix_web::HttpResponse;
 use actix_web::web::{self, Data, Path, ServiceConfig};
-use diesel::r2d2::PoolError;
+use lcutil::Result;
 use tera::{Context};
 use crate::{ConnectionPool, PooledConnection};
 use crate::camera::CameraManager;
@@ -16,48 +16,42 @@ struct UiResources {
 }
 
 impl CameraManager for UiResources {
-    fn get_connection(&self) -> Result<PooledConnection, PoolError> {
-        self.pool.get()
+    fn get_connection(&self) -> Result<PooledConnection> {
+        Ok(self.pool.get()?)
     }
 }
 
 
-fn index(resources: Data<UiResources>) -> impl Responder {
+fn index(resources: Data<UiResources>) -> Result<HttpResponse> {
 
-    let cameras = resources.get_cameras()
-        .unwrap();
+    let cameras = resources.get_cameras()?;
 
     let mut context = Context::new();
     context.insert("cameras", &cameras);
 
     resources.templates.response("index.html", context)
-        .unwrap()
 }
 
 
-fn camera(path: Path<(i32,)>, resources: Data<UiResources>) -> impl Responder {
+fn camera(path: Path<(i32,)>, resources: Data<UiResources>) -> Result<HttpResponse> {
 
-    let camera = resources.get_camera(path.0)
-        .unwrap();
+    let camera = resources.get_camera(path.0)?;
 
     let mut context = Context::new();
     context.insert("camera", &camera);
 
     resources.templates.response("camera.html", context)
-        .unwrap()
 }
 
 
-fn camera_admin(resources: Data<UiResources>) -> impl Responder {
+fn camera_admin(resources: Data<UiResources>) -> Result<HttpResponse> {
 
-    let cameras = resources.get_cameras()
-        .unwrap();
+    let cameras = resources.get_cameras()?;
 
     let mut context = Context::new();
     context.insert("cameras", &cameras);
 
     resources.templates.response("admin/cameras.html", context)
-        .unwrap()
 }
 
 

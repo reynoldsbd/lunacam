@@ -5,7 +5,5 @@ authors = ["Bobby Reynolds <bobby@reynoldsbd.net>"]
 edition = "2018"
 
 [dependencies]
-actix-web = "1.0"
-derive_more = "0.15"
 diesel = {version = "1.4", features = ["r2d2", "sqlite"] }
 serde = { version = "1.0", features = ["derive"] }

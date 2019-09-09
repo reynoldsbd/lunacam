@@ -2,35 +2,11 @@
 
 use diesel::prelude::*;
 use diesel::sqlite::SqliteConnection;
+use lcutil::Result;
 use log::{trace};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use crate::schema::settings;
-
-
-//#region Error Handling
-
-#[derive(Debug)]
-pub enum SettingsError {
-    Database(diesel::result::Error),
-    Serialization(serde_json::error::Error),
-}
-
-impl From<diesel::result::Error> for SettingsError {
-    fn from(err: diesel::result::Error) -> Self {
-        Self::Database(err)
-    }
-}
-
-impl From<serde_json::error::Error> for SettingsError {
-    fn from(err: serde_json::error::Error) -> Self {
-        Self::Serialization(err)
-    }
-}
-
-pub type Result<T> = std::result::Result<T, SettingsError>;
-
-//#endregion
 
 
 #[derive(AsChangeset, Identifiable, Insertable, Queryable)]

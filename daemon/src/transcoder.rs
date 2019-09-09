@@ -4,57 +4,20 @@
 //! suitable streaming format. This module provides an API for managing the behavior and lifecycle
 //! of the transcoding process.
 
-use std::io;
 use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 use diesel::sqlite::SqliteConnection;
 use lazy_static::lazy_static;
 use lc_api::{Orientation, StreamSettings};
-use lcutil::{do_lock};
+use lcutil::{do_lock, Result};
 use log::{debug, error, info, trace, warn};
 use serde::{Deserialize, Serialize};
-use tokio::executor::{Executor, SpawnError};
+use tokio::executor::Executor;
 use tokio::prelude::*;
 use tokio::sync::oneshot::{self, Sender};
 use tokio::timer::{Interval};
-use crate::settings::{self, SettingsError};
-
-
-//#region Error Handling
-
-/// Error type returned by transcoder APIs
-#[derive(Debug)]
-pub enum TranscoderError {
-    Io(io::Error),
-    Settings(SettingsError),
-    Tokio(SpawnError),
-    Uninitialized,
-    Watchdog,
-}
-
-impl From<io::Error> for TranscoderError {
-    fn from(err: io::Error) -> Self {
-        Self::Io(err)
-    }
-}
-
-impl From<SettingsError> for TranscoderError {
-    fn from(err: SettingsError) -> Self {
-        Self::Settings(err)
-    }
-}
-
-impl From<SpawnError> for TranscoderError {
-    fn from(err: SpawnError) -> Self {
-        Self::Tokio(err)
-    }
-}
-
-/// Result type returned by transcoder APIs
-pub type Result<T> = std::result::Result<T, TranscoderError>;
-
-//#endregion
+use crate::settings::{self};
 
 
 //#region Transcoder Process Host
@@ -162,6 +125,7 @@ const WDG_INTERVAL: u64 = 2;
 fn start_host(host: &mut Host) -> Result<()> {
 
     assert!(host.wdg_chan.is_none());
+    assert!(host.exec.is_some(), "transcoder is not initialized");
 
     start_transcoder(host)?;
 
@@ -176,8 +140,7 @@ fn start_host(host: &mut Host) -> Result<()> {
         .map_err(|e| {
             error!("Watchdog encountered unexpected timer error: {}", e);
         });
-    host.exec.as_mut()
-        .ok_or(TranscoderError::Uninitialized)?
+    host.exec.as_mut().unwrap()
         .spawn(Box::new(task))?;
     host.wdg_chan = Some(tx);
 
@@ -191,10 +154,11 @@ fn stop_host(host: &mut Host) -> Result<()> {
     assert!(host.wdg_chan.is_some(), "watchdog is not running");
 
     trace!("stopping watchdog");
-    host.wdg_chan.take()
-        .unwrap()
-        .send(())
-        .map_err(|_| TranscoderError::Watchdog)?;
+    let res = host.wdg_chan.take().unwrap()
+        .send(());
+    if res.is_err() {
+        error!("Failed to stop watchdog");
+    }
 
     debug!("stopping transcoder process");
     host.tc_proc.take()
@@ -220,7 +184,8 @@ const TC_STATUS_SETTING: &str = "transcoderStatus";
 /// Initializes the transcoder
 ///
 /// Loads state from persistent storage and initializes the transcoder according to that state. This
-/// function must be called exactly once prior to using any other APIs from this module.
+/// function must be called exactly once prior to using any other APIs from this module. Failure to
+/// do so will result in those other APIs panicking.
 ///
 /// `exec` is used to spawn a watchdog which monitors and restarts the child transcoding process.
 ///
@@ -262,9 +227,11 @@ pub fn get_state() -> TranscoderState {
 /// Flushes transcoder state to persistent storage
 fn flush_settings(host: &Host) -> Result<()> {
 
+    assert!(host.db_conn.is_some(), "transcoder is not initialized");
+
     trace!("flushing transcoder settings");
     let conn = host.db_conn.as_ref()
-        .ok_or(TranscoderError::Uninitialized)?;
+        .unwrap();
     settings::set(TC_STATUS_SETTING, &host.status, &conn)?;
 
     Ok(())

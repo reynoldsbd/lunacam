@@ -2,8 +2,8 @@
 
 use actix_web::http::{StatusCode};
 use actix_web::web::{self, Data, Json, Path, ServiceConfig};
-use diesel::r2d2::PoolError;
-use lc_api::{ApiResult, CameraSettings};
+use lc_api::CameraSettings;
+use lcutil::Result;
 use crate::{ConnectionPool, PooledConnection};
 use crate::camera::CameraManager;
 
@@ -13,8 +13,8 @@ struct Resources {
 }
 
 impl CameraManager for Resources {
-    fn get_connection(&self) -> Result<PooledConnection, PoolError> {
-        self.pool.get()
+    fn get_connection(&self) -> Result<PooledConnection> {
+        Ok(self.pool.get()?)
     }
 }
 
@@ -24,7 +24,7 @@ impl CameraManager for Resources {
 fn put_camera(
     resources: Data<Resources>,
     raw: Json<CameraSettings>,
-) -> ApiResult<Json<CameraSettings>>
+) -> Result<Json<CameraSettings>>
 {
     let mut raw = raw.into_inner();
 
@@ -37,11 +37,9 @@ fn put_camera(
         .ok_or((StatusCode::BAD_REQUEST, "hostname is required"))?;
     let key = raw.device_key.take()
         .ok_or((StatusCode::BAD_REQUEST, "deviceKey is required"))?;
-    let mut camera = resources.create_camera(hostname, key)
-        .unwrap();
+    let mut camera = resources.create_camera(hostname, key)?;
 
-    camera.update(raw)
-        .unwrap();
+    camera.update(raw)?;
 
     Ok(Json(camera.into()))
 }
@@ -49,20 +47,18 @@ fn put_camera(
 fn get_camera(
     resources: Data<Resources>,
     path: Path<(i32,)>,
-) -> ApiResult<Json<CameraSettings>>
+) -> Result<Json<CameraSettings>>
 {
-    let camera = resources.get_camera(path.0)
-        .unwrap();
+    let camera = resources.get_camera(path.0)?;
 
     Ok(Json(camera.into()))
 }
 
 fn get_cameras(
     resources: Data<Resources>,
-) -> ApiResult<Json<Vec<CameraSettings>>>
+) -> Result<Json<Vec<CameraSettings>>>
 {
-    let cameras = resources.get_cameras()
-        .unwrap()
+    let cameras = resources.get_cameras()?
         .into_iter()
         .map(|cam| cam.into())
         .collect();
@@ -74,19 +70,17 @@ fn patch_camera(
     path: Path<(i32,)>,
     raw: Json<CameraSettings>,
     resources: Data<Resources>,
-) -> ApiResult<Json<CameraSettings>>
+) -> Result<Json<CameraSettings>>
 {
     let mut raw = raw.into_inner();
-    let mut camera = resources.get_camera(path.0)
-        .unwrap();
+    let mut camera = resources.get_camera(path.0)?;
 
     // Sanity check
     if raw.id.is_some() && raw.id.take() != Some(camera.id()) {
         Err((StatusCode::BAD_REQUEST, "id mismatch"))?;
     }
 
-    camera.update(raw)
-        .unwrap();
+    camera.update(raw)?;
 
     Ok(Json(camera.into()))
 }
@@ -94,13 +88,10 @@ fn patch_camera(
 fn delete_camera(
     path: Path<(i32,)>,
     resources: Data<Resources>,
-) -> ApiResult<()>
+) -> Result<()>
 {
-    let camera = resources.get_camera(path.0)
-        .unwrap();
-
-    camera.delete()
-        .unwrap();
+    resources.get_camera(path.0)?
+        .delete()?;
 
     Ok(())
 }

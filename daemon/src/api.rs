@@ -1,27 +1,28 @@
 //! Daemon API
 
 use actix_web::web::{self, Json, ServiceConfig};
-use lc_api::{ApiResult, StreamSettings};
+use lc_api::StreamSettings;
+use lcutil::Result;
 use crate::transcoder;
 
 
-fn get_stream() -> ApiResult<Json<StreamSettings>> {
+fn get_stream() -> Result<Json<StreamSettings>> {
 
     Ok(Json(transcoder::get_state().into()))
 }
 
-fn patch_stream(stream: Json<StreamSettings>) -> ApiResult<Json<StreamSettings>> {
+fn patch_stream(stream: Json<StreamSettings>) -> Result<Json<StreamSettings>> {
 
     if let Some(enabled) = stream.enabled {
         if enabled {
-            transcoder::enable().unwrap();
+            transcoder::enable()?;
         } else {
-            transcoder::disable().unwrap();
+            transcoder::disable()?;
         }
     }
 
     if let Some(orientation) = stream.orientation {
-        transcoder::set_orientation(orientation).unwrap();
+        transcoder::set_orientation(orientation)?;
     }
 
     Ok(Json(transcoder::get_state().into()))

@@ -1,25 +1,12 @@
 //! Camera management
 
 use diesel::prelude::*;
-use diesel::result::Error as DieselError;
-use diesel::r2d2::PoolError;
 use lc_api::{CameraSettings, Orientation};
+use lcutil::Result;
 use log::{debug, info, trace};
 use serde::{Serialize};
 use crate::PooledConnection;
 use crate::schema::cameras;
-
-
-/// Error type returned by camera module
-#[derive(Debug, Display, From)]
-pub enum CameraError {
-    Database(DieselError),
-    Pool(PoolError),
-}
-
-
-/// Result type returned by the camera module
-pub type Result<T> = std::result::Result<T, CameraError>;
 
 
 /// Information needed to create a new camera
@@ -162,7 +149,7 @@ impl<'a, M> Into<CameraSettings> for Camera<'a, M> {
 pub trait CameraManager: Sized {
 
     /// Gets a pooled database connection
-    fn get_connection(&self) -> std::result::Result<PooledConnection, PoolError>;
+    fn get_connection(&self) -> Result<PooledConnection>;
 
     /// Creates a new camera in the database
     fn create_camera(&self, hostname: String, key: String) -> Result<Camera<Self>> {

@@ -1,26 +1,13 @@
 //! Template management and rendering
 
-use std::env::{self, VarError};
+use std::env;
 use std::sync::{Arc, Mutex, RwLock};
 use actix_web::{HttpResponse};
-use hotwatch::{Error as HotwatchError, Event, Hotwatch};
+use hotwatch::{Event, Hotwatch};
 use lazy_static::lazy_static;
-use lcutil::{do_lock, do_read, do_write};
+use lcutil::{do_lock, do_read, do_write, Result};
 use log::{debug, error, trace};
-use tera::{Context, Error as TeraError, Tera};
-
-
-/// Error type returned by template module
-#[derive(Debug, Display, From)]
-pub enum TemplateError {
-    Hotwatch(HotwatchError),
-    Tera(TeraError),
-    Var(VarError),
-}
-
-
-/// Result type returned by template module
-pub type Result<T> = std::result::Result<T, TemplateError>;
+use tera::{Context, Tera};
 
 
 /// A collection of templates ready to be rendered
