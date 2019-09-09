@@ -1,8 +1,8 @@
 //! Camera management
 
 use diesel::prelude::*;
-use lc_api::{CameraSettings, Orientation};
-use lcutil::Result;
+use lunacam::Result;
+use lunacam::api::{CameraSettings, Orientation};
 use log::{debug, info, trace};
 use serde::{Serialize};
 use crate::PooledConnection;

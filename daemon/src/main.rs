@@ -9,7 +9,7 @@ use actix_web::web;
 use diesel::prelude::*;
 use diesel::sqlite::SqliteConnection;
 use env_logger::Env;
-use lcutil::Result;
+use lunacam::Result;
 use tokio::runtime::{Runtime};
 
 mod api;

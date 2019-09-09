@@ -2,7 +2,7 @@
 
 use diesel::prelude::*;
 use diesel::sqlite::SqliteConnection;
-use lcutil::Result;
+use lunacam::Result;
 use log::{trace};
 use serde::Serialize;
 use serde::de::DeserializeOwned;

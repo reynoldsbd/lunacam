@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex, RwLock};
 use actix_web::{HttpResponse};
 use hotwatch::{Event, Hotwatch};
 use lazy_static::lazy_static;
-use lcutil::{do_lock, do_read, do_write, Result};
+use lunacam::{do_lock, do_read, do_write, Result};
 use log::{debug, error, trace};
 use tera::{Context, Tera};
 

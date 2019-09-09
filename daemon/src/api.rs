@@ -1,8 +1,8 @@
 //! Daemon API
 
 use actix_web::web::{self, Json, ServiceConfig};
-use lc_api::StreamSettings;
-use lcutil::Result;
+use lunacam::Result;
+use lunacam::api::StreamSettings;
 use crate::transcoder;
 
 

@@ -3,7 +3,7 @@
 use std::sync::Arc;
 use actix_web::HttpResponse;
 use actix_web::web::{self, Data, Path, ServiceConfig};
-use lcutil::Result;
+use lunacam::Result;
 use tera::{Context};
 use crate::{ConnectionPool, PooledConnection};
 use crate::camera::CameraManager;

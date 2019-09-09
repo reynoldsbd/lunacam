@@ -2,8 +2,8 @@
 
 use actix_web::http::{StatusCode};
 use actix_web::web::{self, Data, Json, Path, ServiceConfig};
-use lc_api::CameraSettings;
-use lcutil::Result;
+use lunacam::Result;
+use lunacam::api::CameraSettings;
 use crate::{ConnectionPool, PooledConnection};
 use crate::camera::CameraManager;
 

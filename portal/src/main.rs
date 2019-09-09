@@ -12,7 +12,7 @@ use actix_web::web::{self};
 use diesel::r2d2::{self, ConnectionManager, Pool};
 use diesel::sqlite::SqliteConnection;
 use env_logger::Env;
-use lcutil::Result;
+use lunacam::Result;
 
 mod api;
 mod camera;
