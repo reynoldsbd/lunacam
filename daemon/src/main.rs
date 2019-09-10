@@ -1,6 +1,3 @@
-#[macro_use]
-extern crate diesel;
-
 use actix_web::{App, HttpServer};
 use actix_web::web;
 use env_logger::Env;
@@ -9,7 +6,6 @@ use lunacam::db;
 use tokio::runtime::{Runtime};
 
 mod api;
-mod settings;
 mod transcoder;
 
 

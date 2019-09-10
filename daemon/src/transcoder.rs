@@ -11,13 +11,13 @@ use lazy_static::lazy_static;
 use lunacam::{do_lock, Result};
 use lunacam::api::{Orientation, StreamSettings};
 use lunacam::db::ConnectionPool;
+use lunacam::settings::SettingsProvider;
 use log::{debug, error, info, trace, warn};
 use serde::{Deserialize, Serialize};
 use tokio::executor::Executor;
 use tokio::prelude::*;
 use tokio::sync::oneshot::{self, Sender};
 use tokio::timer::{Interval};
-use crate::settings::{self};
 
 
 //#region Transcoder Process Host
@@ -200,8 +200,7 @@ where T: Executor + Send + 'static
     assert!(host.pool.is_none(), "multiple calls to transcoder::initialize");
 
     trace!("initializing transcoder");
-    let conn = pool.get()?;
-    if let Some(status) = settings::get(TC_STATUS_SETTING, &conn)? {
+    if let Some(status) = pool.get_setting(TC_STATUS_SETTING)? {
         host.status = status;
     } else {
         trace!("using default transcoder settings");
@@ -231,10 +230,8 @@ fn flush_settings(host: &Host) -> Result<()> {
     assert!(host.pool.is_some(), "transcoder is not initialized");
 
     trace!("flushing transcoder settings");
-    let conn = host.pool.as_ref()
-        .unwrap()
-        .get()?;
-    settings::set(TC_STATUS_SETTING, &host.status, &conn)?;
+    host.pool.as_ref().unwrap()
+        .set_setting(TC_STATUS_SETTING, &host.status)?;
 
     Ok(())
 }

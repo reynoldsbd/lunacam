@@ -13,6 +13,7 @@ pub mod api;
 pub mod db;
 mod error;
 mod locks;
+pub mod settings;
 
 
 pub use error::*;
