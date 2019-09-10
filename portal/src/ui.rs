@@ -5,7 +5,7 @@ use actix_web::HttpResponse;
 use actix_web::web::{self, Data, Path, ServiceConfig};
 use lunacam::Result;
 use tera::{Context};
-use lunacam::db::{ConnectionPool, PooledConnection};
+use lunacam::db::ConnectionPool;
 use crate::camera::CameraManager;
 use crate::templates::{TemplateCollection};
 
@@ -15,16 +15,10 @@ struct UiResources {
     templates: Arc<dyn TemplateCollection>,
 }
 
-impl CameraManager for UiResources {
-    fn get_connection(&self) -> Result<PooledConnection> {
-        Ok(self.pool.get()?)
-    }
-}
-
 
 fn index(resources: Data<UiResources>) -> Result<HttpResponse> {
 
-    let cameras = resources.get_cameras()?;
+    let cameras = resources.pool.get_cameras()?;
 
     let mut context = Context::new();
     context.insert("cameras", &cameras);
@@ -35,7 +29,7 @@ fn index(resources: Data<UiResources>) -> Result<HttpResponse> {
 
 fn camera(path: Path<(i32,)>, resources: Data<UiResources>) -> Result<HttpResponse> {
 
-    let camera = resources.get_camera(path.0)?;
+    let camera = resources.pool.get_camera(path.0)?;
 
     let mut context = Context::new();
     context.insert("camera", &camera);
@@ -46,7 +40,7 @@ fn camera(path: Path<(i32,)>, resources: Data<UiResources>) -> Result<HttpRespon
 
 fn camera_admin(resources: Data<UiResources>) -> Result<HttpResponse> {
 
-    let cameras = resources.get_cameras()?;
+    let cameras = resources.pool.get_cameras()?;
 
     let mut context = Context::new();
     context.insert("cameras", &cameras);

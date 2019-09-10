@@ -3,7 +3,7 @@
 use diesel::prelude::*;
 use lunacam::Result;
 use lunacam::api::{CameraSettings, Orientation};
-use lunacam::db::PooledConnection;
+use lunacam::db::DatabaseContext;
 use lunacam::db::schema::cameras;
 use log::{debug, info, trace};
 use serde::{Serialize};
@@ -45,13 +45,11 @@ pub struct Camera<'a, M> {
 impl<'a, M> Camera<'a, M>
 where M: CameraManager
 {
-    // TODO: update, delete
-
     /// Deletes this camera from the database
     pub fn delete(self) -> Result<()> {
 
         debug!("deleting camera {}", self.row.id);
-        let conn = self.manager.get_connection()?;
+        let conn = self.manager.conn()?;
         diesel::delete(&self.row)
             .execute(&conn)?;
 
@@ -122,7 +120,7 @@ where M: CameraManager
 
         if do_save {
             debug!("saving changes to camera {}", self.row.id);
-            let conn = self.manager.get_connection()?;
+            let conn = self.manager.conn()?;
             diesel::update(&self.row)
                 .set(&self.row)
                 .execute(&conn)?;
@@ -146,15 +144,12 @@ impl<'a, M> Into<CameraSettings> for Camera<'a, M> {
 }
 
 
-pub trait CameraManager: Sized {
-
-    /// Gets a pooled database connection
-    fn get_connection(&self) -> Result<PooledConnection>;
+pub trait CameraManager: DatabaseContext + Sized {
 
     /// Creates a new camera in the database
     fn create_camera(&self, hostname: String, key: String) -> Result<Camera<Self>> {
 
-        let conn = self.get_connection()?;
+        let conn = self.conn()?;
 
         let new_cam = NewCamera {
             hostname: hostname.clone(),
@@ -183,7 +178,7 @@ pub trait CameraManager: Sized {
     fn get_camera(&self, id: i32) -> Result<Camera<Self>> {
 
         trace!("retrieving camera {} from database", id);
-        let conn = self.get_connection()?;
+        let conn = self.conn()?;
         let camera = cameras::table.find(id)
             .get_result(&conn)?;
 
@@ -197,7 +192,7 @@ pub trait CameraManager: Sized {
     fn get_cameras(&self) -> Result<Vec<Camera<Self>>> {
 
         trace!("retrieving all cameras from database");
-        let conn = self.get_connection()?;
+        let conn = self.conn()?;
         let cameras = cameras::table.load(&conn)?
             .into_iter()
             .map(|c| Camera {
@@ -209,3 +204,5 @@ pub trait CameraManager: Sized {
         Ok(cameras)
     }
 }
+
+impl<T: DatabaseContext + Sized> CameraManager for T {}

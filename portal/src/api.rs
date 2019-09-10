@@ -4,18 +4,12 @@ use actix_web::http::{StatusCode};
 use actix_web::web::{self, Data, Json, Path, ServiceConfig};
 use lunacam::Result;
 use lunacam::api::CameraSettings;
-use lunacam::db::{ConnectionPool, PooledConnection};
+use lunacam::db::ConnectionPool;
 use crate::camera::CameraManager;
 
 
 struct Resources {
     pool: ConnectionPool,
-}
-
-impl CameraManager for Resources {
-    fn get_connection(&self) -> Result<PooledConnection> {
-        Ok(self.pool.get()?)
-    }
 }
 
 
@@ -37,7 +31,7 @@ fn put_camera(
         .ok_or((StatusCode::BAD_REQUEST, "hostname is required"))?;
     let key = raw.device_key.take()
         .ok_or((StatusCode::BAD_REQUEST, "deviceKey is required"))?;
-    let mut camera = resources.create_camera(hostname, key)?;
+    let mut camera = resources.pool.create_camera(hostname, key)?;
 
     camera.update(raw)?;
 
@@ -49,7 +43,7 @@ fn get_camera(
     path: Path<(i32,)>,
 ) -> Result<Json<CameraSettings>>
 {
-    let camera = resources.get_camera(path.0)?;
+    let camera = resources.pool.get_camera(path.0)?;
 
     Ok(Json(camera.into()))
 }
@@ -58,7 +52,7 @@ fn get_cameras(
     resources: Data<Resources>,
 ) -> Result<Json<Vec<CameraSettings>>>
 {
-    let cameras = resources.get_cameras()?
+    let cameras = resources.pool.get_cameras()?
         .into_iter()
         .map(|cam| cam.into())
         .collect();
@@ -73,7 +67,7 @@ fn patch_camera(
 ) -> Result<Json<CameraSettings>>
 {
     let mut raw = raw.into_inner();
-    let mut camera = resources.get_camera(path.0)?;
+    let mut camera = resources.pool.get_camera(path.0)?;
 
     // Sanity check
     if raw.id.is_some() && raw.id.take() != Some(camera.id()) {
@@ -90,7 +84,7 @@ fn delete_camera(
     resources: Data<Resources>,
 ) -> Result<()>
 {
-    resources.get_camera(path.0)?
+    resources.pool.get_camera(path.0)?
         .delete()?;
 
     Ok(())
