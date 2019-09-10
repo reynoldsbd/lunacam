@@ -13,6 +13,7 @@ pub mod api;
 pub mod db;
 mod error;
 mod locks;
+pub mod logging;
 pub mod settings;
 
 

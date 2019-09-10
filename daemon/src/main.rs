@@ -1,8 +1,8 @@
 use actix_web::{App, HttpServer};
 use actix_web::web;
-use env_logger::Env;
 use lunacam::Result;
 use lunacam::db;
+use lunacam::logging;
 use tokio::runtime::{Runtime};
 
 mod api;
@@ -11,10 +11,7 @@ mod transcoder;
 
 fn main() -> Result<()> {
 
-    let env = Env::default()
-        .filter_or("LC_LOG", "info")
-        .write_style("LC_LOG_STYLE");
-    env_logger::init_from_env(env);
+    logging::init();
 
     let pool = db::connect()?;
 

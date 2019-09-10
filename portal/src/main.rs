@@ -5,9 +5,9 @@ extern crate diesel;
 use actix_files::{Files};
 use actix_web::{App, HttpServer};
 use actix_web::web::{self};
-use env_logger::Env;
 use lunacam::Result;
 use lunacam::db;
+use lunacam::logging;
 
 mod api;
 mod camera;
@@ -17,10 +17,7 @@ mod ui;
 
 fn main() -> Result<()> {
 
-    let env = Env::default()
-        .filter_or("LC_LOG", "info")
-        .write_style("LC_LOG_STYLE");
-    env_logger::init_from_env(env);
+    logging::init();
 
     #[cfg(debug_assertions)]
     let static_dir = std::env::var("LC_STATIC")?;
