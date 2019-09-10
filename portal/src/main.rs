@@ -1,31 +1,18 @@
 #[macro_use]
 extern crate diesel;
 
-#[macro_use]
-extern crate diesel_migrations;
-
-use std::env;
 #[cfg(debug_assertions)]
 use actix_files::{Files};
 use actix_web::{App, HttpServer};
 use actix_web::web::{self};
-use diesel::r2d2::{self, ConnectionManager, Pool};
-use diesel::sqlite::SqliteConnection;
 use env_logger::Env;
 use lunacam::Result;
+use lunacam::db;
 
 mod api;
 mod camera;
-mod schema;
 mod templates;
 mod ui;
-
-
-embed_migrations!();
-
-
-type ConnectionPool = Pool<ConnectionManager<SqliteConnection>>;
-type PooledConnection = r2d2::PooledConnection<ConnectionManager<SqliteConnection>>;
 
 
 fn main() -> Result<()> {
@@ -39,17 +26,7 @@ fn main() -> Result<()> {
     let static_dir = std::env::var("LC_STATIC")?;
 
     let templates = templates::load()?;
-
-    // Create database connection pool
-    let state_dir = env::var("STATE_DIRECTORY")?;
-    let db_url = format!("{}/portal.db", state_dir);
-    let pool = Pool::new(ConnectionManager::new(db_url))?;
-
-    // Ensure database is initialized
-    {
-        let conn = pool.get()?;
-        embedded_migrations::run(&conn)?;
-    }
+    let pool = db::connect()?;
 
     HttpServer::new(move || {
             let app = App::new();

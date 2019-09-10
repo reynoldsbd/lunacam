@@ -8,7 +8,6 @@ edition = "2018"
 actix-files = "0.1"
 actix-web = "1.0"
 diesel = {version = "1.4", features = ["r2d2", "sqlite"] }
-diesel_migrations = "1.4"
 env_logger = "0.6"
 hotwatch = "0.4"
 lazy_static = "1.3"

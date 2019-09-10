@@ -1,24 +1,16 @@
 #[macro_use]
 extern crate diesel;
 
-#[macro_use]
-extern crate diesel_migrations;
-
 use actix_web::{App, HttpServer};
 use actix_web::web;
-use diesel::prelude::*;
-use diesel::sqlite::SqliteConnection;
 use env_logger::Env;
 use lunacam::Result;
+use lunacam::db;
 use tokio::runtime::{Runtime};
 
 mod api;
-mod schema;
 mod settings;
 mod transcoder;
-
-
-embed_migrations!();
 
 
 fn main() -> Result<()> {
@@ -28,14 +20,11 @@ fn main() -> Result<()> {
         .write_style("LC_LOG_STYLE");
     env_logger::init_from_env(env);
 
-    let state_dir = std::env::var("STATE_DIRECTORY")?;
-    let db_url = format!("{}/daemon.db", state_dir);
-    let db_conn = SqliteConnection::establish(&db_url)?;
-    embedded_migrations::run(&db_conn)?;
+    let pool = db::connect()?;
 
     let rt = Runtime::new()?;
 
-    transcoder::initialize(Box::new(rt.executor()), db_conn)?;
+    transcoder::initialize(Box::new(rt.executor()), pool)?;
 
     HttpServer::new(||
             App::new()

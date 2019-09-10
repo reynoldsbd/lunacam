@@ -3,10 +3,10 @@
 use diesel::prelude::*;
 use lunacam::Result;
 use lunacam::api::{CameraSettings, Orientation};
+use lunacam::db::PooledConnection;
+use lunacam::db::schema::cameras;
 use log::{debug, info, trace};
 use serde::{Serialize};
-use crate::PooledConnection;
-use crate::schema::cameras;
 
 
 /// Information needed to create a new camera

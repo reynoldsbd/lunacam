@@ -2,11 +2,11 @@
 
 use diesel::prelude::*;
 use diesel::sqlite::SqliteConnection;
-use lunacam::Result;
 use log::{trace};
+use lunacam::Result;
+use lunacam::db::schema::settings;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
-use crate::schema::settings;
 
 
 #[derive(AsChangeset, Identifiable, Insertable, Queryable)]

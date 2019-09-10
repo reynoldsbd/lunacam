@@ -8,3 +8,15 @@ table! {
         orientation -> Integer,
     }
 }
+
+table! {
+    settings (name) {
+        name -> Text,
+        value -> Text,
+    }
+}
+
+allow_tables_to_appear_in_same_query!(
+    cameras,
+    settings,
+);

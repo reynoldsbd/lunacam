@@ -7,10 +7,10 @@
 use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
-use diesel::sqlite::SqliteConnection;
 use lazy_static::lazy_static;
 use lunacam::{do_lock, Result};
 use lunacam::api::{Orientation, StreamSettings};
+use lunacam::db::ConnectionPool;
 use log::{debug, error, info, trace, warn};
 use serde::{Deserialize, Serialize};
 use tokio::executor::Executor;
@@ -43,7 +43,7 @@ impl Into<StreamSettings> for TranscoderState {
 #[derive(Default)]
 struct Host {
     status: TranscoderState,
-    db_conn: Option<SqliteConnection>,
+    pool: Option<ConnectionPool>,
     tc_proc: Option<Child>,
     wdg_chan: Option<Sender<()>>,
     exec: Option<Box<dyn Executor + Send>>,
@@ -192,20 +192,21 @@ const TC_STATUS_SETTING: &str = "transcoderStatus";
 /// # Panics
 ///
 /// Panics if called more than once.
-pub fn initialize<T>(exec: T, conn: SqliteConnection) -> Result<()>
+pub fn initialize<T>(exec: T, pool: ConnectionPool) -> Result<()>
 where T: Executor + Send + 'static
 {
     let mut host = do_lock!(HOST);
 
-    assert!(host.db_conn.is_none(), "multiple calls to transcoder::initialize");
+    assert!(host.pool.is_none(), "multiple calls to transcoder::initialize");
 
     trace!("initializing transcoder");
+    let conn = pool.get()?;
     if let Some(status) = settings::get(TC_STATUS_SETTING, &conn)? {
         host.status = status;
     } else {
         trace!("using default transcoder settings");
     }
-    host.db_conn = Some(conn);
+    host.pool = Some(pool);
     host.exec = Some(Box::new(exec));
     if host.status.enabled {
         start_host(&mut host)?;
@@ -227,11 +228,12 @@ pub fn get_state() -> TranscoderState {
 /// Flushes transcoder state to persistent storage
 fn flush_settings(host: &Host) -> Result<()> {
 
-    assert!(host.db_conn.is_some(), "transcoder is not initialized");
+    assert!(host.pool.is_some(), "transcoder is not initialized");
 
     trace!("flushing transcoder settings");
-    let conn = host.db_conn.as_ref()
-        .unwrap();
+    let conn = host.pool.as_ref()
+        .unwrap()
+        .get()?;
     settings::set(TC_STATUS_SETTING, &host.status, &conn)?;
 
     Ok(())
