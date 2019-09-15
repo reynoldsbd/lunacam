@@ -1,13 +1,13 @@
 //! Video stream management
 
 use std::process::{Command, Stdio};
-use lunacam::error::Result;
-use lunacam::api::{Orientation, StreamSettings};
-use lunacam::db::ConnectionPool;
-use lunacam::prochost::ProcHost;
-use lunacam::settings::SettingsProvider;
 use log::{debug, info, trace};
 use serde::{Deserialize, Serialize};
+use crate::error::Result;
+use crate::api::{Orientation, StreamSettings};
+use crate::db::ConnectionPool;
+use crate::prochost::ProcHost;
+use crate::settings::SettingsProvider;
 
 
 /// Current state of the stream

@@ -4,7 +4,7 @@ use std::sync::Mutex;
 use actix_web::web::{self, Data, Json, ServiceConfig};
 use lunacam::{do_lock, Result};
 use lunacam::api::StreamSettings;
-use crate::stream::VideoStream;
+use lunacam::stream::VideoStream;
 
 
 fn get_stream(stream: Data<Mutex<VideoStream>>) -> Result<Json<StreamSettings>> {

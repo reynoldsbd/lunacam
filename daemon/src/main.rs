@@ -4,11 +4,9 @@ use actix_web::web::{self, Data};
 use lunacam::Result;
 use lunacam::db;
 use lunacam::logging;
+use lunacam::stream::VideoStream;
 
 mod api;
-mod stream;
-
-use stream::VideoStream;
 
 
 fn main() -> Result<()> {
