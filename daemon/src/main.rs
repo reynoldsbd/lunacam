@@ -1,12 +1,14 @@
+use std::sync::Mutex;
 use actix_web::{App, HttpServer};
-use actix_web::web;
+use actix_web::web::{self, Data};
 use lunacam::Result;
 use lunacam::db;
 use lunacam::logging;
-use tokio::runtime::{Runtime};
 
 mod api;
-mod transcoder;
+mod stream;
+
+use stream::VideoStream;
 
 
 fn main() -> Result<()> {
@@ -14,13 +16,11 @@ fn main() -> Result<()> {
     logging::init();
 
     let pool = db::connect()?;
+    let stream = Data::new(Mutex::new(VideoStream::new(pool)?));
 
-    let rt = Runtime::new()?;
-
-    transcoder::initialize(Box::new(rt.executor()), pool)?;
-
-    HttpServer::new(||
+    HttpServer::new(move ||
             App::new()
+                .register_data(stream.clone())
                 .service(web::scope("/api").configure(api::configure))
         )
         .bind("127.0.0.1:9350")?

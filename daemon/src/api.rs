@@ -1,31 +1,29 @@
 //! Daemon API
 
-use actix_web::web::{self, Json, ServiceConfig};
-use lunacam::Result;
+use std::sync::Mutex;
+use actix_web::web::{self, Data, Json, ServiceConfig};
+use lunacam::{do_lock, Result};
 use lunacam::api::StreamSettings;
-use crate::transcoder;
+use crate::stream::VideoStream;
 
 
-fn get_stream() -> Result<Json<StreamSettings>> {
+fn get_stream(stream: Data<Mutex<VideoStream>>) -> Result<Json<StreamSettings>> {
 
-    Ok(Json(transcoder::get_state().into()))
+    let stream = do_lock!(stream);
+
+    Ok(Json(stream.settings()))
 }
 
-fn patch_stream(stream: Json<StreamSettings>) -> Result<Json<StreamSettings>> {
+fn patch_stream(
+    stream: Data<Mutex<VideoStream>>,
+    settings: Json<StreamSettings>,
+) -> Result<Json<StreamSettings>> {
 
-    if let Some(enabled) = stream.enabled {
-        if enabled {
-            transcoder::enable()?;
-        } else {
-            transcoder::disable()?;
-        }
-    }
+    let mut stream = do_lock!(stream);
 
-    if let Some(orientation) = stream.orientation {
-        transcoder::set_orientation(orientation)?;
-    }
+    stream.update(&settings)?;
 
-    Ok(Json(transcoder::get_state().into()))
+    Ok(Json(stream.settings()))
 }
 
 
