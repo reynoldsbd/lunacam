@@ -4,6 +4,10 @@ version = "0.2.0"
 authors = ["Bobby Reynolds <bobby@reynoldsbd.net>"]
 edition = "2018"
 
+[[bin]]
+name = "lcagent"
+path = "src/agent/main.rs"
+
 [dependencies]
 actix-web = "1.0"
 derive_more = "0.15"
@@ -20,6 +24,5 @@ tokio = "0.1"
 
 [workspace]
 members = [
-    "daemon",
     "portal",
 ]
