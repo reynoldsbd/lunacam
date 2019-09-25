@@ -120,6 +120,30 @@ deploy-portal: $(pseudo) $(crossbuild_portal)
 
 
 ####################################################################################################
+# Custom Raspbian image with LunaCam preconfigured
+####################################################################################################
+
+# TODO: default variant should be "standalone"
+variant ?= agent
+
+pigen := $(pseudo)/pi-gen
+pigen_dir := $(LC_BUILD)/pi-gen
+
+# TODO: checkout specific commit
+$(pigen): $(pseudo)
+	@git clone --depth 1 https://github.com/RPi-Distro/pi-gen $(pigen_dir)
+	@$(call PAL_TOUCH_FILE,$(pigen))
+
+# TODO: generate stage dir and config for each variant
+
+# TODO: target should be an actual file such as "$(LC_BUILD)/pigen/deploy/$(shell date -I)-lunacam-$(variant).zip"
+export PRESERVE_CONTAINER ?= 1
+image: $(pigen)
+	@cd $(pigen_dir) && ./build-docker.sh -c $(LC_TOOLS)/pi-gen/config.sh
+
+
+
+####################################################################################################
 # The imagebuild Docker image is used to build a bootable SD card image
 ####################################################################################################
 

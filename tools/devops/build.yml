@@ -1,0 +1,7 @@
+trigger: none
+
+pool: Default
+
+steps:
+- script: make image
+  displayName: Build Image
