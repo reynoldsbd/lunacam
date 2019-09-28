@@ -17,8 +17,7 @@ FORCE:
 # Files under $(pseudo) represent non-file dependencies (e.g. Docker images)
 ####################################################################################################
 
-# TODO: pseudo -> LC_PSEUDO_DIR
-export pseudo := $(build)/pseudo
+pseudo := $(build)/pseudo
 $(pseudo):
 	@$(PAL_CREATE_DIR) $(pseudo)
 
@@ -33,7 +32,7 @@ crossbuild_dir := $(repo)/tools/crossbuild
 crossbuild_img := lc-crossbuild
 crossbuild_cache := lc-crossbuild-cache
 
-$(crossbuild): $(call PAL_ENUM_DIR,$(crossbuild_dir)) $(pseudo)
+$(crossbuild): $(call PAL_ENUM_DIR,$(crossbuild_dir)) | $(pseudo)
 	@docker build -t $(crossbuild_img) $(crossbuild_dir)
 	@$(call PAL_TOUCH_FILE,$(crossbuild))
 
@@ -77,19 +76,19 @@ clean-crossbuild:
 # Daemon
 ####################################################################################################
 
-daemon: $(pseudo)
+daemon: | $(pseudo)
 	@$(MAKE) --no-print-directory -C daemon
 
-run-daemon: $(pseudo)
+run-daemon: | $(pseudo)
 	@$(MAKE) --no-print-directory -C daemon run
 
-clean-daemon: $(pseudo)
+clean-daemon: | $(pseudo)
 	@$(MAKE) --no-print-directory -C daemon clean
 
-install-daemon: $(pseudo)
+install-daemon: | $(pseudo)
 	@$(MAKE) --no-print-directory -C daemon install
 
-deploy-daemon: $(pseudo) $(crossbuild_daemon)
+deploy-daemon: $(crossbuild_daemon) | $(pseudo)
 	@$(MAKE) --no-print-directory -C daemon deploy RUST_TARGET=$(pi_triple) RUST_PROFILE=release
 
 .PHONY: daemon run-daemon clean-daemon deploy-daemon
@@ -100,19 +99,19 @@ deploy-daemon: $(pseudo) $(crossbuild_daemon)
 # Portal
 ####################################################################################################
 
-portal: $(pseudo)
+portal: | $(pseudo)
 	@$(MAKE) --no-print-directory -C portal
 
-run-portal: $(pseudo)
+run-portal: | $(pseudo)
 	@$(MAKE) --no-print-directory -C portal run
 
-clean-portal: $(pseudo)
+clean-portal: | $(pseudo)
 	@$(MAKE) --no-print-directory -C portal clean
 
-install-portal: $(pseudo)
+install-portal: | $(pseudo)
 	@$(MAKE) --no-print-directory -C portal install
 
-deploy-portal: $(pseudo) $(crossbuild_portal)
+deploy-portal: $(crossbuild_portal) | $(pseudo)
 	@$(MAKE) --no-print-directory -C portal deploy RUST_TARGET=$(pi_triple) RUST_PROFILE=release
 
 .PHONY: portal run-portal clean-portal deploy-portal
@@ -123,74 +122,75 @@ deploy-portal: $(pseudo) $(crossbuild_portal)
 # Custom Raspbian image with LunaCam preconfigured
 ####################################################################################################
 
-# TODO: default variant should be "standalone"
-variant ?= agent
-
 pigen := $(pseudo)/pi-gen
 pigen_dir := $(LC_BUILD)/pi-gen
 
 # TODO: checkout specific commit
-$(pigen): $(pseudo)
+$(pigen): | $(pseudo)
 	@git clone --depth 1 https://github.com/RPi-Distro/pi-gen $(pigen_dir)
+	@touch $(pigen_dir)/stage2/SKIP_IMAGES
 	@$(call PAL_TOUCH_FILE,$(pigen))
 
-# TODO: generate stage dir and config for each variant
-
-# TODO: target should be an actual file such as "$(LC_BUILD)/pigen/deploy/$(shell date -I)-lunacam-$(variant).zip"
-export PRESERVE_CONTAINER ?= 1
-image: $(pigen)
-	@cd $(pigen_dir) && ./build-docker.sh -c $(LC_TOOLS)/pi-gen/config.sh
+export CONTINUE = 1
+export PRESERVE_CONTAINER = 1
 
 
 
-####################################################################################################
-# The imagebuild Docker image is used to build a bootable SD card image
-####################################################################################################
+stg_common := $(pseudo)/stg-common
+stg_common_dir := $(pigen_dir)/common
+cfg_common := $(pigen_dir)/config
 
-imagebuild_ctx := $(pseudo)/imagebuild-ctx
-imagebuild_ctx_dir := $(LC_BUILD)/imagebuild
+$(stg_common): $(pigen) $(LC_TOOLS)/pi-gen/prerun.sh $(call PAL_ENUM_DIR,$(LC_TOOLS)/pi-gen/common)
+	@$(PAL_CREATE_DIR) $(stg_common_dir)
+	@cp $(LC_TOOLS)/pi-gen/prerun.sh $(stg_common_dir)/prerun.sh
+	@rsync -r $(LC_TOOLS)/pi-gen/common/ $(stg_common_dir)
+	@$(call PAL_TOUCH_FILE,$(stg_common))
 
-$(imagebuild_ctx): $(LC_TOOLS)/imagebuild/aur-install.sh $(pseudo)
-	@$(PAL_CREATE_DIR) $(imagebuild_ctx_dir)
-	@cp $(LC_TOOLS)/imagebuild/aur-install.sh $(imagebuild_ctx_dir)/aur-install.sh
-	@$(call PAL_TOUCH_FILE,$(imagebuild_ctx))
+$(cfg_common): $(LC_TOOLS)/pi-gen/config.sh $(stg_common)
+	@cp $(LC_TOOLS)/pi-gen/config.sh $(cfg_common)
 
-imagebuild := $(pseudo)/imagebuild
-imagebuild_dir := $(repo)/tools/imagebuild
-imagebuild_img := lc-imagebuild
 
-$(imagebuild): $(LC_TOOLS)/imagebuild/Dockerfile $(imagebuild_ctx) $(pseudo)
-	@docker build -t $(imagebuild_img) -f $(LC_TOOLS)/imagebuild/Dockerfile $(imagebuild_ctx_dir)
-	@$(call PAL_TOUCH_FILE,$(imagebuild))
 
-imagebuild: $(imagebuild)
+stg_agent := $(pseudo)/stg-agent
+stg_agent_dir := $(pigen_dir)/agent
+cfg_agent := $(pigen_dir)/config-agent
+agent_image := $(pigen_dir)/deploy/image_$(shell date -uI)-lunacam-agent.zip
 
-imagebuild_cmd := docker run
-imagebuild_cmd += -it --rm --privileged
-imagebuild_cmd += --tmpfs /tmp
-imagebuild_cmd += -v $(repo):/source
-imagebuild_cmd += -w /source
-imagebuild_cmd += $(imagebuild_img)
-imagebuild_cmd += /source/tools/imagebuild/build.sh
+$(stg_agent): $(pigen) $(LC_TOOLS)/pi-gen/prerun.sh $(call PAL_ENUM_DIR,$(LC_TOOLS)/pi-gen/agent)
+	@$(PAL_CREATE_DIR) $(stg_agent_dir)
+	@cp $(LC_TOOLS)/pi-gen/prerun.sh $(stg_agent_dir)/prerun.sh
+	@rsync -r $(LC_TOOLS)/pi-gen/agent/ $(stg_agent_dir)
+	@$(call PAL_TOUCH_FILE,$(stg_agent))
 
-daemon_image := $(build)/images/lc-daemon.img
-portal_image := $(build)/images/lc-portal.img
+$(cfg_agent): $(LC_TOOLS)/pi-gen/config-agent.sh $(stg_agent) $(cfg_common)
+	@cp $(LC_TOOLS)/pi-gen/config-agent.sh $(cfg_agent)
 
-$(daemon_image): $(crossbuild_daemon) $(imagebuild)
-	@$(imagebuild_cmd) daemon
+$(agent_image): $(cfg_agent)
+	@cd $(pigen_dir) && ./build-docker.sh -c config-agent
 
-daemon-image: $(daemon_image)
+agent-image: $(agent_image)
 
-$(portal_image): $(crossbuild_portal) $(imagebuild)
-	@$(imagebuild_cmd) portal
+modules-load=dwc2,g_ether
+
+stg_portal := $(pseudo)/stg-portal
+stg_portal_dir := $(pigen_dir)/portal
+cfg_portal := $(pigen_dir)/config-portal
+portal_image := $(pigen_dir)/deploy/image_$(shell date -uI)-lunacam-portal.zip
+
+$(stg_portal): $(pigen) $(LC_TOOLS)/pi-gen/prerun.sh $(call PAL_ENUM_DIR,$(LC_TOOLS)/pi-gen/portal)
+	@$(PAL_CREATE_DIR) $(stg_portal_dir)
+	@cp $(LC_TOOLS)/pi-gen/prerun.sh $(stg_portal_dir)/prerun.sh
+	@rsync -r $(LC_TOOLS)/pi-gen/portal/ $(stg_portal_dir)
+	@$(call PAL_TOUCH_FILE,$(stg_portal))
+
+$(cfg_portal): $(LC_TOOLS)/pi-gen/config-portal.sh $(stg_portal) $(cfg_common)
+	@cp $(LC_TOOLS)/pi-gen/config-portal.sh $(cfg_portal)
+
+$(portal_image): $(cfg_portal)
+	@cd $(pigen_dir) && ./build-docker.sh -c config-portal
 
 portal-image: $(portal_image)
 
-clean-imagebuild:
-	@docker image rm -f $(imagebuild_img)
-	@$(call PAL_RM,$(imagebuild))
-
-.PHONY: imagebuild daemon-image portal-image clean-imagebuild
 
 
 ####################################################################################################

@@ -1,4 +1,0 @@
-initramfs initramfs-linux.img followkernel
-
-# USB OTG ethernet support
-dtoverlay=dwc2
