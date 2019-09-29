@@ -140,7 +140,7 @@ cfg_common := $(pigen_dir)/config
 $(stg_common): $(pigen) $(LC_TOOLS)/pi-gen/prerun.sh $(call PAL_ENUM_DIR,$(LC_TOOLS)/pi-gen/common)
 	@$(PAL_CREATE_DIR) $(stg_common_dir)
 	@cp $(LC_TOOLS)/pi-gen/prerun.sh $(stg_common_dir)/prerun.sh
-	@rsync -r $(LC_TOOLS)/pi-gen/common/ $(stg_common_dir)
+	@rsync -r --delete $(LC_TOOLS)/pi-gen/common/ $(stg_common_dir)
 	@$(call PAL_TOUCH_FILE,$(stg_common))
 
 $(cfg_common): $(LC_TOOLS)/pi-gen/config.sh $(stg_common)
@@ -156,7 +156,7 @@ agent_image := $(pigen_dir)/deploy/image_$(shell date -uI)-lunacam-agent.img
 $(stg_agent): $(pigen) $(LC_TOOLS)/pi-gen/prerun.sh $(call PAL_ENUM_DIR,$(LC_TOOLS)/pi-gen/agent)
 	@$(PAL_CREATE_DIR) $(stg_agent_dir)
 	@cp $(LC_TOOLS)/pi-gen/prerun.sh $(stg_agent_dir)/prerun.sh
-	@rsync -r $(LC_TOOLS)/pi-gen/agent/ $(stg_agent_dir)
+	@rsync -r --delete $(LC_TOOLS)/pi-gen/agent/ $(stg_agent_dir)
 	@$(call PAL_TOUCH_FILE,$(stg_agent))
 
 $(cfg_agent): $(LC_TOOLS)/pi-gen/config-agent.sh $(stg_agent) $(cfg_common)
@@ -177,7 +177,7 @@ portal_image := $(pigen_dir)/deploy/image_$(shell date -uI)-lunacam-portal.img
 $(stg_portal): $(pigen) $(LC_TOOLS)/pi-gen/prerun.sh $(call PAL_ENUM_DIR,$(LC_TOOLS)/pi-gen/portal)
 	@$(PAL_CREATE_DIR) $(stg_portal_dir)
 	@cp $(LC_TOOLS)/pi-gen/prerun.sh $(stg_portal_dir)/prerun.sh
-	@rsync -r $(LC_TOOLS)/pi-gen/portal/ $(stg_portal_dir)
+	@rsync -r --delete $(LC_TOOLS)/pi-gen/portal/ $(stg_portal_dir)
 	@$(call PAL_TOUCH_FILE,$(stg_portal))
 
 $(cfg_portal): $(LC_TOOLS)/pi-gen/config-portal.sh $(stg_portal) $(cfg_common)
