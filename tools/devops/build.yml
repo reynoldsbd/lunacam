@@ -3,5 +3,5 @@ trigger: none
 pool: Default
 
 steps:
-- script: make image
-  displayName: Build Image
+- script: make agent-image
+  displayName: Build Agent Image

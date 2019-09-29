@@ -1,4 +1,5 @@
 export IMG_NAME="lunacam"
+export DEPLOY_ZIP=0
 export LOCALE_DEFAULT="en_US.UTF-8"
 export KEYBOARD_KEYMAP="us"
 export KEYBOARD_LAYOUT="English (US)"

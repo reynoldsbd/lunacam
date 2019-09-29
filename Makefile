@@ -131,10 +131,6 @@ $(pigen): | $(pseudo)
 	@touch $(pigen_dir)/stage2/SKIP_IMAGES
 	@$(call PAL_TOUCH_FILE,$(pigen))
 
-export CONTINUE = 1
-export DEPLOY_ZIP = 0
-export PRESERVE_CONTAINER = 1
-
 
 
 stg_common := $(pseudo)/stg-common
