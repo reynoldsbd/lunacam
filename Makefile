@@ -132,6 +132,7 @@ $(pigen): | $(pseudo)
 	@$(call PAL_TOUCH_FILE,$(pigen))
 
 export CONTINUE = 1
+export DEPLOY_ZIP = 0
 export PRESERVE_CONTAINER = 1
 
 
@@ -154,7 +155,7 @@ $(cfg_common): $(LC_TOOLS)/pi-gen/config.sh $(stg_common)
 stg_agent := $(pseudo)/stg-agent
 stg_agent_dir := $(pigen_dir)/agent
 cfg_agent := $(pigen_dir)/config-agent
-agent_image := $(pigen_dir)/deploy/image_$(shell date -uI)-lunacam-agent.zip
+agent_image := $(pigen_dir)/deploy/image_$(shell date -uI)-lunacam-agent.img
 
 $(stg_agent): $(pigen) $(LC_TOOLS)/pi-gen/prerun.sh $(call PAL_ENUM_DIR,$(LC_TOOLS)/pi-gen/agent)
 	@$(PAL_CREATE_DIR) $(stg_agent_dir)
@@ -175,7 +176,7 @@ modules-load=dwc2,g_ether
 stg_portal := $(pseudo)/stg-portal
 stg_portal_dir := $(pigen_dir)/portal
 cfg_portal := $(pigen_dir)/config-portal
-portal_image := $(pigen_dir)/deploy/image_$(shell date -uI)-lunacam-portal.zip
+portal_image := $(pigen_dir)/deploy/image_$(shell date -uI)-lunacam-portal.img
 
 $(stg_portal): $(pigen) $(LC_TOOLS)/pi-gen/prerun.sh $(call PAL_ENUM_DIR,$(LC_TOOLS)/pi-gen/portal)
 	@$(PAL_CREATE_DIR) $(stg_portal_dir)
