@@ -163,6 +163,7 @@ $(cfg_agent): $(LC_TOOLS)/pi-gen/config-agent.sh $(stg_agent) $(cfg_common)
 	@cp $(LC_TOOLS)/pi-gen/config-agent.sh $(cfg_agent)
 
 $(agent_image): $(cfg_agent)
+	@docker rm -v pigen_work || true
 	@cd $(pigen_dir) && ./build-docker.sh -c config-agent
 
 agent-image: $(agent_image)
@@ -184,6 +185,7 @@ $(cfg_portal): $(LC_TOOLS)/pi-gen/config-portal.sh $(stg_portal) $(cfg_common)
 	@cp $(LC_TOOLS)/pi-gen/config-portal.sh $(cfg_portal)
 
 $(portal_image): $(cfg_portal)
+	@docker rm -v pigen_work || true
 	@cd $(pigen_dir) && ./build-docker.sh -c config-portal
 
 portal-image: $(portal_image)
