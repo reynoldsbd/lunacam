@@ -6,6 +6,7 @@ export LC_BUILD := $(LC_SOURCE)/build
 export LC_TOOLS := $(LC_SOURCE)/tools
 
 include $(LC_TOOLS)/make/pal.mk
+include $(LC_TOOLS)/make/rust.mk
 
 
 
@@ -27,6 +28,10 @@ $(pseudo):
 # The crossbuild Docker image is used to cross-compile binaries for the Raspberry Pi
 ####################################################################################################
 
+ifndef CROSSBUILD
+
+
+
 crossbuild := $(pseudo)/crossbuild
 crossbuild_dir := $(repo)/tools/crossbuild
 crossbuild_img := lc-crossbuild
@@ -46,21 +51,23 @@ crossbuild_cmd += -v $(crossbuild_cache):/root/.cargo
 crossbuild_cmd += -w /source
 crossbuild_cmd += $(crossbuild_img)
 crossbuild_cmd += make --no-print-directory --directory /source
-crossbuild_cmd += RUST_TARGET=$(pi_triple) RUST_PROFILE=release
+crossbuild_cmd += CROSSBUILD=1 RUST_TARGET=$(pi_triple) RUST_PROFILE=release
 
 crossbuild_out_dir := $(build)/target/$(pi_triple)/release
-crossbuild_daemon := $(crossbuild_out_dir)/lunacam-daemon
-crossbuild_portal := $(crossbuild_out_dir)/lunacam-portal
+crossbuild_agent := $(crossbuild_out_dir)/lcagent
+crossbuild_portal := $(crossbuild_out_dir)/lcportal
 
-$(crossbuild_daemon): $(crossbuild) FORCE
-	@$(crossbuild_cmd) daemon
-	@$(call PAL_TOUCH_FILE,$(crossbuild_daemon))
+$(crossbuild_agent): $(crossbuild) FORCE
+	@$(crossbuild_cmd) agent
+	@$(call PAL_TOUCH_FILE,$(crossbuild_agent))
+
+crossbuild-agent: $(crossbuild_agent)
 
 $(crossbuild_portal): $(crossbuild) FORCE
 	@$(crossbuild_cmd) portal
 	@$(call PAL_TOUCH_FILE,$(crossbuild_portal))
 
-crossbuild: $(crossbuild_daemon) $(crossbuild_portal)
+crossbuild-portal: $(crossbuild_portal)
 
 clean-crossbuild:
 	@$(call PAL_RM,$(crossbuild_out_dir))
@@ -68,30 +75,27 @@ clean-crossbuild:
 	@docker volume rm -f $(crossbuild_cache)
 	@$(call PAL_RM,$(crossbuild))
 
-.PHONY: crossbuild clean-crossbuild
+.PHONY: crossbuild crossbuild-agent crossbuild-portal clean-crossbuild
+
+
+
+endif
 
 
 
 ####################################################################################################
-# Daemon
+# Agent
 ####################################################################################################
 
-daemon: | $(pseudo)
-	@$(MAKE) --no-print-directory -C daemon
+agent := $(RUST_OUT_DIR)/lcagent
 
-run-daemon: | $(pseudo)
-	@$(MAKE) --no-print-directory -C daemon run
+$(agent): $(RUST_DEPS)
+	@$(RUST_BUILD_CMD) --bin lcagent
+	@$(call PAL_TOUCH_FILE,$(agent))
 
-clean-daemon: | $(pseudo)
-	@$(MAKE) --no-print-directory -C daemon clean
+agent: $(agent)
 
-install-daemon: | $(pseudo)
-	@$(MAKE) --no-print-directory -C daemon install
-
-deploy-daemon: $(crossbuild_daemon) | $(pseudo)
-	@$(MAKE) --no-print-directory -C daemon deploy RUST_TARGET=$(pi_triple) RUST_PROFILE=release
-
-.PHONY: daemon run-daemon clean-daemon deploy-daemon
+.PHONY: agent
 
 
 
@@ -153,10 +157,11 @@ stg_agent_dir := $(pigen_dir)/agent
 cfg_agent := $(pigen_dir)/config-agent
 agent_image := $(pigen_dir)/deploy/image_$(shell date -uI)-lunacam-agent.img
 
-$(stg_agent): $(pigen) $(LC_TOOLS)/pi-gen/prerun.sh $(call PAL_ENUM_DIR,$(LC_TOOLS)/pi-gen/agent)
+$(stg_agent): $(pigen) $(LC_TOOLS)/pi-gen/prerun.sh $(call PAL_ENUM_DIR,$(LC_TOOLS)/pi-gen/agent) $(crossbuild_agent)
 	@$(PAL_CREATE_DIR) $(stg_agent_dir)
 	@rsync -r --delete $(LC_TOOLS)/pi-gen/agent/ $(stg_agent_dir)
 	@cp $(LC_TOOLS)/pi-gen/prerun.sh $(stg_agent_dir)/prerun.sh
+	@cp $(crossbuild_agent) $(stg_agent_dir)/02-agent/files/lcagent
 	@$(call PAL_TOUCH_FILE,$(stg_agent))
 
 $(cfg_agent): $(LC_TOOLS)/pi-gen/config-agent.sh $(stg_agent) $(cfg_common)
@@ -168,7 +173,7 @@ $(agent_image): $(cfg_agent)
 
 agent-image: $(agent_image)
 
-modules-load=dwc2,g_ether
+
 
 stg_portal := $(pseudo)/stg-portal
 stg_portal_dir := $(pigen_dir)/portal
@@ -189,45 +194,3 @@ $(portal_image): $(cfg_portal)
 	@cd $(pigen_dir) && ./build-docker.sh -c config-portal
 
 portal-image: $(portal_image)
-
-
-
-####################################################################################################
-# The staging directory contains everything required to install LunaCam onto an Arch ARM system.
-#
-# Primarily, this consists of an overlay of the root filesystem. The filesystem structure under
-# $(stg)/root will be installed into the Pi's root filesystem.
-#
-# $(stg) also includes an install script responsible for installing the root overlay and performing
-# any necessary followup operations (like enabling services).
-####################################################################################################
-
-# stg := $(repo)/.staging
-# stg_target := $(target_dir)/stg
-# templates := $(repo)/templates
-
-# $(stg_target): \
-# 		$(shell find $(repo)/system -type f) \
-# 		$(srv) \
-# 		$(static_target) \
-# 		$(shell find $(templates) -type f)
-# 	@echo building staging directory
-# 	@mkdir -p $(stg)
-# 	@cp -Rp $(repo)/system/* $(stg)/
-# 	@mkdir -p $(stg)/root/usr/local/bin
-# 	@cp $(srv) $(stg)/root/usr/local/bin/lunacam
-# 	@mkdir -p $(stg)/root/usr/local/share/lunacam/static
-# 	@cp -R $(static)/* $(stg)/root/usr/local/share/lunacam/static
-# 	@mkdir -p $(stg)/root/usr/local/share/lunacam/templates
-# 	@cp -R $(templates)/* $(stg)/root/usr/local/share/lunacam/templates
-# 	@touch $(stg_target)
-
-# stg: $(stg_target)
-# .PHONY: stg
-
-# clean-stg:
-# 	@echo cleaning staging directory
-# 	@rm -rf $(stg)
-# 	@rm -rf $(stg_target)
-# .PHONY: clean-stg
-# clean_targets += clean-stg
