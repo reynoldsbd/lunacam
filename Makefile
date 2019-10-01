@@ -44,7 +44,12 @@ $(crossbuild): $(call PAL_ENUM_DIR,$(crossbuild_dir)) | $(pseudo)
 pi_triple := arm-unknown-linux-gnueabihf
 
 crossbuild_cmd := docker run
+
+# Don't try to use -it when running headless (i.e. during CI build)
+ifeq ($(shell tty -s; echo $$?),0)
 crossbuild_cmd += -it
+endif
+
 crossbuild_cmd += --rm
 crossbuild_cmd += -v $(repo):/source
 crossbuild_cmd += -v $(crossbuild_cache):/root/.cargo
