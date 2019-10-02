@@ -54,9 +54,9 @@ crossbuild_cmd += --rm
 crossbuild_cmd += -v $(repo):/source
 crossbuild_cmd += -v $(crossbuild_cache):/root/.cargo
 crossbuild_cmd += -w /source
+crossbuild_cmd += --env OUT_UID=$(shell id -u)
+crossbuild_cmd += --env OUT_GID=$(shell id -g)
 crossbuild_cmd += $(crossbuild_img)
-crossbuild_cmd += make --no-print-directory --directory /source
-crossbuild_cmd += CROSSBUILD=1 RUST_TARGET=$(pi_triple) RUST_PROFILE=release
 
 crossbuild_out_dir := $(build)/target/$(pi_triple)/release
 crossbuild_agent := $(crossbuild_out_dir)/lcagent
