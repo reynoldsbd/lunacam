@@ -22,6 +22,78 @@ $(pseudo):
 
 
 ####################################################################################################
+# Rust binaries
+####################################################################################################
+
+LC_PROFILE ?= debug
+ifeq "$(LC_PROFILE)" "release"
+profile_arg := --release
+endif
+
+ifdef LC_TARGET
+rust_dir := $(build)/target/$(LC_TARGET)/$(LC_PROFILE)
+target_arg := --target $(LC_TARGET)
+else
+rust_dir := $(build)/target/$(LC_PROFILE)
+endif
+
+cargo_cmd := cargo build $(target_arg) $(profile_arg)
+
+agent := $(rust_dir)/lcagent
+
+$(agent): Cargo.toml Cargo.lock $(shell find src -type f)
+	@$(cargo_cmd) --bin lcagent
+	@touch $(agent)
+
+agent: $(agent)
+
+.PHONY: agent
+
+
+
+####################################################################################################
+# Portal
+####################################################################################################
+
+portal: | $(pseudo)
+	@$(MAKE) --no-print-directory -C portal
+
+run-portal: | $(pseudo)
+	@$(MAKE) --no-print-directory -C portal run
+
+install-portal: | $(pseudo)
+	@$(MAKE) --no-print-directory -C portal install
+
+deploy-portal: $(crossbuild_portal) | $(pseudo)
+	@$(MAKE) --no-print-directory -C portal deploy RUST_TARGET=$(pi_triple) RUST_PROFILE=release
+
+.PHONY: portal run-portal deploy-portal
+
+
+
+####################################################################################################
+# NPM packages
+####################################################################################################
+
+npm := $(pseudo)/npm
+npm_dir := $(build)/node_modules
+
+$(npm): package.json yarn.lock
+	@mkdir -p $(npm_dir)
+	@yarn install --modules-folder $(npm_dir) --silent
+	@touch $(npm)
+
+
+
+####################################################################################################
+# Static files
+####################################################################################################
+
+# TODO
+
+
+
+####################################################################################################
 # The crossbuild Docker image is used to cross-compile binaries for the Raspberry Pi
 ####################################################################################################
 
@@ -76,56 +148,6 @@ crossbuild-portal: $(crossbuild_portal)
 
 
 endif
-
-
-
-####################################################################################################
-# Rust binaries
-####################################################################################################
-
-LC_PROFILE ?= debug
-ifeq "$(LC_PROFILE)" "release"
-profile_arg := --release
-endif
-
-ifdef LC_TARGET
-rust_dir := $(build)/target/$(LC_TARGET)/$(LC_PROFILE)
-target_arg := --target $(LC_TARGET)
-else
-rust_dir := $(build)/target/$(LC_PROFILE)
-endif
-
-cargo_cmd := cargo build $(target_arg) $(profile_arg)
-
-agent := $(rust_dir)/lcagent
-
-$(agent): Cargo.toml Cargo.lock $(shell find src -type f)
-	@$(cargo_cmd) --bin lcagent
-	@touch $(agent)
-
-agent: $(agent)
-
-.PHONY: agent
-
-
-
-####################################################################################################
-# Portal
-####################################################################################################
-
-portal: | $(pseudo)
-	@$(MAKE) --no-print-directory -C portal
-
-run-portal: | $(pseudo)
-	@$(MAKE) --no-print-directory -C portal run
-
-install-portal: | $(pseudo)
-	@$(MAKE) --no-print-directory -C portal install
-
-deploy-portal: $(crossbuild_portal) | $(pseudo)
-	@$(MAKE) --no-print-directory -C portal deploy RUST_TARGET=$(pi_triple) RUST_PROFILE=release
-
-.PHONY: portal run-portal deploy-portal
 
 
 
