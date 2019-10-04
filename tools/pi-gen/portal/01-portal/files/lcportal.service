@@ -5,7 +5,7 @@ Description=LunaCam Portal
 User=lunacam
 StateDirectory=lunacam
 Environment=LC_TEMPLATES=/usr/share/lunacam/templates
-ExecStart=/usr/bin/lunacam-portal
+ExecStart=/usr/bin/lcportal
 Restart=on-failure
 RestartSec=5s
 
