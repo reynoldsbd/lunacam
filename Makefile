@@ -38,36 +38,25 @@ rust_dir := $(build)/target/$(LC_PROFILE)
 endif
 
 cargo_cmd := cargo build $(target_arg) $(profile_arg)
+cargo_deps := Cargo.toml Cargo.lock $(shell find src -type f)
 
 agent := $(rust_dir)/lcagent
 
-$(agent): Cargo.toml Cargo.lock $(shell find src -type f)
+$(agent): $(cargo_deps)
 	@$(cargo_cmd) --bin lcagent
 	@touch $(agent)
 
 agent: $(agent)
 
-.PHONY: agent
+portal := $(rust_dir)/lcportal
 
+$(portal): $(cargo_deps)
+	@$(cargo_cmd) --bin lcportal
+	@touch $(portal)
 
+portal: $(portal)
 
-####################################################################################################
-# Portal
-####################################################################################################
-
-portal: | $(pseudo)
-	@$(MAKE) --no-print-directory -C portal
-
-run-portal: | $(pseudo)
-	@$(MAKE) --no-print-directory -C portal run
-
-install-portal: | $(pseudo)
-	@$(MAKE) --no-print-directory -C portal install
-
-deploy-portal: $(crossbuild_portal) | $(pseudo)
-	@$(MAKE) --no-print-directory -C portal deploy RUST_TARGET=$(pi_triple) RUST_PROFILE=release
-
-.PHONY: portal run-portal deploy-portal
+.PHONY: agent portal
 
 
 
@@ -78,10 +67,14 @@ deploy-portal: $(crossbuild_portal) | $(pseudo)
 npm := $(pseudo)/npm
 npm_dir := $(build)/node_modules
 
-$(npm): package.json yarn.lock
+$(npm): client/package.json client/yarn.lock
 	@mkdir -p $(npm_dir)
-	@yarn install --modules-folder $(npm_dir) --silent
+	@yarn install --cwd client --modules-folder $(npm_dir) --silent
 	@touch $(npm)
+
+npm: $(npm)
+
+.PHONY: npm
 
 
 
@@ -89,7 +82,61 @@ $(npm): package.json yarn.lock
 # Static files
 ####################################################################################################
 
-# TODO
+static := $(build)/static
+
+
+
+sass_cmd := sass
+sass_cmd += -I $(npm_dir)/bulma
+sass_cmd += -I $(npm_dir)/bulma-switch/dist/css
+sass_cmd += -I $(npm_dir)/@fortawesome/fontawesome-free/scss
+
+stylesheets := $(static)/css/style.css
+
+$(static)/css/%.css: client/style/%.scss $(npm)
+	@$(sass_cmd) $< $@
+
+
+
+jsfiles += $(static)/js/base.js
+jsfiles += $(static)/js/camera.js
+jsfiles += $(static)/js/admin/cameras.js
+
+$(static)/js/%: client/js/%
+	@mkdir -p $(dir $@)
+	@cp $< $@
+
+
+
+webfonts := $(pseudo)/webfonts
+
+$(webfonts): $(npm)
+	@mkdir -p $(static)/css
+	@rsync -r --delete $(npm_dir)/@fortawesome/fontawesome-free/webfonts/ $(static)/css
+	@touch $(webfonts)
+
+
+
+####################################################################################################
+# Running
+####################################################################################################
+
+export LC_LOG ?= info,lunacam=debug
+export LC_STATIC := $(static)
+export LC_TEMPLATES := client/templates
+# TODO: agent and portal should not share state directory. not sure how to express this in makefile
+export STATE_DIRECTORY := $(build)/run
+
+run-agent: $(agent)
+	@mkdir -p $(STATE_DIRECTORY)
+	@cargo run -q --bin lcagent
+
+run-portal: $(portal) $(stylesheets) $(jsfiles) $(webfonts)
+	@mkdir -p $(STATE_DIRECTORY)
+	@cargo run -q --bin lcportal
+
+.PHONY: run-agent run-portal
+
 
 
 

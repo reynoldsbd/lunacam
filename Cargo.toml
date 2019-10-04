@@ -8,6 +8,10 @@ edition = "2018"
 name = "lcagent"
 path = "src/agent/main.rs"
 
+[[bin]]
+name = "lcportal"
+path = "src/portal/main.rs"
+
 [dependencies]
 actix-web = "1.0"
 derive_more = "0.15"
@@ -21,8 +25,3 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tera = "1.0.0-beta.13"
 tokio = "0.1"
-
-[workspace]
-members = [
-    "portal",
-]
