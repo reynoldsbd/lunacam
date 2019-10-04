@@ -1,13 +1,5 @@
-# TODO: remove non-LC_* vars
-export repo := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
-export build := $(repo)/build
-export LC_SOURCE := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
-export LC_BUILD := $(LC_SOURCE)/build
-export LC_TOOLS := $(LC_SOURCE)/tools
-
-
-
-FORCE:
+repo := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
+build ?= $(repo)/build
 
 
 
@@ -178,6 +170,8 @@ crossbuild_out_dir := $(build)/target/$(pi_triple)/release
 crossbuild_agent := $(crossbuild_out_dir)/lcagent
 crossbuild_portal := $(crossbuild_out_dir)/lcportal
 
+FORCE:
+
 $(crossbuild_agent): $(crossbuild) FORCE
 	@$(crossbuild_cmd) agent
 	@touch $(crossbuild_agent)
@@ -203,70 +197,71 @@ endif
 ####################################################################################################
 
 pigen := $(pseudo)/pi-gen
-pigen_dir := $(LC_BUILD)/pi-gen
+pigen_dir := tools/pi-gen
+pigen_build_dir := $(build)/pi-gen
 
 # TODO: checkout specific commit
 $(pigen): | $(pseudo)
-	@git clone --depth 1 https://github.com/RPi-Distro/pi-gen $(pigen_dir)
-	@touch $(pigen_dir)/stage2/SKIP_IMAGES
+	@git clone --depth 1 https://github.com/RPi-Distro/pi-gen $(pigen_build_dir)
+	@touch $(pigen_build_dir)/stage2/SKIP_IMAGES
 	@touch $(pigen)
 
 
 
 stg_common := $(pseudo)/stg-common
-stg_common_dir := $(pigen_dir)/common
-cfg_common := $(pigen_dir)/config
+stg_common_dir := $(pigen_build_dir)/common
+cfg_common := $(pigen_build_dir)/config
 
-$(stg_common): $(pigen) $(LC_TOOLS)/pi-gen/prerun.sh $(shell find $(LC_TOOLS)/pi-gen/common -type f)
+$(stg_common): $(pigen) $(pigen_dir)/prerun.sh $(shell find $(pigen_dir)/common -type f)
 	@mkdir -p $(stg_common_dir)
-	@rsync -r --delete $(LC_TOOLS)/pi-gen/common/ $(stg_common_dir)
-	@cp $(LC_TOOLS)/pi-gen/prerun.sh $(stg_common_dir)/prerun.sh
+	@rsync -r --delete $(pigen_dir)/common/ $(stg_common_dir)
+	@cp $(pigen_dir)/prerun.sh $(stg_common_dir)/prerun.sh
 	@touch $(stg_common)
 
-$(cfg_common): $(LC_TOOLS)/pi-gen/config.sh $(stg_common)
-	@cp $(LC_TOOLS)/pi-gen/config.sh $(cfg_common)
+$(cfg_common): $(pigen_dir)/config.sh $(stg_common)
+	@cp $(pigen_dir)/config.sh $(cfg_common)
 
 
 
 stg_agent := $(pseudo)/stg-agent
-stg_agent_dir := $(pigen_dir)/agent
-cfg_agent := $(pigen_dir)/config-agent
-agent_image := $(pigen_dir)/deploy/image_$(shell date -uI)-lunacam-agent.img
+stg_agent_dir := $(pigen_build_dir)/agent
+cfg_agent := $(pigen_build_dir)/config-agent
+agent_image := $(pigen_build_dir)/deploy/image_$(shell date -uI)-lunacam-agent.img
 
-$(stg_agent): $(pigen) $(LC_TOOLS)/pi-gen/prerun.sh $(shell find $(LC_TOOLS)/pi-gen/agent -type f) $(crossbuild_agent)
+$(stg_agent): $(pigen) $(pigen_dir)/prerun.sh $(shell find $(pigen_dir)/agent -type f) $(crossbuild_agent)
 	@mkdir -p $(stg_agent_dir)
-	@rsync -r --delete $(LC_TOOLS)/pi-gen/agent/ $(stg_agent_dir)
-	@cp $(LC_TOOLS)/pi-gen/prerun.sh $(stg_agent_dir)/prerun.sh
+	@rsync -r --delete $(pigen_dir)/agent/ $(stg_agent_dir)
+	@cp $(pigen_dir)/prerun.sh $(stg_agent_dir)/prerun.sh
 	@cp $(crossbuild_agent) $(stg_agent_dir)/02-agent/files/lcagent
 	@touch $(stg_agent)
 
-$(cfg_agent): $(LC_TOOLS)/pi-gen/config-agent.sh $(stg_agent) $(cfg_common)
-	@cp $(LC_TOOLS)/pi-gen/config-agent.sh $(cfg_agent)
+$(cfg_agent): $(pigen_dir)/config-agent.sh $(stg_agent) $(cfg_common)
+	@cp $(pigen_dir)/config-agent.sh $(cfg_agent)
 
 $(agent_image): $(cfg_agent)
 	@docker rm -v pigen_work || true
-	@cd $(pigen_dir) && ./build-docker.sh -c config-agent
+	@cd $(pigen_build_dir) && ./build-docker.sh -c config-agent
 
 agent-image: $(agent_image)
 
 
 
 stg_portal := $(pseudo)/stg-portal
-stg_portal_dir := $(pigen_dir)/portal
-cfg_portal := $(pigen_dir)/config-portal
-portal_image := $(pigen_dir)/deploy/image_$(shell date -uI)-lunacam-portal.img
+stg_portal_dir := $(pigen_build_dir)/portal
+cfg_portal := $(pigen_build_dir)/config-portal
+portal_image := $(pigen_build_dir)/deploy/image_$(shell date -uI)-lunacam-portal.img
 
-$(stg_portal): $(pigen) $(LC_TOOLS)/pi-gen/prerun.sh $(shell find $(LC_TOOLS)/pi-gen/portal -type f)
+$(stg_portal): $(pigen) $(pigen_dir)/prerun.sh $(shell find $(pigen_dir)/portal -type f)
 	@mkdir -p $(stg_portal_dir)
-	@rsync -r --delete $(LC_TOOLS)/pi-gen/portal/ $(stg_portal_dir)
-	@cp $(LC_TOOLS)/pi-gen/prerun.sh $(stg_portal_dir)/prerun.sh
+	@rsync -r --delete $(pigen_dir)/portal/ $(stg_portal_dir)
+	@cp $(pigen_dir)/prerun.sh $(stg_portal_dir)/prerun.sh
 	@touch $(stg_portal)
 
-$(cfg_portal): $(LC_TOOLS)/pi-gen/config-portal.sh $(stg_portal) $(cfg_common)
-	@cp $(LC_TOOLS)/pi-gen/config-portal.sh $(cfg_portal)
+$(cfg_portal): $(pigen_dir)/config-portal.sh $(stg_portal) $(cfg_common)
+	@cp $(pigen_dir)/config-portal.sh $(cfg_portal)
 
 $(portal_image): $(cfg_portal)
 	@docker rm -v pigen_work || true
-	@cd $(pigen_dir) && ./build-docker.sh -c config-portal
+	@cd $(pigen_build_dir) && ./build-docker.sh -c config-portal
 
 portal-image: $(portal_image)
