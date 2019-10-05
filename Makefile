@@ -115,7 +115,7 @@ $(webfonts): $(npm)
 
 export LC_LOG ?= info,lunacam=debug
 export LC_STATIC := $(static)
-export LC_TEMPLATES := client/templates
+export LC_TEMPLATES := templates
 # TODO: agent and portal should not share state directory. not sure how to express this in makefile
 export STATE_DIRECTORY := $(build)/run
 
@@ -251,13 +251,13 @@ stg_portal_dir := $(pigen_build_dir)/portal
 cfg_portal := $(pigen_build_dir)/config-portal
 portal_image := $(pigen_build_dir)/deploy/image_$(shell date -uI)-lunacam-portal.img
 
-$(stg_portal): $(pigen) $(pigen_dir)/prerun.sh $(shell find $(pigen_dir)/portal -type f) $(crossbuild_portal) $(stylesheets) $(jsfiles) $(webfonts) $(shell find client/templates -type f)
+$(stg_portal): $(pigen) $(pigen_dir)/prerun.sh $(shell find $(pigen_dir)/portal -type f) $(crossbuild_portal) $(stylesheets) $(jsfiles) $(webfonts) $(shell find templates -type f)
 	@mkdir -p $(stg_portal_dir)
 	@rsync -r --delete $(pigen_dir)/portal/ $(stg_portal_dir)
 	@cp $(pigen_dir)/prerun.sh $(stg_portal_dir)/prerun.sh
 	@cp $(crossbuild_portal) $(stg_portal_dir)/01-portal/files/lcportal
 	@rsync -r $(static)/ $(stg_portal_dir)/01-portal/files/static
-	@rsync -r client/templates/ $(stg_portal_dir)/01-portal/files/templates
+	@rsync -r templates/ $(stg_portal_dir)/01-portal/files/templates
 	@touch $(stg_portal)
 
 $(cfg_portal): $(pigen_dir)/config-portal.sh $(stg_portal) $(cfg_common)
