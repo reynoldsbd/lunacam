@@ -1,6 +1,7 @@
 #[macro_use]
 extern crate diesel;
 
+use std::sync::Arc;
 #[cfg(debug_assertions)]
 use actix_files::{Files};
 use actix_web::{App, HttpServer};
@@ -8,10 +9,10 @@ use actix_web::web::{self};
 use lunacam::Result;
 use lunacam::db;
 use lunacam::logging;
+use tera::Tera;
 
 mod api;
 mod camera;
-mod templates;
 mod ui;
 
 
@@ -22,7 +23,9 @@ fn main() -> Result<()> {
     #[cfg(debug_assertions)]
     let static_dir = std::env::var("LC_STATIC")?;
 
-    let templates = templates::load()?;
+    let template_dir = std::env::var("LC_TEMPLATES")?;
+    let templates = Arc::new(Tera::new(&format!("{}/**/*", template_dir))?);
+
     let pool = db::connect()?;
 
     HttpServer::new(move || {

@@ -4,15 +4,30 @@ use std::sync::Arc;
 use actix_web::HttpResponse;
 use actix_web::web::{self, Data, Path, ServiceConfig};
 use lunacam::Result;
-use tera::{Context};
+use tera::{Context, Tera};
 use lunacam::db::ConnectionPool;
 use crate::camera::CameraManager;
-use crate::templates::{TemplateCollection};
+
+
+fn render_template_response(
+    templates: &Tera,
+    name: &str,
+    context: Context,
+) -> Result<HttpResponse> {
+
+    let body = templates.render(name, context)?;
+
+    let response = HttpResponse::Ok()
+        .content_type("text/html")
+        .body(body);
+
+    Ok(response)
+}
 
 
 struct UiResources {
     pool: ConnectionPool,
-    templates: Arc<dyn TemplateCollection>,
+    templates: Arc<Tera>,
 }
 
 
@@ -23,7 +38,7 @@ fn index(resources: Data<UiResources>) -> Result<HttpResponse> {
     let mut context = Context::new();
     context.insert("cameras", &cameras);
 
-    resources.templates.response("index.html", context)
+    render_template_response(&resources.templates, "index.html", context)
 }
 
 
@@ -34,7 +49,7 @@ fn camera(path: Path<(i32,)>, resources: Data<UiResources>) -> Result<HttpRespon
     let mut context = Context::new();
     context.insert("camera", &camera);
 
-    resources.templates.response("camera.html", context)
+    render_template_response(&resources.templates, "camera.html", context)
 }
 
 
@@ -45,13 +60,13 @@ fn camera_admin(resources: Data<UiResources>) -> Result<HttpResponse> {
     let mut context = Context::new();
     context.insert("cameras", &cameras);
 
-    resources.templates.response("admin/cameras.html", context)
+    render_template_response(&resources.templates, "admin/cameras.html", context)
 }
 
 
 /// Configures an Actix service to serve the UI
-pub fn configure(templates: Arc<dyn TemplateCollection>, pool: ConnectionPool) -> impl FnOnce(&mut ServiceConfig)
-{
+pub fn configure(templates: Arc<Tera>, pool: ConnectionPool) -> impl FnOnce(&mut ServiceConfig) {
+
     move |service| {
         service.data(UiResources {
             pool: pool,
