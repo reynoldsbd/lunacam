@@ -104,7 +104,7 @@ webfonts := $(pseudo)/webfonts
 
 $(webfonts): $(npm)
 	@mkdir -p $(static)/css
-	@rsync -r --delete $(npm_dir)/@fortawesome/fontawesome-free/webfonts/ $(static)/css
+	@rsync -r --delete $(npm_dir)/@fortawesome/fontawesome-free/webfonts $(static)/css
 	@touch $(webfonts)
 
 
