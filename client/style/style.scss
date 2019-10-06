@@ -1,0 +1,17 @@
+@charset "utf-8";
+
+@import "bulma";
+@import "bulma-switch";
+
+$fa-font-path: "webfonts";
+@import "fontawesome";
+@import "regular";
+@import "solid";
+
+#message-area .notification {
+    margin-bottom: 1rem;
+}
+
+.dropdown-menu-header {
+    margin-bottom: 0.75rem;
+}

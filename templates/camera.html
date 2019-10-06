@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+
+{% block title %}{{ camera.friendly_name }}{% endblock %}
+
+{% block content %}
+
+<div class="container">
+
+    <h3 class="title has-text-centered">{{ camera.friendly_name }}</h3>
+
+    <div id="message-area">
+    </div>
+
+    <video id="stream" controls width="100%" height="auto" data-stream-url="#"></video>
+
+</div>
+
+{% endblock %}
+
+{% block extrajs %}
+<script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+<script src="/static/js/camera.js"></script>
+{% endblock extrajs %}

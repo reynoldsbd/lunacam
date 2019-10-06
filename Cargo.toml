@@ -1,21 +1,27 @@
 [package]
 name = "lunacam"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Bobby Reynolds <bobby@reynoldsbd.net>"]
 edition = "2018"
 
+[[bin]]
+name = "lcagent"
+path = "src/agent/main.rs"
+
+[[bin]]
+name = "lcportal"
+path = "src/portal/main.rs"
+
 [dependencies]
-actix = "0.7"
-actix-web = "0.7"
-base64 = "0.10"
-base64-serde = "0.3"
-ctrlc = "3.1"
-derive_more = "0.14"
+actix-files = "0.1"
+actix-web = "1.0"
+derive_more = "0.15"
+diesel = {version = "1.4", features = ["r2d2", "sqlite"] }
+diesel_migrations = "1.4"
 env_logger = "0.6"
-futures = "0.1.25"
-hotwatch = "0.3"
+libsqlite3-sys = { version = "0.12", features = ["bundled"] }
 log = "0.4"
-rand = "0.6"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-tera = "0.11"
+tera = "1.0.0-beta.13"
+tokio = "0.1"

@@ -1,180 +1,83 @@
-//! Serves the LunaCam API
+//! Web API types
 
-
-// TODO: error handling
-
-
-//#region Usings
-
-use std::sync::Arc;
-
-use actix::System;
-
-use actix_web::{HttpRequest, HttpResponse, Json, Scope};
-
-use log::{debug, info, trace};
-
+use std::io::Write;
+use diesel::backend::Backend;
+use diesel::deserialize::{self, FromSql};
+use diesel::serialize::{self, Output, ToSql};
+use diesel::sql_types::Integer;
 use serde::{Deserialize, Serialize};
 
-use crate::config::Config;
-use crate::sec;
-use crate::sec::{AccessLevel, Secrets};
-use crate::stream::StreamManager;
 
-//#endregion
-
-
-//#region Actix application
-
-/// Application state for the API
-struct ApiState
-{
-    secrets: Config<Secrets>,
-    smgr: Arc<StreamManager>,
-}
-
-/// Structure of the */admin/passwords* resource
-#[derive(Deserialize)]
+/// Video stream orientation
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(AsExpression, FromSqlRow)]
+#[sql_type = "Integer"]
+#[derive(Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct PasswordPatch
-{
-    admin_pw: Option<String>,
-    user_pw: Option<String>,
+pub enum Orientation {
+    Landscape,
+    Portrait,
+    InvertedLandscape,
+    InvertedPortrait,
 }
 
-/// Handles *PATCH /admin/passwords*
-///
-/// Updates user and admin passwords as directed by user
-fn patch_admin_passwords() -> impl Fn(HttpRequest<ApiState>, Json<PasswordPatch>) -> HttpResponse
-{
-    |request, passwords| {
-        trace!("updating passwords");
-
-        let mut secrets = request.state()
-            .secrets
-            .write();
-
-        if let Some(ref pw) = passwords.admin_pw {
-            info!("Updating admin password");
-            secrets.admin_pw = pw.to_owned();
-        }
-
-        if let Some(ref pw) = passwords.user_pw {
-            info!("Updating user password");
-            secrets.user_pw = pw.to_owned();
-        }
-
-        HttpResponse::Ok()
-            .finish()
+impl Default for Orientation {
+    fn default() -> Self {
+        Self::Landscape
     }
 }
 
-/// Handles *DELETE /admin/sessions*
-///
-/// Resets the session key, which effectively forcing all users to re-authenticate.
-fn delete_admin_sessions() -> impl Fn(&HttpRequest<ApiState>) -> HttpResponse
+impl<B> FromSql<Integer, B> for Orientation
+where
+    B: Backend,
+    i32: FromSql<Integer, B>,
 {
-    |request| {
-        info!("Resetting all login sessions");
-        request.state()
-            .secrets
-            .write()
-            .reset_session_key();
-
-        // Old session key is still being used by Actix middleware pipeline. Ideally, we would just
-        // ask the HTTP server to reload itself, but there isn't really a clean way to do that from
-        // this context (relevant PR: https://github.com/actix/actix-net/pull/20).
-        //
-        // As a workaround, we simply end the current process and allow it to be restarted by
-        // systemd.
-        crate::sys_term(&System::current());
-
-        HttpResponse::Ok()
-            .finish()
-    }
-}
-
-/// Structure of the */admin/stream* resource
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct StreamResource
-{
-    enabled: Option<bool>,
-}
-
-impl From<&StreamManager> for StreamResource
-{
-    fn from(smgr: &StreamManager) -> Self
-    {
-        let config = smgr.config.read();
-
-        StreamResource {
-            enabled: Some(config.enabled),
+    fn from_sql(bytes: Option<&B::RawValue>) -> deserialize::Result<Self> {
+        match i32::from_sql(bytes)? {
+            0 => Ok(Orientation::Landscape),
+            1 => Ok(Orientation::Portrait),
+            2 => Ok(Orientation::InvertedLandscape),
+            3 => Ok(Orientation::InvertedPortrait),
+            other => Err(format!("Unrecognized value \"{}\"", other).into()),
         }
     }
 }
 
-fn get_admin_stream() -> impl Fn(&HttpRequest<ApiState>) -> Json<StreamResource>
+impl<B> ToSql<Integer, B> for Orientation
+where
+    B: Backend,
+    i32: ToSql<Integer, B>,
 {
-    |request| {
-        Json(StreamResource::from(request.state().smgr.as_ref()))
-    }
-}
-
-/// Handles *PATCH /admin/stream*
-///
-/// Reconfigures the video stream as directed by the user
-fn patch_admin_stream() -> impl Fn(HttpRequest<ApiState>, Json<StreamResource>) -> HttpResponse
-{
-    |request, stream| {
-        trace!("patch stream payload: {:?}", stream);
-
-        let smgr = &request.state().smgr;
-
-        if let Some(enabled) = stream.enabled {
-            debug!("setting stream enabled status to {}", enabled);
-            smgr.set_enabled(enabled);
-        }
-
-        HttpResponse::Ok()
-            .finish()
-    }
-}
-
-/// Configures LunaCam's API scope
-pub fn scope(
-    smgr: Arc<StreamManager>,
-    secrets: Config<Secrets>
-) -> impl FnOnce(Scope<()>) -> Scope<()>
-{
-    |scope| {
-        trace!("configuring API scope");
-
-        let state = ApiState {
-            secrets: secrets,
-            smgr: smgr,
+    fn to_sql<W: Write>(&self, out: &mut Output<W, B>) -> serialize::Result {
+        let val = match *self {
+            Orientation::Landscape => 0,
+            Orientation::Portrait => 1,
+            Orientation::InvertedLandscape => 2,
+            Orientation::InvertedPortrait => 3,
         };
 
-        scope.with_state("", state, |scope| {
-            scope
-                // This makes all API resources admin-only. May need to fall back to per-resource
-                // middleware if we introduce any non-admin API resources.
-                .middleware(sec::require(
-                    AccessLevel::Administrator,
-                    |_| HttpResponse::Unauthorized().finish()
-                ))
-                .resource("/admin/passwords", |r| {
-                    r.patch().with(patch_admin_passwords());
-                })
-                .resource("/admin/sessions", |r| {
-                    r.delete().f(delete_admin_sessions());
-                })
-                .resource("/admin/stream", |r| {
-                    r.get().f(get_admin_stream());
-                    r.patch().with(patch_admin_stream());
-                })
-        })
+        val.to_sql(out)
     }
 }
 
-//#endregion
+
+/// Video stream settings
+#[derive(Clone, Copy, Default)]
+#[derive(Deserialize, Serialize)]
+pub struct StreamSettings {
+    pub enabled: Option<bool>,
+    pub orientation: Option<Orientation>,
+}
+
+
+/// Streaming camera settings
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CameraSettings {
+    pub enabled: Option<bool>,
+    pub hostname: Option<String>,
+    pub id: Option<i32>,
+    pub device_key: Option<String>,
+    pub friendly_name: Option<String>,
+    pub orientation: Option<Orientation>,
+}

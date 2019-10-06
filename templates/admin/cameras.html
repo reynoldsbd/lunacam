@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+
+{% block title %}Administration{% endblock title %}
+
+{% block content %}
+
+<template id="cam-entry-template">
+
+    <div id="header">
+        <div class="level dropdown-menu-header">
+            <div class="level-left">
+                <span class="icon level-item"><i id="dropdown-indicator" class="fas fa-chevron-down"></i></span>
+                <span id="cam-name-label" class="level-item">CAMERA NAME</span>
+            </div>
+            <div class="level-right">
+                <div class="field is-narrow level-item">
+                    <div class="control">
+                        <input type="checkbox" id="cam-enabled" class="switch">
+                        <label id="cam-enabled-label"></label>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div hidden id="form-wrapper">
+
+        <div class="field is-horizontal">
+            <div class="field-label is-normal">
+                <label class="label">Camera Name</label>
+            </div>
+            <div class="field-body">
+                <div class="field">
+                    <div class="control is-expanded">
+                        <input type="text" id="cam-name-field" class="input" placeholder="name...">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="field is-horizontal">
+            <div class="field-label is-normal">
+                <label class="label">Orientation</label>
+            </div>
+            <div class="field-body">
+                <div class="field">
+                    <div class="control is-expanded">
+                        <div class="select is-fullwidth">
+                            <select id="cam-orientation-select">
+                                <option value="landscape">Landscape</option>
+                                <option value="portrait">Portrait</option>
+                                <option value="invertedLandscape">Inverted Landscape</option>
+                                <option value="invertedPortrait">Inverted Portrait</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="field is-horizontal">
+            <div class="field-label is-normal">
+                <label class="label">Device Hostname</label>
+            </div>
+            <div class="field-body">
+                <div class="field">
+                    <div class="control is-expanded">
+                        <input type="text" id="cam-hostname-field" class="input" placeholder="hostname...">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="field is-horizontal">
+            <div class="field-label is-normal">
+                <label class="label">Device Key</label>
+            </div>
+            <div class="field-body">
+                <div class="field">
+                    <div class="control is-expanded">
+                        <input type="password" id="cam-key-field" class="input" placeholder="key...">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="field is-grouped is-grouped-right">
+            <p class="control">
+                <button id="delete-button" class="button is-danger">Delete</button>
+            </p>
+            <p class="control">
+                <button id="save-button" class="button is-primary">Save</button>
+            </p>
+            <p class="control">
+                <button id="cancel-button" class="button is-light">Cancel</button>
+            </p>
+        </div>
+
+    </div>
+
+    <hr />
+
+</template>
+
+<div class="container">
+
+    <h3 class="title has-text-centered">Camera Administration</h3>
+
+    <div id="message-area">
+    </div>
+
+    <div class="box">
+
+        <div id="cam-list">
+            {% for camera in cameras %}
+            <cam-entry
+                cam-enabled="{{ camera.enabled }}"
+                cam-hostname="{{ camera.hostname }}"
+                cam-id="{{ camera.id }}"
+                cam-name="{{ camera.friendly_name }}"
+                cam-orientation="{{ camera.orientation }}">
+            </cam-entry>
+            {% endfor %}
+        </div>
+
+        <div class="field is-grouped is-grouped-centered">
+            <p class="control">
+                <button id="add-button" class="button is-primary">Add New Camera</button>
+            </p>
+        </div>
+
+    </div>
+</div>
+{% endblock content %}
+
+{% block extrajs %}
+<script src="/static/js/admin/cameras.js"></script>
+{% endblock %}

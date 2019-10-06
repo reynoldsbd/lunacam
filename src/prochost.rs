@@ -1,153 +1,143 @@
-//! Manages lifecycle of child processes
+//! Child process lifecycle management
 
-
-use std::process::{Child, Command, Stdio};
+use std::process::{Child, Command};
+use std::sync::{Arc, Mutex};
+use std::thread;
 use std::time::Duration;
-use actix::{Actor, AsyncContext, Context, Handler, Message, SpawnHandle};
-use log::{error, trace, warn};
+use log::{debug, error, trace, warn};
+use crate::error::Result;
+use crate::do_lock;
 
 
-/// Interval between `ProcessHost` watchdog ticks
-const WDG_INTERVAL: Duration = Duration::from_secs(5);
-
-
-/// Hosts a child process
-///
-/// `ProcessHost` is an actor that manages the lifecycle of a child process. The process can be
-/// started or stopped by sending messages to the host. Additionally, a watchdog is used to restart
-/// the child if it terminates unexpectedly.
-///
-/// Interaction with the child using stdio is not supported. The `Command` used to spawn the child
-/// will be unconditionally modified to ignore stdin, stdout, and stderr.
-pub struct ProcessHost
-{
-    child: Option<Child>,
+/// Internal state of the process host
+struct HostState {
     cmd: Command,
-    wdg: Option<SpawnHandle>,
+    child: Option<Child>,
 }
 
-impl ProcessHost
-{
-    /// Creates a new `ProcessHost`, but does not start the child process
-    pub fn new(mut cmd: Command) -> Self
-    {
-        cmd.stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null());
 
-        ProcessHost {
-            child: None,
-            cmd: cmd,
-            wdg: None,
+/// Watchdog tick interval
+const WDG_TICK_SECONDS: u64 = 2;
+
+
+/// Periodically checks that the child process is still running and restarts it if necessary
+fn host_wdg(hi: Arc<Mutex<HostState>>) {
+
+    let tick_duration = Duration::from_secs(WDG_TICK_SECONDS);
+
+    loop {
+        trace!("watchdog tick");
+
+        // Tick body scoped to ensure lock is not held
+        {
+            let mut hi = do_lock!(hi);
+
+            let wait_res = match hi.child {
+                Some(ref mut child) => child.try_wait(),
+                None => {
+                    trace!("host has been stopped");
+                    break;
+                }
+            };
+
+            match wait_res {
+
+                // Process is still running, everything OK
+                Ok(None) => (),
+
+                // Child process no longer running
+                Ok(Some(status)) => {
+                    warn!("child process exited unexpectedly with status {}", status);
+                    debug!("restarting child process");
+                    match hi.cmd.spawn() {
+                        Ok(child) => {
+                            hi.child.replace(child);
+                        },
+                        Err(err) => {
+                            error!("failed to restart child process: {}", err);
+                            break;
+                        }
+                    }
+                },
+
+                // Error checking status
+                Err(err) => {
+                    error!("failed to check child process status: {}", err);
+                    break;
+                },
+            }
         }
+
+        thread::sleep(tick_duration);
+    }
+
+    debug!("watchdog exiting");
+}
+
+
+/// Hosts and monitors a child process
+///
+/// `ProcHost` is a wrapper around the standard library's `Child` that watches the child process and
+/// restarts it as necessary.
+pub struct ProcHost(Arc<Mutex<HostState>>);
+
+impl ProcHost {
+
+    /// Creates a new `ProcHost`
+    ///
+    /// Hosted process is started/restarted according to `cmd`
+    pub fn new(cmd: Command) -> Self {
+
+        ProcHost(Arc::new(Mutex::new(HostState {
+            cmd: cmd,
+            child: None,
+        })))
     }
 
     /// Starts the child process
-    fn start(&mut self, ctx: &mut Context<Self>)
-    {
-        trace!("starting child process");
-        match self.cmd.spawn() {
-            Ok(child) => self.child = Some(child),
-            Err(err) => {
-                error!("Failed to start child process: {}", err);
-                return;
-            }
+    ///
+    /// If child is already running, no action is taken.
+    pub fn start(&mut self) -> Result<()> {
+
+        let wdg_hi = self.0.clone();
+        let mut hi = do_lock!(self.0);
+
+        if hi.child.is_some() {
+            trace!("start called, but child process already running");
+        } else {
+            debug!("starting child process");
+            let child = hi.cmd.spawn()?;
+            hi.child.replace(child);
         }
 
-        if self.wdg.is_none() {
-            trace!("scheduling watchdog");
-            let wdg = ctx.run_interval(WDG_INTERVAL, ProcessHost::watchdog);
-            self.wdg = Some(wdg);
-        }
+        thread::spawn(|| host_wdg(wdg_hi));
+
+        Ok(())
     }
 
     /// Stops the child process
-    fn stop(&mut self, ctx: &mut Context<Self>)
-    {
-        if let Some(mut child) = self.child.take() {
-            trace!("stopping child process");
-            if let Err(err) = child.kill() {
-                error!("Failed to stop child process: {}", err);
-            }
+    ///
+    /// If child is not currently running, no action is taken.
+    pub fn stop(&mut self) -> Result<()> {
 
+        let mut hi = do_lock!(self.0);
+
+        if let Some(mut child) = hi.child.take() {
+            debug!("stopping child process");
+            child.kill()?;
         } else {
-            warn!("Attempted to stop child process that is not running");
+            trace!("stop called, but child process not running");
         }
 
-        if let Some(wdg) = self.wdg.take() {
-            trace!("cancelling watchdog");
-            ctx.cancel_future(wdg);
+        Ok(())
+    }
+}
 
-        } else {
-            warn!("Could not cancel watchdog");
+/// Child process is terminated when `ProcHost` is dropped
+impl Drop for ProcHost {
+    fn drop(&mut self) {
+        if let Err(err) = self.stop() {
+            error!("failed to stop child process after dropping: {}", err);
         }
-    }
-
-    /// Monitors and restarts the child process
-    fn watchdog(&mut self, ctx: &mut Context<Self>)
-    {
-        trace!("process host watchdog tick");
-
-        if let Some(ref mut child) = self.child {
-            match child.try_wait() {
-                Ok(Some(status)) => {
-                    warn!("Child process exited unexpectedly ({}). Restarting...", status);
-                    self.start(ctx);
-                },
-                Ok(None) => (),
-                Err(err) => error!("Failed to check child process status: {}", err),
-            }
-        } else {
-            warn!("Orphaned watchdog");
-        }
-    }
-}
-
-impl Actor for ProcessHost
-{
-    type Context = Context<Self>;
-
-    fn stopped(&mut self,  ctx: &mut Self::Context)
-    {
-        self.stop(ctx);
-        trace!("stopped process host");
-    }
-}
-
-
-/// Instructs a `ProcessHost` to start the hosted process
-pub struct StartProcess;
-
-impl Message for StartProcess
-{
-    type Result = ();
-}
-
-impl Handler<StartProcess> for ProcessHost
-{
-    type Result = ();
-
-    fn handle(&mut self, _: StartProcess, ctx: &mut Context<Self>) -> Self::Result
-    {
-        self.start(ctx);
-    }
-}
-
-
-/// Instructs a `ProcessHost` to stop the hosted process
-pub struct StopProcess;
-
-impl Message for StopProcess
-{
-    type Result = ();
-}
-
-impl Handler<StopProcess> for ProcessHost
-{
-    type Result = ();
-
-    fn handle(&mut self, _: StopProcess, ctx: &mut Context<Self>) -> Self::Result
-    {
-        self.stop(ctx);
     }
 }

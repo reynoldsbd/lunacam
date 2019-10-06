@@ -1,8 +1,0 @@
-# Camera module support
-start_x=1
-gpu_mem=128
-
-# USB OTG ethernet support
-dtoverlay=dwc2
-
-initramfs initramfs-linux.img followkernel

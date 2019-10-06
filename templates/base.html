@@ -1,24 +1,21 @@
 <!DOCTYPE html>
 <html>
+
     <head>
+
         <meta charset="utf-8"/>
         <meta name="viewport" content="width=device-width, initial-scale=1">
 
-        <link rel="stylesheet"
-              href="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.7.5/css/bulma.min.css"
-              integrity="sha256-vK3UTo/8wHbaUn+dTQD0X6dzidqc5l7gczvH+Bnowwk="
-              crossorigin="anonymous" />
-        <link rel="stylesheet"
-              href="https://cdn.jsdelivr.net/npm/bulma-extensions@6.2.7/dist/css/bulma-extensions.min.css"
-              integrity="sha256-RuPsE2zPsNWVhhvpOcFlMaZ1JrOYp2uxbFmOLBYtidc="
-              crossorigin="anonymous" />
-        <link rel="stylesheet" href="/static/style.css" />
+        <link rel="stylesheet" href="/static/css/style.css" />
         {% block extracss %}
         {% endblock extracss %}
 
         <title>{% block title %}{% endblock title %} - LunaCam</title>
+
     </head>
+
     <body>
+
         <nav class="navbar" role="navigation" aria-label="main navigation">
             <div class="navbar-brand">
                 <a class="navbar-item" href="/">Live Stream</a>
@@ -34,16 +31,23 @@
                 </div>
             </div>
         </nav>
+
+        <template id="message-banner-template">
+            <div class="notification" id="notification">
+                <span id="message"></span>
+                <button class="delete" id="delete-button"></button>
+            </div>
+        </template>
+
         <section class="section">
             {% block content %}
             {% endblock content %}
         </section>
-        <script src="https://cdn.jsdelivr.net/npm/bulma-extensions@6.2.7/dist/js/bulma-extensions.min.js"
-                integrity="sha256-q4zsxO0fpPm6VhtL/9QkCFE5ZkNa0yeUxhmt1VO1ev0="
-                crossorigin="anonymous">
-        </script>
+
         <script src="/static/js/base.js"></script>
         {% block extrajs %}
         {% endblock extrajs %}
+
     </body>
+
 </html>

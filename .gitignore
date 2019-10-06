@@ -1,15 +1,9 @@
-# Rust stuff
-/target
-**/*.rs.bk
+# Out-of-source build tree
+/build
 
-# Developer configuration
-/config.json
-/system/local.sh
-/system/root.local
+# Local customizations
+sysroot.local/
+install.local.sh
 
-# Build artifacts
-lunacam.img
-/.staging
-/.static
-/.targets
-/.config
+# Editor configuration
+.vscode/
