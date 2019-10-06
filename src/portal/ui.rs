@@ -1,11 +1,10 @@
 //! User interface
 
-use std::sync::Arc;
 use actix_web::HttpResponse;
 use actix_web::web::{self, Data, Path, ServiceConfig};
 use lunacam::Result;
 use tera::{Context, Tera};
-use lunacam::db::ConnectionPool;
+use crate::Resources;
 use crate::camera::CameraManager;
 
 
@@ -25,15 +24,9 @@ fn render_template_response(
 }
 
 
-struct UiResources {
-    pool: ConnectionPool,
-    templates: Arc<Tera>,
-}
+fn index(resources: Data<Resources>) -> Result<HttpResponse> {
 
-
-fn index(resources: Data<UiResources>) -> Result<HttpResponse> {
-
-    let cameras = resources.pool.get_cameras()?;
+    let cameras = resources.get_cameras()?;
 
     let mut context = Context::new();
     context.insert("cameras", &cameras);
@@ -42,9 +35,9 @@ fn index(resources: Data<UiResources>) -> Result<HttpResponse> {
 }
 
 
-fn camera(path: Path<(i32,)>, resources: Data<UiResources>) -> Result<HttpResponse> {
+fn camera(path: Path<(i32,)>, resources: Data<Resources>) -> Result<HttpResponse> {
 
-    let camera = resources.pool.get_camera(path.0)?;
+    let camera = resources.get_camera(path.0)?;
 
     let mut context = Context::new();
     context.insert("camera", &camera);
@@ -53,9 +46,9 @@ fn camera(path: Path<(i32,)>, resources: Data<UiResources>) -> Result<HttpRespon
 }
 
 
-fn camera_admin(resources: Data<UiResources>) -> Result<HttpResponse> {
+fn camera_admin(resources: Data<Resources>) -> Result<HttpResponse> {
 
-    let cameras = resources.pool.get_cameras()?;
+    let cameras = resources.get_cameras()?;
 
     let mut context = Context::new();
     context.insert("cameras", &cameras);
@@ -65,16 +58,9 @@ fn camera_admin(resources: Data<UiResources>) -> Result<HttpResponse> {
 
 
 /// Configures an Actix service to serve the UI
-pub fn configure(templates: Arc<Tera>, pool: ConnectionPool) -> impl FnOnce(&mut ServiceConfig) {
+pub fn configure(service: &mut ServiceConfig) {
 
-    move |service| {
-        service.data(UiResources {
-            pool: pool,
-            templates: templates,
-        });
-
-        service.route("/", web::get().to(index));
-        service.route("/cameras/{id}", web::get().to(camera));
-        service.route("/admin/cameras", web::get().to(camera_admin));
-    }
+    service.route("/", web::get().to(index));
+    service.route("/cameras/{id}", web::get().to(camera));
+    service.route("/admin/cameras", web::get().to(camera_admin));
 }

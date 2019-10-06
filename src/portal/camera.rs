@@ -1,12 +1,19 @@
 //! Camera management
 
+use std::env;
+use std::fs;
+use std::process::{Command, Stdio};
+
 use diesel::prelude::*;
+use log::{debug, error, info, trace, warn};
+use serde::{Serialize};
+use tera::{Context, Tera};
+
+use lunacam::allow_err;
 use lunacam::Result;
 use lunacam::api::{CameraSettings, Orientation};
 use lunacam::db::DatabaseContext;
 use lunacam::db::schema::cameras;
-use log::{debug, info, trace};
-use serde::{Serialize};
 
 
 /// Information needed to create a new camera
@@ -33,6 +40,26 @@ struct CameraRow {
 }
 
 
+/// Reloads proxy server configuration
+fn reload_proxy() -> Result<()> {
+
+    debug!("reloading nginx");
+
+    let status = Command::new("/usr/bin/sudo")
+        .args(&["-n", "/usr/bin/systemctl", "reload", "nginx.service"])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()?;
+
+    if !status.success() {
+        warn!("failed to reload nginx");
+    }
+
+    Ok(())
+}
+
+
 #[derive(Serialize)]
 pub struct Camera<'a, M> {
     #[serde(flatten)]
@@ -41,10 +68,45 @@ pub struct Camera<'a, M> {
     manager: &'a M,
 }
 
-
 impl<'a, M> Camera<'a, M>
 where M: CameraManager
 {
+    /// Gets path of the proxy configuration file for this camera
+    fn configuration_path(&self) -> Result<impl AsRef<std::path::Path>> {
+
+        let state_dir = env::var("STATE_DIRECTORY")?;
+        let path = format!("{}/nginx/proxy-{}.config", state_dir, self.row.id);
+
+        Ok(path)
+    }
+
+    /// Writes or removes Nginx configuration snippet for this camera
+    fn configure_proxy(&self, reload: bool) -> Result<()> {
+
+        let config_path = self.configuration_path()?;
+        let mut needs_reload = false;
+
+        if self.row.enabled {
+            debug!("writing proxy configuration for camera {}", self.row.id);
+            let mut context = Context::new();
+            context.insert("camera", self);
+            let config = self.manager.as_ref().render("proxy.config", context)?;
+            fs::write(&config_path, config)?;
+            needs_reload = true;
+
+        } else if fs::metadata(&config_path).is_ok() {
+            debug!("clearing proxy configuration for camera {}", self.row.id);
+            fs::remove_file(&config_path)?;
+            needs_reload = true;
+        }
+
+        if reload && needs_reload {
+            reload_proxy()?;
+        }
+
+        Ok(())
+    }
+
     /// Deletes this camera from the database
     pub fn delete(self) -> Result<()> {
 
@@ -52,6 +114,12 @@ where M: CameraManager
         let conn = self.manager.conn()?;
         diesel::delete(&self.row)
             .execute(&conn)?;
+
+        if self.row.enabled {
+            debug!("deleting proxy configuration for camera {}", self.row.id);
+            fs::remove_file(self.configuration_path()?)?;
+            reload_proxy()?;
+        }
 
         Ok(())
     }
@@ -124,6 +192,11 @@ where M: CameraManager
             diesel::update(&self.row)
                 .set(&self.row)
                 .execute(&conn)?;
+            allow_err!(
+                self.configure_proxy(true),
+                "failed to reconfigure proxy for camera {}",
+                self.row.id
+            );
         }
 
         Ok(())
@@ -144,7 +217,7 @@ impl<'a, M> Into<CameraSettings> for Camera<'a, M> {
 }
 
 
-pub trait CameraManager: DatabaseContext + Sized {
+pub trait CameraManager: DatabaseContext + AsRef<Tera> + Sized {
 
     /// Creates a new camera in the database
     fn create_camera(&self, hostname: String, key: String) -> Result<Camera<Self>> {
@@ -167,11 +240,20 @@ pub trait CameraManager: DatabaseContext + Sized {
         // TODO: this technically isn't thread-safe
         let cam_row = cameras::table.order(cameras::id.desc())
             .first(&conn)?;
-
-        Ok(Camera {
+        let cam = Camera {
             row: cam_row,
             manager: self,
-        })
+        };
+
+        // TODO: connect to camera
+
+        allow_err!(
+            cam.configure_proxy(true),
+            "failed to configure proxy for camera {}",
+            cam.row.id
+        );
+
+        Ok(cam)
     }
 
     /// Gets the specified camera from the database
@@ -203,6 +285,21 @@ pub trait CameraManager: DatabaseContext + Sized {
 
         Ok(cameras)
     }
+
+    /// Ensures reverse proxy is properly configured
+    fn initialize_proxy(&self) -> Result<()> {
+
+        let state_dir = env::var("STATE_DIRECTORY")?;
+        fs::create_dir_all(format!("{}/nginx", state_dir))?;
+
+        for camera in self.get_cameras()? {
+            camera.configure_proxy(false)?;
+        }
+
+        reload_proxy()?;
+
+        Ok(())
+    }
 }
 
-impl<T: DatabaseContext + Sized> CameraManager for T {}
+impl<T: DatabaseContext + AsRef<Tera> + Sized> CameraManager for T {}

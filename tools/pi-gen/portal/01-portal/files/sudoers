@@ -1,0 +1,1 @@
+lunacam ALL=(root) NOPASSWD: /usr/bin/systemctl reload nginx.service
