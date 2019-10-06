@@ -1,11 +1,11 @@
 [Unit]
-Description=LunaCam Daemon
+Description=LunaCam Agent
 ReloadPropagatedFrom=dev-video0.device
 
 [Service]
 User=lunacam
 StateDirectory=lunacam
-ExecStart=/usr/bin/lunacam-daemon
+ExecStart=/usr/bin/lcagent
 Restart=on-failure
 RestartSec=5s
 
