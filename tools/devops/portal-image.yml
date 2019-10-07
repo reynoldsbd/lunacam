@@ -1,0 +1,8 @@
+trigger: none
+
+pool: Default
+
+steps:
+- template: templates/make-image.yml
+  parameters:
+    variant: portal
