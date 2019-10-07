@@ -8,11 +8,11 @@ steps:
   displayName: Use Yarn 1.19.0
   inputs:
     versionSpec: '1.19.0'
-- task: PowerShell@2
+- task: ShellScript@2
   displayName: Use Sass 1.23.0
   inputs:
-    filePath: tools/devops/Install-Sass.ps1
-    arguments: -Version 1.23.0 -Destination $(Agent.ToolsDirectory)/Sass/1.23.0/x64
+    scriptPath: tools/devops/install-sass.sh
+    arguments: '"1.23.0" "$(Agent.ToolsDirectory)/Sass/1.23.0/x64"'
     pwsh: true
 - script: make ${{ parameters.variant }}-image
   displayName: Build LunaCam Image
