@@ -214,7 +214,7 @@ cfg_common := $(pigen_build_dir)/config
 
 $(stg_common): $(pigen) $(pigen_dir)/prerun.sh $(shell find $(pigen_dir)/common -type f)
 	@mkdir -p $(stg_common_dir)
-	@rsync -r --delete $(pigen_dir)/common/ $(stg_common_dir)
+	@rsync -rp --delete $(pigen_dir)/common/ $(stg_common_dir)
 	@cp $(pigen_dir)/prerun.sh $(stg_common_dir)/prerun.sh
 	@touch $(stg_common)
 
@@ -230,7 +230,7 @@ agent_image := $(pigen_build_dir)/deploy/image_$(shell date -uI)-lunacam-agent.i
 
 $(stg_agent): $(pigen) $(pigen_dir)/prerun.sh $(shell find $(pigen_dir)/agent -type f) $(crossbuild_agent)
 	@mkdir -p $(stg_agent_dir)
-	@rsync -r --delete $(pigen_dir)/agent/ $(stg_agent_dir)
+	@rsync -rp --delete $(pigen_dir)/agent/ $(stg_agent_dir)
 	@cp $(pigen_dir)/prerun.sh $(stg_agent_dir)/prerun.sh
 	@cp $(crossbuild_agent) $(stg_agent_dir)/02-agent/files/lcagent
 	@touch $(stg_agent)
@@ -253,7 +253,7 @@ portal_image := $(pigen_build_dir)/deploy/image_$(shell date -uI)-lunacam-portal
 
 $(stg_portal): $(pigen) $(pigen_dir)/prerun.sh $(shell find $(pigen_dir)/portal -type f) $(crossbuild_portal) $(stylesheets) $(jsfiles) $(webfonts) $(shell find templates -type f)
 	@mkdir -p $(stg_portal_dir)
-	@rsync -r --delete $(pigen_dir)/portal/ $(stg_portal_dir)
+	@rsync -rp --delete $(pigen_dir)/portal/ $(stg_portal_dir)
 	@cp $(pigen_dir)/prerun.sh $(stg_portal_dir)/prerun.sh
 	@cp $(crossbuild_portal) $(stg_portal_dir)/01-portal/files/lcportal
 	@rsync -r $(static)/ $(stg_portal_dir)/01-portal/files/static
