@@ -4,6 +4,10 @@ parameters:
   variant: ''
 
 steps:
+- task: NodeTool@0
+  displayName: Use Node.js 10.x
+  inputs:
+    versionSpec: '10.x'
 - task: YarnInstaller@3
   displayName: Use Yarn 1.19.0
   inputs:
