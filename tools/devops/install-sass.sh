@@ -4,7 +4,7 @@ set -e
 # Installs the Dart-based Sass CLI tool
 
 version=$1
-destination=$(realpath $2)
+destination=$(realpath -m $2)
 
 echo "version: $version"
 echo "destination: $destination"
