@@ -1,9 +1,14 @@
 #!/bin/bash
+set -e
 
 # Installs the Dart-based Sass CLI tool
 
 version=$1
 destination=$(realpath $2)
+
+echo "version: $version"
+echo "destination: $destination"
+exit 1
 
 echo "creating destination directory"
 mkdir -p $destination
