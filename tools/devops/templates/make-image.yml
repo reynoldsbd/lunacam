@@ -16,7 +16,6 @@ steps:
   displayName: Use Sass 1.23.0
   inputs:
     scriptPath: tools/devops/install-sass.sh
-    arguments: '"1.23.0" "$(Agent.ToolsDirectory)/Sass/1.23.0/x64"'
-    pwsh: true
+    args: '"1.23.0" "$(Agent.ToolsDirectory)/Sass/1.23.0/x64"'
 - script: make ${{ parameters.variant }}-image
   displayName: Build LunaCam Image
