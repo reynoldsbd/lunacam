@@ -1,7 +1,0 @@
-trigger: none
-
-pool: Default
-
-steps:
-- script: make agent-image
-  displayName: Build Agent Image
