@@ -6,6 +6,7 @@ use std::env;
 use actix_files::{Files};
 use actix_web::{App, HttpServer};
 use actix_web::web::{self, Data};
+use reqwest::Client;
 use lunacam::Result;
 use lunacam::db::{self, ConnectionPool};
 use lunacam::logging;
@@ -20,6 +21,7 @@ use camera::CameraManager;
 
 /// Application resources used to service requests
 struct Resources {
+    client: Client,
     pool: ConnectionPool,
     templates: Tera,
 }
@@ -35,6 +37,7 @@ impl Resources {
         let templates = Tera::new(&template_dir)?;
 
         Ok(Resources {
+            client: Client::new(),
             pool,
             templates,
         })
@@ -50,6 +53,12 @@ impl std::borrow::Borrow<ConnectionPool> for Resources {
 impl AsRef<Tera> for Resources {
     fn as_ref(&self) -> &Tera {
         &self.templates
+    }
+}
+
+impl AsRef<Client> for Resources {
+    fn as_ref(&self) -> &Client {
+        &self.client
     }
 }
 

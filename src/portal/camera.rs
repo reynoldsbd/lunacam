@@ -6,23 +6,26 @@ use std::process::{Command, Stdio};
 
 use diesel::prelude::*;
 use log::{debug, error, info, trace, warn};
+use reqwest::Client;
 use serde::{Serialize};
 use tera::{Context, Tera};
 
 use lunacam::allow_err;
-use lunacam::Result;
-use lunacam::api::{CameraSettings, Orientation};
+use lunacam::api::{CameraSettings, Orientation, StreamSettings};
 use lunacam::db::DatabaseContext;
 use lunacam::db::schema::cameras;
+use lunacam::error::Result;
 
 
 /// Information needed to create a new camera
 #[derive(Insertable)]
 #[table_name = "cameras"]
 struct NewCamera {
-    pub hostname: String,
-    pub device_key: String,
-    pub friendly_name: String,
+    hostname: String,
+    device_key: String,
+    friendly_name: String,
+    enabled: bool,
+    orientation: Orientation,
 }
 
 
@@ -90,7 +93,8 @@ where M: CameraManager
             debug!("writing proxy configuration for camera {}", self.row.id);
             let mut context = Context::new();
             context.insert("camera", self);
-            let config = self.manager.as_ref().render("proxy.config", context)?;
+            let templates: &Tera = self.manager.as_ref();
+            let config = templates.render("proxy.config", context)?;
             fs::write(&config_path, config)?;
             needs_reload = true;
 
@@ -137,6 +141,10 @@ where M: CameraManager
         let mut do_connect = false;
         let mut do_update = false;
         let mut do_save = false;
+        let mut new_stream = StreamSettings {
+            enabled: None,
+            orientation: None,
+        };
 
         if let Some(friendly_name) = settings.friendly_name {
             if self.row.friendly_name != friendly_name {
@@ -148,6 +156,7 @@ where M: CameraManager
         if let Some(enabled) = settings.enabled {
             if self.row.enabled != enabled {
                 self.row.enabled = enabled;
+                new_stream.enabled = Some(enabled);
                 do_update = true;
                 do_save = true;
             }
@@ -156,6 +165,7 @@ where M: CameraManager
         if let Some(orientation) = settings.orientation {
             if self.row.orientation != orientation {
                 self.row.orientation = orientation;
+                new_stream.orientation = Some(orientation);
                 do_update = true;
                 do_save = true;
             }
@@ -177,13 +187,36 @@ where M: CameraManager
             }
         }
 
+        let client: &Client = self.manager.as_ref();
+        let url = format!("http://{}/api/stream", self.row.hostname);
+
+        // If address or key are changing, first attempt to connect using the new information. If
+        // that connection fails, we want to return an error early before trying to make any change
+        // in the database.
         if do_connect {
-            // TODO: connect to camera
+            debug!("testing connection to {}", self.row.hostname);
+            let current_stream: StreamSettings = client.get(&url)
+                .send()?
+                .json()?;
+
+            // If the connection succeeds, update the current instance to reflect the settings of
+            // the connected device. As an optimization, we skip these updates if we're about to
+            // change one of the settings.
+            if new_stream.enabled.is_none() {
+                self.row.enabled = current_stream.enabled.unwrap();
+                do_save = true;
+            }
+            if new_stream.orientation.is_none() {
+                self.row.orientation = current_stream.orientation.unwrap();
+                do_save = true;
+            }
         }
 
         if do_update {
-            info!("reconfiguring {}", self.row.hostname);
-            // TODO: send PATCH to camera host
+            debug!("sending new stream configuration to {}", self.row.hostname);
+            client.patch(&url)
+                .json(&new_stream)
+                .send()?;
         }
 
         if do_save {
@@ -217,35 +250,39 @@ impl<'a, M> Into<CameraSettings> for Camera<'a, M> {
 }
 
 
-pub trait CameraManager: DatabaseContext + AsRef<Tera> + Sized {
+pub trait CameraManager: DatabaseContext + AsRef<Client> + AsRef<Tera> + Sized {
 
     /// Creates a new camera in the database
     fn create_camera(&self, hostname: String, key: String) -> Result<Camera<Self>> {
 
-        let conn = self.conn()?;
+        // Start by querying for stream config. If this fails, we don't want to touch the database
+        debug!("querying {} for stream configuration", hostname);
+        let client: &Client = self.as_ref();
+        let url = format!("http://{}/api/stream", hostname);
+        let stream: StreamSettings = client.get(&url)
+            .send()?
+            .json()?;
 
+        debug!("adding new camera to database");
+        let conn = self.conn()?;
         let new_cam = NewCamera {
             hostname: hostname.clone(),
             device_key: key,
             friendly_name: hostname,
+            enabled: stream.enabled.unwrap(),
+            orientation: stream.orientation.unwrap(),
         };
-
-        debug!("adding new camera to database");
         diesel::insert_into(cameras::table)
             .values(new_cam)
             .execute(&conn)?;
 
-        // Yuck. But this is the only option when using SQLite.
-        // https://github.com/diesel-rs/diesel/issues/376
-        // TODO: this technically isn't thread-safe
+        // Get the row we just inserted
         let cam_row = cameras::table.order(cameras::id.desc())
             .first(&conn)?;
         let cam = Camera {
             row: cam_row,
             manager: self,
         };
-
-        // TODO: connect to camera
 
         allow_err!(
             cam.configure_proxy(true),
@@ -302,4 +339,4 @@ pub trait CameraManager: DatabaseContext + AsRef<Tera> + Sized {
     }
 }
 
-impl<T: DatabaseContext + AsRef<Tera> + Sized> CameraManager for T {}
+impl<T: DatabaseContext + AsRef<Client> + AsRef<Tera> + Sized> CameraManager for T {}
