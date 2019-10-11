@@ -5,7 +5,7 @@ use std::fs;
 use std::process::{Command, Stdio};
 
 use diesel::prelude::*;
-use log::{debug, error, info, trace, warn};
+use log::{debug, error, trace, warn};
 use reqwest::Client;
 use serde::{Serialize};
 use tera::{Context, Tera};

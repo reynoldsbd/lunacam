@@ -22,6 +22,7 @@ struct Setting {
 
 
 /// Provides access to global application settings
+#[allow(clippy::module_name_repetitions)] // "Provider" is too generic
 pub trait SettingsProvider: DatabaseContext {
 
     /// Retrieves the specified setting from the database

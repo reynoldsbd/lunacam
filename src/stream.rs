@@ -75,6 +75,7 @@ const STATE_SETTING: &str = "streamState";
 ///
 /// An external program (FFmpeg) is used to capture raw camera frames and transcode them into a
 /// suitable streaming format.
+#[allow(clippy::module_name_repetitions)] // "Stream" is too generic
 pub struct VideoStream {
     state: State,
     pool: ConnectionPool,
@@ -95,7 +96,7 @@ impl VideoStream {
     pub fn new(pool: ConnectionPool) -> Result<Self> {
 
         let state: State = pool.get_setting(STATE_SETTING)?
-            .unwrap_or(Default::default());
+            .unwrap_or_default();
 
         let mut host = ProcHost::new(make_command(state.orientation));
         if state.enabled {
@@ -103,15 +104,15 @@ impl VideoStream {
             host.start()?;
         }
 
-        Ok(VideoStream {
-            state: state,
-            pool: pool,
-            host: host
+        Ok(Self {
+            state,
+            pool,
+            host
         })
     }
 
     /// Updates stream settings
-    pub fn update(&mut self, settings: &StreamSettings) -> Result<()> {
+    pub fn update(&mut self, settings: StreamSettings) -> Result<()> {
 
         let mut do_stop = false;
         let mut do_reconfig = false;

@@ -21,7 +21,7 @@ const WDG_TICK_SECONDS: u64 = 2;
 
 
 /// Periodically checks that the child process is still running and restarts it if necessary
-fn host_wdg(hi: Arc<Mutex<HostState>>) {
+fn host_wdg(hi: &Mutex<HostState>) {
 
     let tick_duration = Duration::from_secs(WDG_TICK_SECONDS);
 
@@ -32,12 +32,11 @@ fn host_wdg(hi: Arc<Mutex<HostState>>) {
         {
             let mut hi = do_lock!(hi);
 
-            let wait_res = match hi.child {
-                Some(ref mut child) => child.try_wait(),
-                None => {
-                    trace!("host has been stopped");
-                    break;
-                }
+            let wait_res = if let Some(ref mut child) = hi.child {
+                child.try_wait()
+            } else {
+                trace!("host has been stopped");
+                break;
             };
 
             match wait_res {
@@ -88,8 +87,8 @@ impl ProcHost {
     /// Hosted process is started/restarted according to `cmd`
     pub fn new(cmd: Command) -> Self {
 
-        ProcHost(Arc::new(Mutex::new(HostState {
-            cmd: cmd,
+        Self(Arc::new(Mutex::new(HostState {
+            cmd,
             child: None,
         })))
     }
@@ -110,7 +109,7 @@ impl ProcHost {
             hi.child.replace(child);
         }
 
-        thread::spawn(|| host_wdg(wdg_hi));
+        thread::spawn(move || host_wdg(&wdg_hi));
 
         Ok(())
     }

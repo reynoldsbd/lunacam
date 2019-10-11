@@ -34,10 +34,10 @@ where
 {
     fn from_sql(bytes: Option<&B::RawValue>) -> deserialize::Result<Self> {
         match i32::from_sql(bytes)? {
-            0 => Ok(Orientation::Landscape),
-            1 => Ok(Orientation::Portrait),
-            2 => Ok(Orientation::InvertedLandscape),
-            3 => Ok(Orientation::InvertedPortrait),
+            0 => Ok(Self::Landscape),
+            1 => Ok(Self::Portrait),
+            2 => Ok(Self::InvertedLandscape),
+            3 => Ok(Self::InvertedPortrait),
             other => Err(format!("Unrecognized value \"{}\"", other).into()),
         }
     }
@@ -50,10 +50,10 @@ where
 {
     fn to_sql<W: Write>(&self, out: &mut Output<W, B>) -> serialize::Result {
         let val = match *self {
-            Orientation::Landscape => 0,
-            Orientation::Portrait => 1,
-            Orientation::InvertedLandscape => 2,
-            Orientation::InvertedPortrait => 3,
+            Self::Landscape => 0,
+            Self::Portrait => 1,
+            Self::InvertedLandscape => 2,
+            Self::InvertedPortrait => 3,
         };
 
         val.to_sql(out)

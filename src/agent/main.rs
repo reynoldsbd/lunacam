@@ -23,7 +23,7 @@ fn patch_stream(
 
     let mut stream = do_lock!(stream);
 
-    stream.update(&settings)?;
+    stream.update(*settings)?;
 
     Ok(Json(stream.settings()))
 }
