@@ -16,7 +16,17 @@ table! {
     }
 }
 
+table! {
+    users (id) {
+        id -> Integer,
+        username -> Text,
+        password -> Text,
+        display_name -> Text,
+    }
+}
+
 allow_tables_to_appear_in_same_query!(
     cameras,
     settings,
+    users,
 );

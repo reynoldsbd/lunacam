@@ -4,6 +4,7 @@ use actix_web::http::{StatusCode};
 use actix_web::web::{self, Data, Json, Path, ServiceConfig};
 use lunacam::Result;
 use lunacam::api::{CameraSettings, UserResource};
+use lunacam::users::UserManager;
 use crate::camera::CameraManager;
 use crate::Resources;
 
@@ -92,12 +93,22 @@ fn delete_camera(
 
 fn put_user(
     resources: Data<Resources>,
-    user: Json<UserResource>,
+    mut user: Json<UserResource>,
 ) -> Result<Json<UserResource>>
 {
-    // TODO: create and return new user
+    if user.id.is_some() {
+        Err((StatusCode::BAD_REQUEST, "cannot specify id when creating new user"))?;
+    }
+    let username = user.username.take()
+        .ok_or((StatusCode::BAD_REQUEST, "username is required"))?;
+    let password = user.password.take()
+        .ok_or((StatusCode::BAD_REQUEST, "password is required"))?;
+    let display_name = user.display_name.take()
+        .ok_or((StatusCode::BAD_REQUEST, "displayName is required"))?;
 
-    Ok(user)
+    let user = resources.create_user(username, password, display_name)?;
+
+    Ok(Json(user.into()))
 }
 
 fn get_user(
@@ -105,34 +116,39 @@ fn get_user(
     path: Path<(i32,)>,
 ) -> Result<Json<UserResource>>
 {
-    // TODO: retrieve existing user
+    let user = resources.get_user(path.0)?;
 
-    Ok(Json(UserResource {
-        display_name: Some("Sample User".into()),
-        id: Some(1),
-        password: None,
-        username: Some("sample".into()),
-    }))
+    Ok(Json(user.into()))
 }
 
 fn get_users(
     resources: Data<Resources>,
 ) -> Result<Json<Vec<UserResource>>>
 {
-    // TODO: retrieve all existing users
+    let users = resources.get_users()?
+        .into_iter()
+        .map(|u| u.into())
+        .collect();
 
-    Ok(Json(vec![]))
+    Ok(Json(users))
 }
 
 fn patch_user(
     resources: Data<Resources>,
     path: Path<(i32,)>,
-    user: Json<UserResource>,
+    mut user_res: Json<UserResource>,
 ) -> Result<Json<UserResource>>
 {
-    // TODO: retrieve and update existing user
+    let mut user = resources.get_user(path.0)?;
 
-    Ok(user)
+    // Sanity check
+    if user_res.id.is_some() && user_res.id.take() != Some(user.id()) {
+        Err((StatusCode::BAD_REQUEST, "id mismatch"))?;
+    }
+
+    user.update(user_res.into_inner())?;
+
+    Ok(Json(user.into()))
 }
 
 fn delete_user(
@@ -140,7 +156,8 @@ fn delete_user(
     path: Path<(i32,)>,
 ) -> Result<()>
 {
-    // TODO: retrieve and delete existing user
+    resources.get_user(path.0)?
+        .delete()?;
 
     Ok(())
 }

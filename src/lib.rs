@@ -20,6 +20,7 @@ pub mod logging;
 pub mod prochost;
 pub mod settings;
 pub mod stream;
+pub mod users;
 
 
 pub use error::*;

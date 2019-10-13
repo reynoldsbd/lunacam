@@ -41,3 +41,23 @@ CREATE TABLE cameras (
         DEFAULT 0
 
 );
+
+CREATE TABLE users (
+
+    id
+        INTEGER
+        PRIMARY KEY ASC
+        NOT NULL,
+
+    username
+        TEXT
+        NOT NULL,
+
+    password
+        TEXT
+        NOT NULL,
+
+    display_name
+        TEXT
+        NOT NULL
+);
