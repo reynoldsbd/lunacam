@@ -15,14 +15,13 @@ class UserEntry extends HTMLElement {
         let elements = {
             cancelButton: 'cancel-button',
             deleteButton: 'delete-button',
-            dispNameField: 'disp-name-field',
-            dispNameLabel: 'disp-name-label',
             dropdownIndicator: 'dropdown-indicator',
             formWrapper: 'form-wrapper',
             header: 'header',
             passwordConfirmField: 'password-cfrm-field',
             passwordField: 'password-field',
             saveButton: 'save-button',
+            usernameLabel: 'username-label',
             usernameField: 'username-field'
         };
         Object.keys(elements).forEach(propertyName => {
@@ -51,18 +50,14 @@ class UserEntry extends HTMLElement {
     static get observedAttributes() {
         return [
             'username',
-            'disp-name',
             'user-id',
         ];
     }
 
     attributeChangedCallback(name, _, newValue) {
         switch (name) {
-            case 'disp-name':
-                this.dispNameField.value = newValue;
-                this.dispNameLabel.innerText = newValue;
-                break;
             case 'username':
+                this.usernameLabel.innerText = newValue;
                 this.usernameField.value = newValue;
                 break;
             case 'user-id':
@@ -189,7 +184,6 @@ class UserEntry extends HTMLElement {
 
         // Otherwise, reset form contents to initial values
         } else {
-            this.dispNameField = this.getAttribute('disp-name');
             this.passwordConfirmField.value = '';
             this.passwordField.value = '';
             this.usernameField.value = this.getAttribute('username');
@@ -215,7 +209,6 @@ class UserEntry extends HTMLElement {
     onSaveButtonClicked(_) {
 
         let user = {
-            displayName: this.dispNameField.value,
             username: this.usernameField.value,
         };
 

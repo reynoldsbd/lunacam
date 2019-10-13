@@ -15,7 +15,6 @@ struct UserRow {
     id: i32,
     username: String,
     password: String, // TODO: hash
-    display_name: String,
 }
 
 
@@ -43,13 +42,6 @@ where M: UserManager
     pub fn update(&mut self, settings: UserResource) -> Result<()> {
 
         let mut do_save = false;
-
-        if let Some(display_name) = settings.display_name {
-            if self.row.display_name != display_name {
-                self.row.display_name = display_name;
-                do_save = true;
-            }
-        }
 
         if let Some(password) = settings.password {
             if self.row.password != password {
@@ -79,7 +71,6 @@ where M: UserManager
 impl<'a, M> Into<UserResource> for User<'a, M> {
     fn into(self) -> UserResource {
         UserResource {
-            display_name: Some(self.row.display_name),
             id: Some(self.row.id),
             password: None,
             username: Some(self.row.username),
@@ -91,7 +82,6 @@ impl<'a, M> Into<UserResource> for User<'a, M> {
 #[derive(Insertable)]
 #[table_name = "users"]
 struct NewUser {
-    display_name: String,
     password: String, // TODO: hash
     username: String,
 }
@@ -103,13 +93,11 @@ pub trait UserManager: DatabaseContext + Sized {
         &self,
         username: String,
         password: String,
-        display_name: String,
     ) -> Result<User<Self>>
     {
         debug!("adding user {} to database", &username);
         let conn = self.conn()?;
         let new_user = NewUser {
-            display_name,
             password,
             username,
         };

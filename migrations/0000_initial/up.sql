@@ -55,9 +55,5 @@ CREATE TABLE users (
 
     password
         TEXT
-        NOT NULL,
-
-    display_name
-        TEXT
         NOT NULL
 );

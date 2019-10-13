@@ -21,7 +21,6 @@ table! {
         id -> Integer,
         username -> Text,
         password -> Text,
-        display_name -> Text,
     }
 }
 

@@ -103,10 +103,8 @@ fn put_user(
         .ok_or((StatusCode::BAD_REQUEST, "username is required"))?;
     let password = user.password.take()
         .ok_or((StatusCode::BAD_REQUEST, "password is required"))?;
-    let display_name = user.display_name.take()
-        .ok_or((StatusCode::BAD_REQUEST, "displayName is required"))?;
 
-    let user = resources.create_user(username, password, display_name)?;
+    let user = resources.create_user(username, password)?;
 
     Ok(Json(user.into()))
 }
