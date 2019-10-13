@@ -84,7 +84,12 @@
     <div class="box">
 
         <div id="user-list">
-            <user-entry user-id="123" username="foo"></user-entry>
+            {% for user in users %}
+            <user-entry
+                username="{{ user.username }}"
+                user-id="{{ user.id }}">
+            </user-entry>
+            {% endfor %}
         </div>
 
         <div class="field is-grouped is-grouped-centered">

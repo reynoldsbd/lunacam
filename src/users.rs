@@ -2,6 +2,7 @@
 
 use diesel::prelude::*;
 use log::{debug};
+use serde::Serialize;
 
 use crate::api::UserResource;
 use crate::db::DatabaseContext;
@@ -9,6 +10,7 @@ use crate::db::schema::users;
 use crate::error::Result;
 
 
+#[derive(Serialize)]
 #[derive(AsChangeset, Identifiable, Queryable)]
 #[table_name = "users"]
 struct UserRow {
@@ -18,8 +20,11 @@ struct UserRow {
 }
 
 
+#[derive(Serialize)]
 pub struct User<'a, M> {
+    #[serde(skip)]
     manager: &'a M,
+    #[serde(flatten)]
     row: UserRow,
 }
 
