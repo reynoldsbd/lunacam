@@ -69,6 +69,13 @@ class UserEntry extends HTMLElement {
 
     //#endregion
 
+    reload(user) {
+        this.setAttribute('username', user.username);
+        this.setAttribute('user-id', user.id);
+        this.passwordField.value = '';
+        this.passwordConfirmField.value = '';
+    }
+
     //#region Form Display
 
     showForm() {
