@@ -51,7 +51,8 @@ CREATE TABLE users (
 
     username
         TEXT
-        NOT NULL,
+        NOT NULL
+        UNIQUE,
 
     password
         TEXT
