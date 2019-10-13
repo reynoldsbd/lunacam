@@ -3,7 +3,7 @@
 use actix_web::http::{StatusCode};
 use actix_web::web::{self, Data, Json, Path, ServiceConfig};
 use lunacam::Result;
-use lunacam::api::CameraSettings;
+use lunacam::api::{CameraSettings, UserResource};
 use crate::camera::CameraManager;
 use crate::Resources;
 
@@ -88,6 +88,66 @@ fn delete_camera(
 //#endregion
 
 
+//#region CRUD for Users
+
+fn put_user(
+    resources: Data<Resources>,
+    user: Json<UserResource>,
+) -> Result<Json<UserResource>>
+{
+    // TODO: create and return new user
+
+    Ok(user)
+}
+
+fn get_user(
+    resources: Data<Resources>,
+    path: Path<(i32,)>,
+) -> Result<Json<UserResource>>
+{
+    // TODO: retrieve existing user
+
+    Ok(Json(UserResource {
+        display_name: Some("Sample User".into()),
+        id: Some(1),
+        password: None,
+        username: Some("sample".into()),
+    }))
+}
+
+fn get_users(
+    resources: Data<Resources>,
+) -> Result<Json<Vec<UserResource>>>
+{
+    // TODO: retrieve all existing users
+
+    Ok(Json(vec![]))
+}
+
+fn patch_user(
+    resources: Data<Resources>,
+    path: Path<(i32,)>,
+    user: Json<UserResource>,
+) -> Result<Json<UserResource>>
+{
+    // TODO: retrieve and update existing user
+
+    Ok(user)
+}
+
+fn delete_user(
+    resources: Data<Resources>,
+    path: Path<(i32,)>,
+) -> Result<()>
+{
+    // TODO: retrieve and delete existing user
+
+    Ok(())
+}
+
+//#endregion
+
+
 /// Configures an Actix service to serve the API
 pub fn configure(service: &mut ServiceConfig) {
 
@@ -96,4 +156,10 @@ pub fn configure(service: &mut ServiceConfig) {
     service.route("/cameras/{id}", web::get().to(get_camera));
     service.route("/cameras/{id}", web::patch().to(patch_camera));
     service.route("/cameras/{id}", web::delete().to(delete_camera));
+
+    service.route("/users", web::get().to(get_users));
+    service.route("/users", web::put().to(put_user));
+    service.route("/users/{id}", web::get().to(get_user));
+    service.route("/users/{id}", web::patch().to(patch_user));
+    service.route("/users/{id}", web::delete().to(delete_user));
 }

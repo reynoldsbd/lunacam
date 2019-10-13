@@ -81,3 +81,15 @@ pub struct CameraSettings {
     pub friendly_name: Option<String>,
     pub orientation: Option<Orientation>,
 }
+
+
+/// API representation of a user account
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UserResource {
+    pub display_name: Option<String>,
+    pub id: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub password: Option<String>,
+    pub username: Option<String>,
+}
