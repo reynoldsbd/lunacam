@@ -1,13 +1,69 @@
 //! User management
 
+use std::env;
+use std::fs;
+use std::path::Path;
+use std::sync::Mutex;
+
+use argonautica::Hasher;
+use argonautica::input::SecretKey;
 use diesel::prelude::*;
+use lazy_static::lazy_static;
 use log::{debug};
+use rand::Rng;
+use rand::distributions::Standard;
 use serde::Serialize;
 
+use crate::do_lock;
 use crate::api::UserResource;
 use crate::db::DatabaseContext;
 use crate::db::schema::users;
 use crate::error::Result;
+
+
+lazy_static! {
+    static ref ARGON2_KEY: Mutex<Option<SecretKey<'static>>> = Mutex::new(None);
+}
+
+
+fn get_secret_key() -> Result<SecretKey<'static>> {
+
+    let mut key = do_lock!(ARGON2_KEY);
+    if key.is_none() {
+
+        let keyfile = format!("{}/secret-key", env::var("STATE_DIRECTORY")?);
+        let keyfile = Path::new(&keyfile);
+        if keyfile.exists() {
+
+            let key_b64 = fs::read_to_string(keyfile)?;
+            let new_key = SecretKey::from_base64_encoded(key_b64)?;
+            key.replace(new_key);
+
+        } else {
+
+            let raw_key: Vec<u8> = rand::thread_rng()
+                .sample_iter(Standard)
+                .take(32)
+                .collect();
+            let new_key = SecretKey::from(raw_key);
+            fs::write(keyfile, new_key.to_base64_encoded())?;
+            key.replace(new_key);
+        }
+    }
+
+    Ok(key.as_ref().unwrap().to_owned())
+}
+
+
+fn hash_password(password: String) -> Result<String> {
+
+    let hash = Hasher::new()
+        .with_secret_key(get_secret_key()?)
+        .with_password(password)
+        .hash()?;
+
+    Ok(hash)
+}
 
 
 #[derive(Serialize)]
@@ -16,7 +72,7 @@ use crate::error::Result;
 struct UserRow {
     id: i32,
     username: String,
-    password: String, // TODO: hash
+    pwhash: String,
 }
 
 
@@ -49,10 +105,9 @@ where M: UserManager
         let mut do_save = false;
 
         if let Some(password) = settings.password {
-            if self.row.password != password {
-                self.row.password = password; // TODO: hash
-                do_save = true;
-            }
+            let hash = hash_password(password)?;
+            self.row.pwhash = hash;
+            do_save = true;
         }
 
         if let Some(username) = settings.username {
@@ -87,8 +142,8 @@ impl<'a, M> Into<UserResource> for User<'a, M> {
 #[derive(Insertable)]
 #[table_name = "users"]
 struct NewUser {
-    password: String, // TODO: hash
     username: String,
+    pwhash: String,
 }
 
 
@@ -102,9 +157,10 @@ pub trait UserManager: DatabaseContext + Sized {
     {
         debug!("adding user {} to database", &username);
         let conn = self.conn()?;
+        let pwhash = hash_password(password)?;
         let new_user = NewUser {
-            password,
             username,
+            pwhash,
         };
         diesel::insert_into(users::table)
             .values(&new_user)

@@ -54,7 +54,7 @@ CREATE TABLE users (
         NOT NULL
         UNIQUE,
 
-    password
+    pwhash
         TEXT
         NOT NULL
 );
