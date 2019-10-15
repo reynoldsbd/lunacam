@@ -3,8 +3,7 @@
 use actix_web::http::{StatusCode};
 use actix_web::web::{self, Data, Json, Path, ServiceConfig};
 use lunacam::Result;
-use lunacam::api::{CameraSettings, UserResource};
-use lunacam::users::UserManager;
+use lunacam::api::{CameraSettings};
 use crate::camera::CameraManager;
 use crate::Resources;
 
@@ -89,80 +88,6 @@ fn delete_camera(
 //#endregion
 
 
-//#region CRUD for Users
-
-fn put_user(
-    resources: Data<Resources>,
-    mut user: Json<UserResource>,
-) -> Result<Json<UserResource>>
-{
-    if user.id.is_some() {
-        Err((StatusCode::BAD_REQUEST, "cannot specify id when creating new user"))?;
-    }
-    let username = user.username.take()
-        .ok_or((StatusCode::BAD_REQUEST, "username is required"))?;
-    let password = user.password.take()
-        .ok_or((StatusCode::BAD_REQUEST, "password is required"))?;
-
-    let user = resources.create_user(username, password)?;
-
-    Ok(Json(user.into()))
-}
-
-fn get_user(
-    resources: Data<Resources>,
-    path: Path<(i32,)>,
-) -> Result<Json<UserResource>>
-{
-    let user = resources.get_user(path.0)?;
-
-    Ok(Json(user.into()))
-}
-
-fn get_users(
-    resources: Data<Resources>,
-) -> Result<Json<Vec<UserResource>>>
-{
-    let users = resources.get_users()?
-        .into_iter()
-        .map(|u| u.into())
-        .collect();
-
-    Ok(Json(users))
-}
-
-fn patch_user(
-    resources: Data<Resources>,
-    path: Path<(i32,)>,
-    mut user_res: Json<UserResource>,
-) -> Result<Json<UserResource>>
-{
-    let mut user = resources.get_user(path.0)?;
-
-    // Sanity check
-    if user_res.id.is_some() && user_res.id.take() != Some(user.id()) {
-        Err((StatusCode::BAD_REQUEST, "id mismatch"))?;
-    }
-
-    user.update(user_res.into_inner())?;
-
-    Ok(Json(user.into()))
-}
-
-fn delete_user(
-    resources: Data<Resources>,
-    path: Path<(i32,)>,
-) -> Result<()>
-{
-    resources.get_user(path.0)?
-        .delete()?;
-
-    Ok(())
-}
-
-//#endregion
-
-
 /// Configures an Actix service to serve the API
 pub fn configure(service: &mut ServiceConfig) {
 
@@ -172,9 +97,5 @@ pub fn configure(service: &mut ServiceConfig) {
     service.route("/cameras/{id}", web::patch().to(patch_camera));
     service.route("/cameras/{id}", web::delete().to(delete_camera));
 
-    service.route("/users", web::get().to(get_users));
-    service.route("/users", web::put().to(put_user));
-    service.route("/users/{id}", web::get().to(get_user));
-    service.route("/users/{id}", web::patch().to(patch_user));
-    service.route("/users/{id}", web::delete().to(delete_user));
+    lunacam::users::configure_api(service);
 }

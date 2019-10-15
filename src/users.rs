@@ -1,22 +1,24 @@
 //! User management
 
+// Actix handlers have lots of needless pass-by-value (Data, Json, and Path structs)
+#![allow(clippy::needless_pass_by_value)]
+
 use std::env;
 use std::fs;
 use std::path::Path;
 use std::sync::Mutex;
 
+use actix_web::web::{self, Data, Json, ServiceConfig};
 use argonautica::Hasher;
 use argonautica::input::SecretKey;
 use diesel::prelude::*;
 use lazy_static::lazy_static;
-use log::{debug};
 use rand::Rng;
 use rand::distributions::Standard;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
+use crate::db::{ConnectionPool, PooledConnection};
 use crate::do_lock;
-use crate::api::UserResource;
-use crate::db::DatabaseContext;
 use crate::db::schema::users;
 use crate::error::Result;
 
@@ -76,69 +78,25 @@ struct UserRow {
 }
 
 
+/// User representation returned by API requests
+///
+/// TODO: making this queryable would eliminate lots of manual conversion
 #[derive(Serialize)]
-pub struct User<'a, M> {
-    #[serde(skip)]
-    manager: &'a M,
-    #[serde(flatten)]
-    row: UserRow,
-}
-
-impl<'a, M> User<'a, M>
-where M: UserManager
-{
-    pub fn delete(self) -> Result<()> {
-
-        let conn = self.manager.conn()?;
-        diesel::delete(&self.row)
-            .execute(&conn)?;
-
-        Ok(())
-    }
-
-    pub fn id(&self) -> i32 {
-        self.row.id
-    }
-
-    pub fn update(&mut self, settings: UserResource) -> Result<()> {
-
-        let mut do_save = false;
-
-        if let Some(password) = settings.password {
-            let hash = hash_password(password)?;
-            self.row.pwhash = hash;
-            do_save = true;
-        }
-
-        if let Some(username) = settings.username {
-            if self.row.username != username {
-                self.row.username = username;
-                do_save = true;
-            }
-        }
-
-        if do_save {
-            let conn = self.manager.conn()?;
-            diesel::update(&self.row)
-                .set(&self.row)
-                .execute(&conn)?;
-        }
-
-        Ok(())
-    }
-}
-
-impl<'a, M> Into<UserResource> for User<'a, M> {
-    fn into(self) -> UserResource {
-        UserResource {
-            id: Some(self.row.id),
-            password: None,
-            username: Some(self.row.username),
-        }
-    }
+struct UserResource {
+    id: i32,
+    username: String,
 }
 
 
+/// User representation required by PUT requests
+#[derive(Deserialize)]
+struct UserPut {
+    password: String,
+    username: String,
+}
+
+
+/// Used when creating a new user record with Diesel
 #[derive(Insertable)]
 #[table_name = "users"]
 struct NewUser {
@@ -147,61 +105,151 @@ struct NewUser {
 }
 
 
-pub trait UserManager: DatabaseContext + Sized {
+/// Creates a new user
+fn put_user(
+    pool: Data<ConnectionPool>,
+    user: Json<UserPut>,
+) -> Result<Json<UserResource>>
+{
+    let conn = pool.get()?;
+    let user = user.into_inner();
 
-    fn create_user(
-        &self,
-        username: String,
-        password: String,
-    ) -> Result<User<Self>>
-    {
-        debug!("adding user {} to database", &username);
-        let conn = self.conn()?;
-        let pwhash = hash_password(password)?;
-        let new_user = NewUser {
-            username,
-            pwhash,
-        };
-        diesel::insert_into(users::table)
-            .values(&new_user)
-            .execute(&conn)?;
+    let pwhash = hash_password(user.password)?;
+    let new_user = NewUser {
+        username: user.username,
+        pwhash,
+    };
+    diesel::insert_into(users::table)
+        .values(&new_user)
+        .execute(&conn)?;
 
-        // Get the row we just inserted
-        let user_row = users::table.filter(users::username.eq(new_user.username))
-            .get_result(&conn)?;
-        let user = User {
-            row: user_row,
-            manager: self,
-        };
+    // Get the row we just inserted
+    let row: UserRow = users::table.filter(users::username.eq(new_user.username))
+        .get_result(&conn)?;
 
-        Ok(user)
-    }
-
-    fn get_user(&self, id: i32) -> Result<User<Self>> {
-
-        let conn = self.conn()?;
-        let user_row = users::table.find(id)
-            .get_result(&conn)?;
-
-        Ok(User {
-            row: user_row,
-            manager: self,
-        })
-    }
-
-    fn get_users(&self) -> Result<Vec<User<Self>>> {
-
-        let conn = self.conn()?;
-        let users = users::table.load(&conn)?
-            .into_iter()
-            .map(|u| User {
-                row: u,
-                manager: self,
-            })
-            .collect();
-
-        Ok(users)
-    }
+    Ok(Json(UserResource {
+        id: row.id,
+        username: row.username,
+    }))
 }
 
-impl<T: DatabaseContext + Sized> UserManager for T {}
+
+/// Retrieves information about the specified user
+fn get_user(
+    pool: Data<ConnectionPool>,
+    path: web::Path<(i32,)>,
+) -> Result<Json<UserResource>>
+{
+    let conn = pool.get()?;
+    let id = path.0;
+    let row: UserRow = users::table.find(id)
+        .get_result(&conn)?;
+
+    Ok(Json(UserResource {
+        id,
+        username: row.username,
+    }))
+}
+
+
+/// Retrieves information about all users
+fn get_users(
+    pool: Data<ConnectionPool>,
+) -> Result<Json<Vec<UserResource>>>
+{
+    let conn = pool.get()?;
+
+    let users = users::table.load(&conn)?
+        .into_iter()
+        .map(|u: UserRow| UserResource {
+            id: u.id,
+            username: u.username,
+        })
+        .collect();
+
+    Ok(Json(users))
+}
+
+
+/// User representation required by PATCH requests
+#[derive(Deserialize)]
+struct UserPatch {
+    password: Option<String>,
+    username: Option<String>,
+}
+
+
+/// Updates information about the specified user
+fn patch_user(
+    pool: Data<ConnectionPool>,
+    path: web::Path<(i32,)>,
+    user: Json<UserPatch>,
+) -> Result<Json<UserResource>>
+{
+    let conn = pool.get()?;
+    let id = path.0;
+    let user = user.into_inner();
+
+    let mut row: UserRow = users::table.find(id)
+        .get_result(&conn)?;
+
+    let mut do_save = false;
+
+    if let Some(password) = user.password {
+        row.pwhash = hash_password(password)?;
+        do_save = true;
+    }
+
+    if let Some(username) = user.username {
+        if username != row.username {
+            row.username = username;
+            do_save = true;
+        }
+    }
+
+    if do_save {
+        diesel::update(&row)
+            .set(&row)
+            .execute(&conn)?;
+    }
+
+    Ok(Json(UserResource {
+        id,
+        username: row.username,
+    }))
+}
+
+
+/// Deletes the specified user
+fn delete_user(
+    pool: Data<ConnectionPool>,
+    path: web::Path<(i32,)>,
+) -> Result<()>
+{
+    let conn = pool.get()?;
+
+    diesel::delete(users::table.filter(users::id.eq(path.0)))
+        .execute(&conn)?;
+
+    Ok(())
+}
+
+
+/// Configures the */users* API resource
+pub fn configure_api(service: &mut ServiceConfig) {
+
+    service.route("/users", web::get().to(get_users));
+    service.route("/users", web::put().to(put_user));
+    service.route("/users/{id}", web::get().to(get_user));
+    service.route("/users/{id}", web::patch().to(patch_user));
+    service.route("/users/{id}", web::delete().to(delete_user));
+}
+
+
+/// Retrieves serializable representation of all users
+pub fn all(conn: &PooledConnection) -> Result<impl Serialize> {
+
+    let users: Vec<UserRow> = users::table.load(conn)?;
+
+    Ok(users)
+}

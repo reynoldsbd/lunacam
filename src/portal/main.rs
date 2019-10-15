@@ -74,11 +74,13 @@ fn main() -> Result<()> {
 
     resources.initialize_proxy()?;
 
+    let pool = Data::new(resources.pool.clone());
     let resources = Data::new(resources);
 
     HttpServer::new(move || {
             let app = App::new();
             let app = app.register_data(resources.clone());
+            let app = app.register_data(pool.clone());
             let app = app.service(web::scope("/api").configure(api::configure));
             #[cfg(debug_assertions)]
             let app = app.service(Files::new("/static", &static_dir));

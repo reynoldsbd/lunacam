@@ -3,7 +3,7 @@
 use actix_web::HttpResponse;
 use actix_web::web::{self, Data, Path, ServiceConfig};
 use lunacam::Result;
-use lunacam::users::UserManager;
+use lunacam::users;
 use tera::{Context, Tera};
 use crate::Resources;
 use crate::camera::CameraManager;
@@ -60,7 +60,8 @@ fn camera_admin(resources: Data<Resources>) -> Result<HttpResponse> {
 
 fn user_admin(resources: Data<Resources>) -> Result<HttpResponse> {
 
-    let users = resources.get_users()?;
+    let conn = resources.pool.get()?;
+    let users = users::all(&conn)?;
 
     let mut context = Context::new();
     context.insert("users", &users);
