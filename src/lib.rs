@@ -13,6 +13,7 @@ extern crate diesel_migrations;
 
 
 pub mod api;
+pub mod cameras;
 pub mod db;
 pub mod error;
 mod locks;
