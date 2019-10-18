@@ -27,10 +27,8 @@ use crate::error::Result;
 #[table_name = "cameras"]
 struct Camera {
     id: i32,
-    friendly_name: String,
-    hostname: String,
-    #[serde(skip_serializing)]
-    device_key: String,
+    name: String,
+    address: String,
     enabled: bool,
     orientation: Orientation,
 }
@@ -39,18 +37,16 @@ struct Camera {
 /// Camera representation required by PUT requests
 #[derive(Deserialize)]
 struct PutCameraBody {
-    friendly_name: String,
-    hostname: String,
-    device_key: String,
+    name: String,
+    address: String,
 }
 
 
 #[derive(Insertable)]
 #[table_name = "cameras"]
 struct NewCamera {
-    friendly_name: String,
-    hostname: String,
-    device_key: String,
+    name: String,
+    address: String,
     enabled: bool,
     orientation: Orientation,
 }
@@ -67,8 +63,8 @@ fn put_camera(
     let body = body.into_inner();
 
     // Validate connection before touching the database
-    debug!("connecting to camera at {}", body.hostname);
-    let url = format!("http://{}/api/stream", body.hostname);
+    debug!("connecting to camera at {}", body.address);
+    let url = format!("http://{}/api/stream", body.address);
     let stream: StreamSettings = client.get(&url)
         .send()?
         .json()?;
@@ -76,9 +72,8 @@ fn put_camera(
     debug!("adding new camera to database");
     let conn = pool.get()?;
     let new_cam = NewCamera {
-        friendly_name: body.friendly_name,
-        hostname: body.hostname,
-        device_key: body.device_key,
+        name: body.name,
+        address: body.address,
         enabled: stream.enabled.unwrap(), // TODO: refactor stream
         orientation: stream.orientation.unwrap(), // TODO: refactor stream
     };
@@ -137,11 +132,10 @@ fn get_cameras(
 /// Camera representation required by PATCH requests
 #[derive(Deserialize)]
 struct PatchCameraBody {
-    friendly_name: Option<String>,
+    name: Option<String>,
     enabled: Option<bool>,
     orientation: Option<Orientation>,
-    hostname: Option<String>,
-    device_key: Option<String>,
+    address: Option<String>,
 }
 
 
@@ -171,10 +165,10 @@ fn patch_camera(
         orientation: None,
     };
 
-    if let Some(friendly_name) = body.friendly_name {
-        if camera.friendly_name != friendly_name {
-            trace!("updating friendly_name for camera {}", id);
-            camera.friendly_name = friendly_name;
+    if let Some(name) = body.name {
+        if camera.name != name {
+            trace!("updating name for camera {}", id);
+            camera.name = name;
             do_save = true;
         }
     }
@@ -199,28 +193,19 @@ fn patch_camera(
         }
     }
 
-    if let Some(hostname) = body.hostname {
-        if camera.hostname != hostname {
-            trace!("updating hostname for camera {}", id);
-            camera.hostname = hostname;
-            do_connect = true;
-            do_save = true;
-        }
-    }
-
-    if let Some(device_key) = body.device_key {
-        if camera.device_key != device_key {
-            trace!("updating device_key for camera {}", id);
-            camera.device_key = device_key;
+    if let Some(address) = body.address {
+        if camera.address != address {
+            trace!("updating address for camera {}", id);
+            camera.address = address;
             do_connect = true;
             do_save = true;
         }
     }
 
     // Validate new connection information before updating the database
-    let url = format!("http://{}/api/stream", camera.hostname);
+    let url = format!("http://{}/api/stream", camera.address);
     if do_connect {
-        debug!("connecting to camera at {}", camera.hostname);
+        debug!("connecting to camera at {}", camera.address);
         let current_stream: StreamSettings = client.get(&url)
             .send()?
             .json()?;
@@ -241,7 +226,7 @@ fn patch_camera(
     }
 
     if do_update {
-        debug!("sending new stream settings to {}", camera.hostname);
+        debug!("sending new stream settings to {}", camera.address);
         client.patch(&url)
             .json(&new_stream)
             .send()?;

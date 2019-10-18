@@ -40,6 +40,19 @@
 
         <div class="field is-horizontal">
             <div class="field-label is-normal">
+                <label class="label">Device Address</label>
+            </div>
+            <div class="field-body">
+                <div class="field">
+                    <div class="control is-expanded">
+                        <input type="text" id="cam-address-field" class="input" placeholder="address...">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="field is-horizontal">
+            <div class="field-label is-normal">
                 <label class="label">Orientation</label>
             </div>
             <div class="field-body">
@@ -53,32 +66,6 @@
                                 <option value="invertedPortrait">Inverted Portrait</option>
                             </select>
                         </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="field is-horizontal">
-            <div class="field-label is-normal">
-                <label class="label">Device Hostname</label>
-            </div>
-            <div class="field-body">
-                <div class="field">
-                    <div class="control is-expanded">
-                        <input type="text" id="cam-hostname-field" class="input" placeholder="hostname...">
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="field is-horizontal">
-            <div class="field-label is-normal">
-                <label class="label">Device Key</label>
-            </div>
-            <div class="field-body">
-                <div class="field">
-                    <div class="control is-expanded">
-                        <input type="password" id="cam-key-field" class="input" placeholder="key...">
                     </div>
                 </div>
             </div>
@@ -115,9 +102,9 @@
             {% for camera in cameras %}
             <cam-entry
                 cam-enabled="{{ camera.enabled }}"
-                cam-hostname="{{ camera.hostname }}"
+                cam-hostname="{{ camera.address }}"
                 cam-id="{{ camera.id }}"
-                cam-name="{{ camera.friendly_name }}"
+                cam-name="{{ camera.name }}"
                 cam-orientation="{{ camera.orientation }}">
             </cam-entry>
             {% endfor %}

@@ -1,5 +1,3 @@
-const DUMMY_KEY = '......';
-
 class CamEntry extends HTMLElement {
 
     //#region Web Component
@@ -15,6 +13,7 @@ class CamEntry extends HTMLElement {
 
         // Bind template elements to properties of this object
         let elements = {
+            addressField: 'cam-address-field',
             cancelButton: 'cancel-button',
             deleteButton: 'delete-button',
             dropdownIndicator: 'dropdown-indicator',
@@ -22,8 +21,6 @@ class CamEntry extends HTMLElement {
             enabledSwitchLabel: 'cam-enabled-label',
             formWrapper: 'form-wrapper',
             header: 'header',
-            hostnameField: 'cam-hostname-field',
-            keyField: 'cam-key-field',
             nameLabel: 'cam-name-label',
             nameField: 'cam-name-field',
             orientationSelect: 'cam-orientation-select',
@@ -39,11 +36,7 @@ class CamEntry extends HTMLElement {
         this.deleteButton.onclick = e => this.onDeleteButtonClicked(e);
         this.enabledSwitch.onclick = e => this.onEnabledSwitchClicked(e);
         this.header.onclick = e => this.onHeaderClicked(e);
-        this.keyField.onfocus = e => this.onKeyFieldFocused(e);
         this.saveButton.onclick = e => this.onSaveButtonClicked(e);
-
-        // Other initialization
-        this.keyField.value = DUMMY_KEY;
     }
 
     connectedCallback() {
@@ -59,8 +52,8 @@ class CamEntry extends HTMLElement {
 
     static get observedAttributes() {
         return [
+            'cam-address',
             'cam-enabled',
-            'cam-hostname',
             'cam-id',
             'cam-name',
             'cam-orientation',
@@ -69,11 +62,11 @@ class CamEntry extends HTMLElement {
 
     attributeChangedCallback(name, _, newValue) {
         switch (name) {
+            case 'cam-address':
+                this.addressField.value = newValue;
+                break;
             case 'cam-enabled':
                 this.enabledSwitch.checked = (newValue == 'true');
-                break;
-            case 'cam-hostname':
-                this.hostnameField.value = newValue;
                 break;
             case 'cam-id':
                 this.header.hidden = false;
@@ -96,12 +89,11 @@ class CamEntry extends HTMLElement {
 
     reload(camera) {
 
+        this.setAttribute('cam-address', camera.address);
         this.setAttribute('cam-enabled', camera.enabled);
-        this.setAttribute('cam-hostname', camera.hostname);
         this.setAttribute('cam-id', camera.id);
-        this.setAttribute('cam-name', camera.friendlyName);
+        this.setAttribute('cam-name', camera.name);
         this.setAttribute('cam-orientation', camera.orientation);
-        this.keyField.value = DUMMY_KEY;
     }
 
     //#region Form Display
@@ -224,11 +216,10 @@ class CamEntry extends HTMLElement {
 
         // Otherwise, reset form contents to initial values
         } else {
+            this.addressField.value = this.getAttribute('cam-address');
             this.enabledSwitch.checked = (this.getAttribute('cam-enabled') == 'true');
-            this.hostnameField.value = this.getAttribute('cam-hostname');
             this.nameField.value = this.getAttribute('cam-name');
             this.orientationSelect.value = this.getAttribute('cam-orientation');
-            this.keyField.value = DUMMY_KEY;
         }
     }
 
@@ -257,23 +248,13 @@ class CamEntry extends HTMLElement {
         }
     }
 
-    onKeyFieldFocused(_) {
-
-        if (this.keyField.value == DUMMY_KEY) {
-            this.keyField.select();
-        }
-    }
-
     onSaveButtonClicked(_) {
 
         let camera = {
-            hostname: this.hostnameField.value,
-            friendlyName: this.nameField.value,
+            address: this.addressField.value,
+            name: this.nameField.value,
             orientation: this.orientationSelect.value,
         };
-        if (!this.hasAttribute('cam-id') || this.keyField.value != DUMMY_KEY) {
-            camera.deviceKey = this.keyField.value;
-        }
 
         this.uploadCamera(camera);
     }
@@ -293,7 +274,6 @@ function addCamera() {
     newCamEntry.hideDeleteButton();
     newCamEntry.header.hidden = true;
     newCamEntry.showForm();
-    newCamEntry.keyField.value = '';
     cameraList.appendChild(newCamEntry);
 }
 

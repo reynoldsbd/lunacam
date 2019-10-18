@@ -18,15 +18,11 @@ CREATE TABLE cameras (
         PRIMARY KEY ASC
         NOT NULL,
 
-    friendly_name
+    name
         TEXT
         NOT NULL,
 
-    hostname
-        TEXT
-        NOT NULL,
-
-    device_key
+    address
         TEXT
         NOT NULL,
 
@@ -57,4 +53,5 @@ CREATE TABLE users (
     pwhash
         TEXT
         NOT NULL
+
 );
