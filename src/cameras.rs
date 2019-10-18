@@ -21,25 +21,17 @@ use crate::db::schema::cameras;
 use crate::error::Result;
 
 
+/// Representation of a streaming camera
 #[derive(Serialize)]
 #[derive(AsChangeset, Identifiable, Queryable)]
 #[table_name = "cameras"]
-struct CameraRow {
+struct Camera {
     id: i32,
     friendly_name: String,
     hostname: String,
+    #[serde(skip_serializing)]
     device_key: String,
     enabled: bool,
-    orientation: Orientation,
-}
-
-
-#[derive(Serialize)]
-struct CameraResource {
-    enabled: bool,
-    hostname: String,
-    id: i32,
-    friendly_name: String,
     orientation: Orientation,
 }
 
@@ -70,7 +62,7 @@ fn put_camera(
     pool: Data<ConnectionPool>,
     templates: Data<Tera>,
     body: Json<PutCameraBody>,
-) -> Result<Json<CameraResource>>
+) -> Result<Json<Camera>>
 {
     let body = body.into_inner();
 
@@ -95,24 +87,20 @@ fn put_camera(
         .execute(&conn)?;
 
     // Get the row we just inserted
-    let row: CameraRow = cameras::table.order(cameras::id.desc())
+    let camera: Camera = cameras::table.order(cameras::id.desc())
         .first(&conn)?;
 
-    if row.enabled {
-        write_proxy_config(&row, &templates)
+    if camera.enabled {
+        write_proxy_config(&camera, &templates)
             .and_then(|_| reload_proxy())
-            .unwrap_or_else(|e| error!("failed to configure proxy for camera {}: {}", row.id, e));
+            .unwrap_or_else(|e|
+                error!("failed to configure proxy for camera {}: {}", camera.id, e)
+            );
     }
 
-    info!("created new camera {}", row.id);
+    info!("created new camera {}", camera.id);
 
-    Ok(Json(CameraResource {
-        enabled: row.enabled,
-        hostname: row.hostname,
-        id: row.id,
-        friendly_name: row.friendly_name,
-        orientation: row.orientation,
-    }))
+    Ok(Json(camera))
 }
 
 
@@ -120,42 +108,27 @@ fn put_camera(
 fn get_camera(
     pool: Data<ConnectionPool>,
     path: web::Path<(i32,)>,
-) -> Result<Json<CameraResource>>
+) -> Result<Json<Camera>>
 {
     let id = path.0;
 
     debug!("retrieving camera {} from database", id);
     let conn = pool.get()?;
-    let row: CameraRow = cameras::table.find(id)
+    let camera: Camera = cameras::table.find(id)
         .get_result(&conn)?;
 
-    Ok(Json(CameraResource {
-        enabled: row.enabled,
-        hostname: row.hostname,
-        id: row.id,
-        friendly_name: row.friendly_name,
-        orientation: row.orientation,
-    }))
+    Ok(Json(camera))
 }
 
 
 /// Retrieves information about all cameras
 fn get_cameras(
     pool: Data<ConnectionPool>,
-) -> Result<Json<Vec<CameraResource>>>
+) -> Result<Json<Vec<Camera>>>
 {
     debug!("retrieving cameras from database");
     let conn = pool.get()?;
-    let cameras = cameras::table.load(&conn)?
-        .into_iter()
-        .map(|c: CameraRow| CameraResource {
-            enabled: c.enabled,
-            hostname: c.hostname,
-            id: c.id,
-            friendly_name: c.friendly_name,
-            orientation: c.orientation
-        })
-        .collect();
+    let cameras = cameras::table.load(&conn)?;
 
     Ok(Json(cameras))
 }
@@ -180,14 +153,14 @@ fn patch_camera(
     templates: Data<Tera>,
     path: web::Path<(i32,)>,
     body: Json<PatchCameraBody>,
-) -> Result<Json<CameraResource>>
+) -> Result<Json<Camera>>
 {
     let id = path.0;
     let body = body.into_inner();
 
     debug!("retrieving camera {} from database", id);
     let conn = pool.get()?;
-    let mut camera: CameraRow = cameras::table.find(id)
+    let mut camera: Camera = cameras::table.find(id)
         .get_result(&conn)?;
 
     let mut do_connect = false;
@@ -291,13 +264,7 @@ fn patch_camera(
         }
     }
 
-    Ok(Json(CameraResource {
-        enabled: camera.enabled,
-        hostname: camera.hostname,
-        id: camera.id,
-        friendly_name: camera.friendly_name,
-        orientation: camera.orientation,
-    }))
+    Ok(Json(camera))
 }
 
 
@@ -346,7 +313,7 @@ fn get_proxy_config_path(id: i32) -> Result<impl AsRef<Path>> {
 
 
 /// Writes or removes the proxy configuration file for this camera
-fn write_proxy_config(camera: &CameraRow, templates: &Tera) -> Result<()> {
+fn write_proxy_config(camera: &Camera, templates: &Tera) -> Result<()> {
 
     let mut context = Context::new();
     context.insert("camera", camera);
@@ -399,7 +366,7 @@ pub fn initialize_proxy_config(pool: &ConnectionPool, templates: &Tera) -> Resul
 
     let conn = pool.get()?;
 
-    let cameras: Vec<CameraRow> = cameras::table.load(&conn)?;
+    let cameras: Vec<Camera> = cameras::table.load(&conn)?;
 
     for camera in cameras {
         if camera.enabled {
@@ -425,7 +392,7 @@ pub fn initialize_proxy_config(pool: &ConnectionPool, templates: &Tera) -> Resul
 /// Retrieves serializable representation of all cameras
 pub fn all(conn: &PooledConnection) -> Result<impl Serialize> {
 
-    let users: Vec<CameraRow> = cameras::table.load(conn)?;
+    let users: Vec<Camera> = cameras::table.load(conn)?;
 
     Ok(users)
 }
@@ -434,7 +401,7 @@ pub fn all(conn: &PooledConnection) -> Result<impl Serialize> {
 /// Retrieves serializable representation of the specified camera
 pub fn get(id: i32, conn: &PooledConnection) -> Result<impl Serialize> {
 
-    let user: CameraRow = cameras::table.find(id)
+    let user: Camera = cameras::table.find(id)
         .get_result(conn)?;
 
     Ok(user)

@@ -68,29 +68,21 @@ fn hash_password(password: String) -> Result<String> {
 }
 
 
+/// Representation of a user account
 #[derive(Serialize)]
 #[derive(AsChangeset, Identifiable, Queryable)]
 #[table_name = "users"]
-struct UserRow {
+struct User {
     id: i32,
     username: String,
+    #[serde(skip_serializing)]
     pwhash: String,
-}
-
-
-/// User representation returned by API requests
-///
-/// TODO: making this queryable would eliminate lots of manual conversion
-#[derive(Serialize)]
-struct UserResource {
-    id: i32,
-    username: String,
 }
 
 
 /// User representation required by PUT requests
 #[derive(Deserialize)]
-struct UserPut {
+struct PutUserBody {
     password: String,
     username: String,
 }
@@ -108,15 +100,15 @@ struct NewUser {
 /// Creates a new user
 fn put_user(
     pool: Data<ConnectionPool>,
-    user: Json<UserPut>,
-) -> Result<Json<UserResource>>
+    body: Json<PutUserBody>,
+) -> Result<Json<User>>
 {
     let conn = pool.get()?;
-    let user = user.into_inner();
+    let body = body.into_inner();
 
-    let pwhash = hash_password(user.password)?;
+    let pwhash = hash_password(body.password)?;
     let new_user = NewUser {
-        username: user.username,
+        username: body.username,
         pwhash,
     };
     diesel::insert_into(users::table)
@@ -124,13 +116,10 @@ fn put_user(
         .execute(&conn)?;
 
     // Get the row we just inserted
-    let row: UserRow = users::table.filter(users::username.eq(new_user.username))
+    let user = users::table.filter(users::username.eq(new_user.username))
         .get_result(&conn)?;
 
-    Ok(Json(UserResource {
-        id: row.id,
-        username: row.username,
-    }))
+    Ok(Json(user))
 }
 
 
@@ -138,34 +127,25 @@ fn put_user(
 fn get_user(
     pool: Data<ConnectionPool>,
     path: web::Path<(i32,)>,
-) -> Result<Json<UserResource>>
+) -> Result<Json<User>>
 {
     let conn = pool.get()?;
     let id = path.0;
-    let row: UserRow = users::table.find(id)
+    let user = users::table.find(id)
         .get_result(&conn)?;
 
-    Ok(Json(UserResource {
-        id,
-        username: row.username,
-    }))
+    Ok(Json(user))
 }
 
 
 /// Retrieves information about all users
 fn get_users(
     pool: Data<ConnectionPool>,
-) -> Result<Json<Vec<UserResource>>>
+) -> Result<Json<Vec<User>>>
 {
     let conn = pool.get()?;
 
-    let users = users::table.load(&conn)?
-        .into_iter()
-        .map(|u: UserRow| UserResource {
-            id: u.id,
-            username: u.username,
-        })
-        .collect();
+    let users = users::table.load(&conn)?;
 
     Ok(Json(users))
 }
@@ -173,7 +153,7 @@ fn get_users(
 
 /// User representation required by PATCH requests
 #[derive(Deserialize)]
-struct UserPatch {
+struct PatchUserBody {
     password: Option<String>,
     username: Option<String>,
 }
@@ -183,40 +163,36 @@ struct UserPatch {
 fn patch_user(
     pool: Data<ConnectionPool>,
     path: web::Path<(i32,)>,
-    user: Json<UserPatch>,
-) -> Result<Json<UserResource>>
+    body: Json<PatchUserBody>,
+) -> Result<Json<User>>
 {
     let conn = pool.get()?;
-    let id = path.0;
-    let user = user.into_inner();
+    let body = body.into_inner();
 
-    let mut row: UserRow = users::table.find(id)
+    let mut user: User = users::table.find(path.0)
         .get_result(&conn)?;
 
     let mut do_save = false;
 
-    if let Some(password) = user.password {
-        row.pwhash = hash_password(password)?;
+    if let Some(password) = body.password {
+        user.pwhash = hash_password(password)?;
         do_save = true;
     }
 
-    if let Some(username) = user.username {
-        if username != row.username {
-            row.username = username;
+    if let Some(username) = body.username {
+        if username != user.username {
+            user.username = username;
             do_save = true;
         }
     }
 
     if do_save {
-        diesel::update(&row)
-            .set(&row)
+        diesel::update(&user)
+            .set(&user)
             .execute(&conn)?;
     }
 
-    Ok(Json(UserResource {
-        id,
-        username: row.username,
-    }))
+    Ok(Json(user))
 }
 
 
@@ -249,7 +225,7 @@ pub fn configure_api(service: &mut ServiceConfig) {
 /// Retrieves serializable representation of all users
 pub fn all(conn: &PooledConnection) -> Result<impl Serialize> {
 
-    let users: Vec<UserRow> = users::table.load(conn)?;
+    let users: Vec<User> = users::table.load(conn)?;
 
     Ok(users)
 }
