@@ -3,9 +3,6 @@
 // Actix handlers have lots of needless pass-by-value (Data, Json, and Path structs)
 #![allow(clippy::needless_pass_by_value)]
 
-use std::env;
-use std::fs;
-use std::path::Path;
 use std::sync::Mutex;
 
 use actix_web::web::{self, Data, Json, ServiceConfig};
@@ -15,13 +12,13 @@ use diesel::prelude::*;
 use lazy_static::lazy_static;
 use log::{debug, info, trace};
 use rand::Rng;
-use rand::distributions::Standard;
 use serde::{Deserialize, Serialize};
 
 use crate::db::{ConnectionPool, PooledConnection};
-use crate::do_lock;
 use crate::db::schema::users;
+use crate::do_lock;
 use crate::error::Result;
+use crate::settings;
 
 
 lazy_static! {
@@ -29,39 +26,40 @@ lazy_static! {
 }
 
 
-fn get_secret_key() -> Result<SecretKey<'static>> {
+const ARGON2_KEY_SETTING: &str = "argon2SecretKey";
+
+
+fn get_secret_key(conn: &PooledConnection) -> Result<SecretKey<'static>> {
 
     let mut key = do_lock!(ARGON2_KEY);
-    if key.is_none() {
 
-        let keyfile = format!("{}/secret-key", env::var("STATE_DIRECTORY")?);
-        let keyfile = Path::new(&keyfile);
-        if keyfile.exists() {
-
-            let key_b64 = fs::read_to_string(keyfile)?;
-            let new_key = SecretKey::from_base64_encoded(key_b64)?;
-            key.replace(new_key);
-
-        } else {
-
-            let raw_key: Vec<u8> = rand::thread_rng()
-                .sample_iter(Standard)
-                .take(32)
-                .collect();
-            let new_key = SecretKey::from(raw_key);
-            fs::write(keyfile, new_key.to_base64_encoded())?;
-            key.replace(new_key);
-        }
+    if let Some(key) = key.as_ref() {
+        trace!("retrieving cached secret key");
+        return Ok(key.to_owned());
     }
 
-    Ok(key.as_ref().unwrap().to_owned())
+    debug!("loading secret key from database");
+    if let Some(key_b64) = settings::get::<String>(ARGON2_KEY_SETTING, conn)? {
+        trace!("loaded secret key from database");
+        let new_key = SecretKey::from_base64_encoded(key_b64)?;
+        key.replace(new_key.to_owned());
+        return Ok(new_key);
+    }
+
+    debug!("secret key not found in database, generating a new one");
+    let raw_key: [u8; 32] = rand::thread_rng().gen();
+    let new_key = SecretKey::from(&raw_key as &[_]);
+    settings::set(ARGON2_KEY_SETTING, &new_key.to_base64_encoded(), conn)?;
+    key.replace(new_key.to_owned());
+
+    Ok(new_key.to_owned())
 }
 
 
-fn hash_password(password: String) -> Result<String> {
+fn hash_password(password: String, conn: &PooledConnection) -> Result<String> {
 
     let hash = Hasher::new()
-        .with_secret_key(get_secret_key()?)
+        .with_secret_key(get_secret_key(conn)?)
         .with_password(password)
         .hash()?;
 
@@ -110,7 +108,7 @@ fn put_user(
     let conn = pool.get()?;
     let new_user = NewUser {
         username: body.username,
-        pwhash: hash_password(body.password)?,
+        pwhash: hash_password(body.password, &conn)?,
     };
     diesel::insert_into(users::table)
         .values(&new_user)
@@ -183,7 +181,7 @@ fn patch_user(
 
     if let Some(password) = body.password {
         trace!("updating pwhash for user {}", id);
-        user.pwhash = hash_password(password)?;
+        user.pwhash = hash_password(password, &conn)?;
         do_save = true;
     }
 
