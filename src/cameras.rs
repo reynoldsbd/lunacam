@@ -126,7 +126,7 @@ fn get_cameras(
     pool: Data<ConnectionPool>,
 ) -> Result<Json<Vec<Camera>>>
 {
-    debug!("retrieving cameras from database");
+    debug!("retrieving all cameras from database");
     let conn = pool.get()?;
     let cameras = cameras::table.load(&conn)?;
 
@@ -248,6 +248,7 @@ fn patch_camera(
     }
 
     if do_save {
+        debug!("saving changes to camera {}", id);
         diesel::update(&camera)
             .set(&camera)
             .execute(&conn)?;
@@ -264,6 +265,7 @@ fn patch_camera(
         }
     }
 
+    info!("successfully updated camera {}", id);
     Ok(Json(camera))
 }
 

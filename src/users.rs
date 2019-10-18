@@ -13,6 +13,7 @@ use argonautica::Hasher;
 use argonautica::input::SecretKey;
 use diesel::prelude::*;
 use lazy_static::lazy_static;
+use log::{debug, info, trace};
 use rand::Rng;
 use rand::distributions::Standard;
 use serde::{Deserialize, Serialize};
@@ -103,21 +104,23 @@ fn put_user(
     body: Json<PutUserBody>,
 ) -> Result<Json<User>>
 {
-    let conn = pool.get()?;
     let body = body.into_inner();
 
-    let pwhash = hash_password(body.password)?;
+    debug!("adding new user to database");
+    let conn = pool.get()?;
     let new_user = NewUser {
         username: body.username,
-        pwhash,
+        pwhash: hash_password(body.password)?,
     };
     diesel::insert_into(users::table)
         .values(&new_user)
         .execute(&conn)?;
 
     // Get the row we just inserted
-    let user = users::table.filter(users::username.eq(new_user.username))
+    let user: User = users::table.filter(users::username.eq(new_user.username))
         .get_result(&conn)?;
+
+    info!("created new user {}", user.id);
 
     Ok(Json(user))
 }
@@ -129,8 +132,10 @@ fn get_user(
     path: web::Path<(i32,)>,
 ) -> Result<Json<User>>
 {
-    let conn = pool.get()?;
     let id = path.0;
+
+    debug!("retrieving user {} from database", id);
+    let conn = pool.get()?;
     let user = users::table.find(id)
         .get_result(&conn)?;
 
@@ -143,8 +148,8 @@ fn get_users(
     pool: Data<ConnectionPool>,
 ) -> Result<Json<Vec<User>>>
 {
+    debug!("retrieving all users from database");
     let conn = pool.get()?;
-
     let users = users::table.load(&conn)?;
 
     Ok(Json(users))
@@ -166,32 +171,38 @@ fn patch_user(
     body: Json<PatchUserBody>,
 ) -> Result<Json<User>>
 {
-    let conn = pool.get()?;
+    let id = path.0;
     let body = body.into_inner();
 
-    let mut user: User = users::table.find(path.0)
+    debug!("retrieving user {} from database", id);
+    let conn = pool.get()?;
+    let mut user: User = users::table.find(id)
         .get_result(&conn)?;
 
     let mut do_save = false;
 
     if let Some(password) = body.password {
+        trace!("updating pwhash for user {}", id);
         user.pwhash = hash_password(password)?;
         do_save = true;
     }
 
     if let Some(username) = body.username {
         if username != user.username {
+            trace!("updating username for user {}", id);
             user.username = username;
             do_save = true;
         }
     }
 
     if do_save {
+        debug!("saving changes to user {}", id);
         diesel::update(&user)
             .set(&user)
             .execute(&conn)?;
     }
 
+    info!("successfully updated user {}", id);
     Ok(Json(user))
 }
 
@@ -202,10 +213,14 @@ fn delete_user(
     path: web::Path<(i32,)>,
 ) -> Result<()>
 {
-    let conn = pool.get()?;
+    let id = path.0;
 
-    diesel::delete(users::table.filter(users::id.eq(path.0)))
+    debug!("deleting user {} from database", id);
+    let conn = pool.get()?;
+    diesel::delete(users::table.filter(users::id.eq(id)))
         .execute(&conn)?;
+
+    info!("deleted user {}", id);
 
     Ok(())
 }
