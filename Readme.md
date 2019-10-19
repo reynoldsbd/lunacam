@@ -12,6 +12,22 @@ time, you must build the image yourself.
 > Although it is possible to build LunaCam on macOS and Linux, these instructions are currently
 > tailored to Windows.
 
+## Developer Setup
+
+During active development, LunaCam can be compiled and run on nearly any workstation. This makes it
+very easy to build and test changes locally, without the hassle of cross-compilation or deploying
+bits to hardware.
+
+Development generally requires the following tools, which should be easy to acquire for any
+operating system. On Windows, the use of Ubuntu via [WSL](https://docs.microsoft.com/en-us/windows/wsl/about)
+is supported and recommended.
+
+* Standard development tools (make, gcc/clang, bash, git, ...)
+  * On Ubuntu, installing the *build-essential* package is sufficient
+* [Rust](https://rustup.rs/)
+* [Yarn](https://yarnpkg.com/lang/en/docs/install/)
+* [Sass](https://sass-lang.com/install)
+
 ## Dependencies
 
 Building the LunaCam SD card image requires the following software to be installed:
