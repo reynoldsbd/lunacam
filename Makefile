@@ -59,7 +59,7 @@ portal: $(portal)
 npm := $(pseudo)/npm
 npm_dir := $(build)/node_modules
 
-$(npm): client/package.json client/yarn.lock
+$(npm): client/package.json client/yarn.lock | $(pseudo)
 	@mkdir -p $(npm_dir)
 	@yarn install --cwd client --modules-folder $(npm_dir) --silent
 	@touch $(npm)
