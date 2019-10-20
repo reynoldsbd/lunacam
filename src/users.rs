@@ -56,10 +56,16 @@ fn get_secret_key(conn: &PooledConnection) -> Result<SecretKey<'static>> {
 }
 
 
-fn hash_password(password: String, conn: &PooledConnection) -> Result<String> {
+fn hash_password(password: &str, conn: &PooledConnection) -> Result<String> {
 
-    let hash = Hasher::new()
-        .with_secret_key(get_secret_key(conn)?)
+    // Don't really understand why, but declaring hasher with a separate statement forces the 'a in
+    // Hasher<'a> to be compatible with the lifetime of password. If we don't do this, the compiler
+    // tries to infer hasher as Hasher<'static>, probably because we're passing a SecretKey<'static>
+    // to with_secret_key. This would lead to a lifetime mismatch when calling with_password,
+    // because password is not 'static.
+    let mut hasher = Hasher::new();
+
+    let hash = hasher.with_secret_key(get_secret_key(conn)?)
         .with_password(password)
         .hash()?;
 
@@ -108,7 +114,7 @@ fn put_user(
     let conn = pool.get()?;
     let new_user = NewUser {
         username: body.username,
-        pwhash: hash_password(body.password, &conn)?,
+        pwhash: hash_password(&body.password, &conn)?,
     };
     diesel::insert_into(users::table)
         .values(&new_user)
@@ -181,7 +187,7 @@ fn patch_user(
 
     if let Some(password) = body.password {
         trace!("updating pwhash for user {}", id);
-        user.pwhash = hash_password(password, &conn)?;
+        user.pwhash = hash_password(&password, &conn)?;
         do_save = true;
     }
 
