@@ -5,9 +5,11 @@
 
 use std::sync::Mutex;
 
+use actix_web::http::StatusCode;
 use actix_web::web::{self, Data, Json, ServiceConfig};
-use argonautica::Hasher;
+use argonautica::{Hasher, Verifier};
 use argonautica::input::SecretKey;
+use chrono::{NaiveDateTime, Utc};
 use diesel::prelude::*;
 use lazy_static::lazy_static;
 use log::{debug, info, trace};
@@ -15,11 +17,13 @@ use rand::Rng;
 use serde::{Deserialize, Serialize};
 
 use crate::db::{ConnectionPool, PooledConnection};
-use crate::db::schema::users;
+use crate::db::schema::{sessions, users};
 use crate::do_lock;
 use crate::error::Result;
 use crate::settings;
 
+
+//#region Password hashing
 
 lazy_static! {
     static ref ARGON2_KEY: Mutex<Option<SecretKey<'static>>> = Mutex::new(None);
@@ -72,6 +76,21 @@ fn hash_password(password: &str, conn: &PooledConnection) -> Result<String> {
     Ok(hash)
 }
 
+fn verify_password(hash: &str, password: &str, conn: &PooledConnection) -> Result<bool> {
+
+    let res = Verifier::new()
+        .with_secret_key(get_secret_key(conn)?)
+        .with_hash(hash)
+        .with_password(password)
+        .verify()?;
+
+    Ok(res)
+}
+
+//#endregion
+
+
+//#region User account API
 
 /// Representation of a user account
 #[derive(Serialize)]
@@ -84,14 +103,12 @@ struct User {
     pwhash: String,
 }
 
-
 /// User representation required by PUT requests
 #[derive(Deserialize)]
 struct PutUserBody {
     password: String,
     username: String,
 }
-
 
 /// Used when creating a new user record with Diesel
 #[derive(Insertable)]
@@ -100,7 +117,6 @@ struct NewUser {
     username: String,
     pwhash: String,
 }
-
 
 /// Creates a new user
 fn put_user(
@@ -129,7 +145,6 @@ fn put_user(
     Ok(Json(user))
 }
 
-
 /// Retrieves information about the specified user
 fn get_user(
     pool: Data<ConnectionPool>,
@@ -146,7 +161,6 @@ fn get_user(
     Ok(Json(user))
 }
 
-
 /// Retrieves information about all users
 fn get_users(
     pool: Data<ConnectionPool>,
@@ -159,14 +173,12 @@ fn get_users(
     Ok(Json(users))
 }
 
-
 /// User representation required by PATCH requests
 #[derive(Deserialize)]
 struct PatchUserBody {
     password: Option<String>,
     username: Option<String>,
 }
-
 
 /// Updates information about the specified user
 fn patch_user(
@@ -210,7 +222,6 @@ fn patch_user(
     Ok(Json(user))
 }
 
-
 /// Deletes the specified user
 fn delete_user(
     pool: Data<ConnectionPool>,
@@ -229,6 +240,89 @@ fn delete_user(
     Ok(())
 }
 
+//#endregion
+
+
+//#region Session API
+
+/// Representation of a user session
+#[derive(Serialize)]
+#[derive(Queryable)]
+struct Session {
+    id: i32,
+    #[serde(skip_serializing)]
+    _key: String,
+    user_id: i32,
+    created: NaiveDateTime,
+}
+
+/// Credentials required to create a session
+#[derive(Deserialize)]
+struct PutSessionBody {
+    username: String,
+    password: String,
+}
+
+/// Used when creating a new session with Diesel
+#[derive(Insertable)]
+#[table_name = "sessions"]
+struct NewSession<'a> {
+    key: &'a str,
+    user_id: i32,
+    created: NaiveDateTime,
+}
+
+/// Response returned after successful session creation
+#[derive(Serialize)]
+struct PutSessionResponse {
+    key: String,
+}
+
+/// Creates a new session
+fn put_session(
+    pool: Data<ConnectionPool>,
+    body: Json<PutSessionBody>
+) -> Result<Json<PutSessionResponse>>
+{
+    let conn = pool.get()?;
+
+    // Validate password
+    let user: User = users::table.filter(users::username.eq(&body.username))
+        .first(&conn)?;
+    if !verify_password(&user.pwhash, &body.password, &conn)? {
+        return Err((StatusCode::UNAUTHORIZED, "invalid password").into());
+    }
+
+    // Generate session key
+    let key: [u8; 32] = rand::thread_rng().gen();
+    let key = base64::encode(&key);
+
+    // Create the session record
+    let session = NewSession {
+        key: &key,
+        user_id: user.id,
+        created: Utc::now().naive_utc(),
+    };
+    diesel::insert_into(sessions::table)
+        .values(&session)
+        .execute(&conn)?;
+
+    Ok(Json(PutSessionResponse { key }))
+}
+
+/// Retrieves information about all sessions
+fn get_sessions(
+    pool: Data<ConnectionPool>,
+) -> Result<Json<Vec<Session>>>
+{
+    let conn = pool.get()?;
+    let sessions = sessions::table.load(&conn)?;
+
+    Ok(Json(sessions))
+}
+
+//#endregion
+
 
 /// Configures the */users* API resource
 pub fn configure_api(service: &mut ServiceConfig) {
@@ -238,6 +332,9 @@ pub fn configure_api(service: &mut ServiceConfig) {
     service.route("/users/{id}", web::get().to(get_user));
     service.route("/users/{id}", web::patch().to(patch_user));
     service.route("/users/{id}", web::delete().to(delete_user));
+
+    service.route("/sessions", web::get().to(get_sessions));
+    service.route("/sessions", web::put().to(put_session));
 }
 
 

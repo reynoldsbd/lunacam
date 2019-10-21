@@ -55,3 +55,30 @@ CREATE TABLE users (
         NOT NULL
 
 );
+
+CREATE TABLE sessions (
+
+    id
+        INTEGER
+        PRIMARY KEY ASC
+        NOT NULL,
+
+    key
+        TEXT
+        NOT NULL
+        UNIQUE,
+
+    user_id
+        INTEGER
+        NOT NULL
+        REFERENCES users (id)
+            ON DELETE CASCADE,
+
+    created
+        DATETIME
+        NOT NULL
+
+);
+
+CREATE UNIQUE INDEX idx_session_key
+ON sessions (key);

@@ -9,6 +9,15 @@ table! {
 }
 
 table! {
+    sessions (id) {
+        id -> Integer,
+        key -> Text,
+        user_id -> Integer,
+        created -> Timestamp,
+    }
+}
+
+table! {
     settings (name) {
         name -> Text,
         value -> Text,
@@ -23,8 +32,11 @@ table! {
     }
 }
 
+joinable!(sessions -> users (user_id));
+
 allow_tables_to_appear_in_same_query!(
     cameras,
+    sessions,
     settings,
     users,
 );
