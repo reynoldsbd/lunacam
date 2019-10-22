@@ -92,6 +92,7 @@ $(static)/css/%.css: client/style/%.scss $(npm)
 
 jsfiles += $(static)/js/base.js
 jsfiles += $(static)/js/camera.js
+jsfiles += $(static)/js/login.js
 jsfiles += $(static)/js/admin/cameras.js
 jsfiles += $(static)/js/admin/users.js
 
