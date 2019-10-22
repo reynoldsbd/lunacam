@@ -5,7 +5,8 @@
 
 use std::sync::Mutex;
 
-use actix_web::http::StatusCode;
+use actix_web::HttpResponse;
+use actix_web::http::{Cookie, StatusCode};
 use actix_web::web::{self, Data, Json, ServiceConfig};
 use argonautica::{Hasher, Verifier};
 use argonautica::input::SecretKey;
@@ -282,7 +283,7 @@ struct PutSessionResponse {
 fn put_session(
     pool: Data<ConnectionPool>,
     body: Json<PutSessionBody>
-) -> Result<Json<PutSessionResponse>>
+) -> Result<HttpResponse>
 {
     let conn = pool.get()?;
 
@@ -307,7 +308,15 @@ fn put_session(
         .values(&session)
         .execute(&conn)?;
 
-    Ok(Json(PutSessionResponse { key }))
+    let cookie = Cookie::build("lcsession", key.clone())
+        .path("/")
+        .http_only(true)
+        .finish();
+    let response = HttpResponse::Ok()
+        .cookie(cookie)
+        .json(PutSessionResponse { key });
+
+    Ok(response)
 }
 
 /// Retrieves information about all sessions
