@@ -38,6 +38,13 @@ fn index(pool: Data<ConnectionPool>, templates: Data<Tera>) -> Result<HttpRespon
 }
 
 
+fn login(templates: Data<Tera>) -> Result<HttpResponse> {
+
+    let context = Context::new();
+    render_template_response(&templates, "login.html", context)
+}
+
+
 fn camera(
     pool: Data<ConnectionPool>,
     templates: Data<Tera>,
@@ -82,6 +89,7 @@ fn user_admin(pool: Data<ConnectionPool>, templates: Data<Tera>) -> Result<HttpR
 pub fn configure(service: &mut ServiceConfig) {
 
     service.route("/", web::get().to(index));
+    service.route("/login", web::get().to(login));
     service.route("/cameras/{id}", web::get().to(camera));
     service.route("/admin/cameras", web::get().to(camera_admin));
     service.route("/admin/users", web::get().to(user_admin));
