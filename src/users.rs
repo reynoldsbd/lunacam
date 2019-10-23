@@ -5,13 +5,15 @@
 
 use std::sync::Mutex;
 
-use actix_web::HttpResponse;
+use actix_web::{Error as ActixError, HttpResponse};
+use actix_web::dev::{Service, ServiceRequest, ServiceResponse};
 use actix_web::http::{Cookie, StatusCode};
 use actix_web::web::{self, Data, Json, ServiceConfig};
 use argonautica::{Hasher, Verifier};
 use argonautica::input::SecretKey;
 use chrono::{NaiveDateTime, Utc};
 use diesel::prelude::*;
+use futures::{Future, Poll};
 use lazy_static::lazy_static;
 use log::{debug, info, trace};
 use rand::Rng;
@@ -333,17 +335,72 @@ fn get_sessions(
 //#endregion
 
 
-/// Configures the */users* API resource
+//#region Authentication Middleware
+
+struct AuthMiddleware<S> {
+    service: S,
+}
+
+impl<S, B> Service for AuthMiddleware<S>
+where
+    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = ActixError>,
+    S::Future: 'static,
+    B: 'static
+{
+    type Request = ServiceRequest;
+    type Response = ServiceResponse<B>;
+    type Error = ActixError;
+    type Future = Box<dyn Future<Item = Self::Response, Error = Self::Error>>;
+
+    fn poll_ready(&mut self) -> Poll<(), Self::Error> {
+        self.service.poll_ready()
+    }
+
+    fn call(&mut self, req: ServiceRequest) -> Self::Future {
+
+        // TODO: extract session cookie
+
+        // TODO: check database for active session
+
+        // TODO: if matching session found
+            // TODO: pass request down to inner service
+        // TODO: else no matching session
+            // TODO: if API
+                // TODO: return 401
+            // TODO: else UI
+                // TODO: redirect to UI
+
+        Box::new(self.service.call(req).and_then(|res| {
+            println!("Hi from response");
+            Ok(res)
+        }))
+    }
+}
+
+//#endregion
+
+
+/// Configures the */users* and */sessions* API resources
 pub fn configure_api(service: &mut ServiceConfig) {
 
-    service.route("/users", web::get().to(get_users));
-    service.route("/users", web::put().to(put_user));
-    service.route("/users/{id}", web::get().to(get_user));
-    service.route("/users/{id}", web::patch().to(patch_user));
-    service.route("/users/{id}", web::delete().to(delete_user));
+    service.service(
+        web::resource("/users")
+            .route(web::get().to(get_users))
+            .route(web::put().to(put_user))
+    );
 
-    service.route("/sessions", web::get().to(get_sessions));
-    service.route("/sessions", web::put().to(put_session));
+    service.service(
+        web::resource("/users/{id}")
+            .route(web::get().to(get_user))
+            .route(web::patch().to(patch_user))
+            .route(web::delete().to(delete_user))
+    );
+
+    service.service(
+        web::resource("/sessions")
+            .route(web::get().to(get_sessions))
+            .route(web::put().to(put_session))
+    );
 }
 
 
