@@ -13,8 +13,6 @@ function handleSubmitResponse(response) {
 
     if (response.ok) {
 
-        // TODO: is cookie set?
-
         let dest = window.location.origin;
         let searchParams = new URLSearchParams(window.location.search);
 
@@ -26,7 +24,7 @@ function handleSubmitResponse(response) {
 
         window.location = dest;
     } else {
-        
+
         // TODO: extract message from response
         showMessage('Failed to login', 'error');
     }
