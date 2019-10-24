@@ -5,8 +5,8 @@
 
 use std::sync::Mutex;
 
-use actix_web::{Error as ActixError, HttpResponse};
-use actix_web::dev::{Service, ServiceRequest, ServiceResponse};
+use actix_web::{Error as ActixError, HttpMessage, HttpResponse};
+use actix_web::dev::{Service, ServiceRequest, ServiceResponse, Transform};
 use actix_web::http::{Cookie, StatusCode};
 use actix_web::web::{self, Data, Json, ServiceConfig};
 use argonautica::{Hasher, Verifier};
@@ -14,6 +14,7 @@ use argonautica::input::SecretKey;
 use chrono::{NaiveDateTime, Utc};
 use diesel::prelude::*;
 use futures::{Future, Poll};
+use futures::future::{self, FutureResult};
 use lazy_static::lazy_static;
 use log::{debug, info, trace};
 use rand::Rng;
@@ -246,6 +247,70 @@ fn delete_user(
 //#endregion
 
 
+//#region Authentication Middleware
+
+const SESSION_COOKIE: &str = "lcsession";
+
+struct AuthenticationService<S> {
+    service: S,
+}
+
+impl<S> Service for AuthenticationService<S>
+where
+    S: Service<Request = ServiceRequest, Response = ServiceResponse, Error = ActixError>,
+    S::Future: 'static,
+{
+    type Request = ServiceRequest;
+    type Response = ServiceResponse;
+    type Error = ActixError;
+    type Future = Box<dyn Future<Item = Self::Response, Error = Self::Error>>;
+
+    fn poll_ready(&mut self) -> Poll<(), Self::Error> {
+        self.service.poll_ready()
+    }
+
+    fn call(&mut self, req: ServiceRequest) -> Self::Future {
+
+        if let Some(key) = req.cookie(SESSION_COOKIE) {
+
+            // TODO: check database for matching session
+
+            Box::new(self.service.call(req))
+
+        } else {
+
+            // TODO: if API return 401, if UI redirect to /login
+
+            let response = HttpResponse::Unauthorized()
+                .finish();
+
+            Box::new(future::ok(req.into_response(response)))
+        }
+    }
+}
+
+struct AuthenticationMiddleware;
+
+impl<S> Transform<S> for AuthenticationMiddleware
+where
+    S: Service<Request = ServiceRequest, Response = ServiceResponse, Error = ActixError>,
+    S::Future: 'static,
+{
+    type Request = ServiceRequest;
+    type Response = ServiceResponse;
+    type Error = ActixError;
+    type InitError = ();
+    type Transform = AuthenticationService<S>;
+    type Future = FutureResult<Self::Transform, Self::InitError>;
+
+    fn new_transform(&self, service: S) -> Self::Future {
+        future::ok(AuthenticationService { service })
+    }
+}
+
+//#endregion
+
+
 //#region Session API
 
 /// Representation of a user session
@@ -310,7 +375,7 @@ fn put_session(
         .values(&session)
         .execute(&conn)?;
 
-    let cookie = Cookie::build("lcsession", key.clone())
+    let cookie = Cookie::build(SESSION_COOKIE, key.clone())
         .path("/")
         .http_only(true)
         .finish();
@@ -335,50 +400,6 @@ fn get_sessions(
 //#endregion
 
 
-//#region Authentication Middleware
-
-struct AuthMiddleware<S> {
-    service: S,
-}
-
-impl<S, B> Service for AuthMiddleware<S>
-where
-    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = ActixError>,
-    S::Future: 'static,
-    B: 'static
-{
-    type Request = ServiceRequest;
-    type Response = ServiceResponse<B>;
-    type Error = ActixError;
-    type Future = Box<dyn Future<Item = Self::Response, Error = Self::Error>>;
-
-    fn poll_ready(&mut self) -> Poll<(), Self::Error> {
-        self.service.poll_ready()
-    }
-
-    fn call(&mut self, req: ServiceRequest) -> Self::Future {
-
-        // TODO: extract session cookie
-
-        // TODO: check database for active session
-
-        // TODO: if matching session found
-            // TODO: pass request down to inner service
-        // TODO: else no matching session
-            // TODO: if API
-                // TODO: return 401
-            // TODO: else UI
-                // TODO: redirect to UI
-
-        Box::new(self.service.call(req).and_then(|res| {
-            println!("Hi from response");
-            Ok(res)
-        }))
-    }
-}
-
-//#endregion
-
 
 /// Configures the */users* and */sessions* API resources
 pub fn configure_api(service: &mut ServiceConfig) {
@@ -387,6 +408,7 @@ pub fn configure_api(service: &mut ServiceConfig) {
         web::resource("/users")
             .route(web::get().to(get_users))
             .route(web::put().to(put_user))
+            .wrap(AuthenticationMiddleware)
     );
 
     service.service(
@@ -394,12 +416,14 @@ pub fn configure_api(service: &mut ServiceConfig) {
             .route(web::get().to(get_user))
             .route(web::patch().to(patch_user))
             .route(web::delete().to(delete_user))
+            .wrap(AuthenticationMiddleware)
     );
 
     service.service(
         web::resource("/sessions")
             .route(web::get().to(get_sessions))
             .route(web::put().to(put_session))
+            .wrap(AuthenticationMiddleware)
     );
 }
 
