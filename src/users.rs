@@ -252,6 +252,7 @@ fn delete_user(
 const SESSION_COOKIE: &str = "lcsession";
 
 struct AuthenticationService<S> {
+    dest: Option<String>,
     service: S,
 }
 
@@ -279,17 +280,21 @@ where
 
         } else {
 
-            // TODO: if API return 401, if UI redirect to /login
-
-            let response = HttpResponse::Unauthorized()
-                .finish();
+            let response = if let Some(ref dest) = self.dest {
+                HttpResponse::Found()
+                    .header("Location", dest as &str)
+                    .finish()
+            } else {
+                HttpResponse::Unauthorized()
+                    .finish()
+            };
 
             Box::new(future::ok(req.into_response(response)))
         }
     }
 }
 
-struct AuthenticationMiddleware;
+struct AuthenticationMiddleware(Option<String>);
 
 impl<S> Transform<S> for AuthenticationMiddleware
 where
@@ -304,7 +309,10 @@ where
     type Future = FutureResult<Self::Transform, Self::InitError>;
 
     fn new_transform(&self, service: S) -> Self::Future {
-        future::ok(AuthenticationService { service })
+        future::ok(AuthenticationService {
+            dest: self.0.clone(),
+            service
+        })
     }
 }
 
@@ -400,7 +408,6 @@ fn get_sessions(
 //#endregion
 
 
-
 /// Configures the */users* and */sessions* API resources
 pub fn configure_api(service: &mut ServiceConfig) {
 
@@ -408,7 +415,7 @@ pub fn configure_api(service: &mut ServiceConfig) {
         web::resource("/users")
             .route(web::get().to(get_users))
             .route(web::put().to(put_user))
-            .wrap(AuthenticationMiddleware)
+            .wrap(AuthenticationMiddleware(None))
     );
 
     service.service(
@@ -416,14 +423,14 @@ pub fn configure_api(service: &mut ServiceConfig) {
             .route(web::get().to(get_user))
             .route(web::patch().to(patch_user))
             .route(web::delete().to(delete_user))
-            .wrap(AuthenticationMiddleware)
+            .wrap(AuthenticationMiddleware(None))
     );
 
     service.service(
         web::resource("/sessions")
             .route(web::get().to(get_sessions))
             .route(web::put().to(put_session))
-            .wrap(AuthenticationMiddleware)
+            .wrap(AuthenticationMiddleware(None))
     );
 }
 
