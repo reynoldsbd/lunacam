@@ -13,10 +13,11 @@ use argonautica::{Hasher, Verifier};
 use argonautica::input::SecretKey;
 use chrono::{NaiveDateTime, Utc};
 use diesel::prelude::*;
+use diesel::result::{Error as DieselError, QueryResult};
 use futures::{Future, Poll};
 use futures::future::{self, FutureResult};
 use lazy_static::lazy_static;
-use log::{debug, info, trace};
+use log::{debug, error, info, trace};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 
@@ -251,6 +252,43 @@ fn delete_user(
 
 const SESSION_COOKIE: &str = "lcsession";
 
+/// Representation of a user account
+#[derive(AsChangeset, Identifiable, Queryable)]
+#[table_name = "sessions"]
+struct Session {
+    id: i32,
+    key: String,
+    user_id: i32,
+    created: NaiveDateTime,
+}
+
+fn authenticate_request(req: &ServiceRequest) -> Result<bool> {
+
+    let key = if let Some(key) = req.cookie(SESSION_COOKIE) {
+        key
+    } else {
+        return Ok(false);
+    };
+
+    let pool: Data<ConnectionPool> = req.app_data()
+        .expect("failed to retrieve connection pool");
+    let conn = pool.get()?;
+
+    // Search for a matching authenticated session
+    let session_filter = sessions::key.eq(key.value());
+    let session_res: QueryResult<Session> = sessions::table
+        .filter(session_filter)
+        .first(&conn);
+
+    // TODO: check that matched session is not expired
+
+    match session_res {
+        Ok(_) => Ok(true),
+        Err(DieselError::NotFound) => Ok(false),
+        Err(e) => Err(e.into()),
+    }
+}
+
 pub struct AuthenticationService<S> {
     dest: Option<String>,
     service: S,
@@ -272,9 +310,13 @@ where
 
     fn call(&mut self, req: ServiceRequest) -> Self::Future {
 
-        if let Some(key) = req.cookie(SESSION_COOKIE) {
+        let is_authenticated = authenticate_request(&req)
+            .unwrap_or_else(|e| {
+                error!("failed to authenticate request: {}", e);
+                false
+            });
 
-            // TODO: check database for matching session
+        if is_authenticated {
 
             Box::new(self.service.call(req))
 
@@ -299,7 +341,7 @@ pub struct AuthenticationMiddleware(Option<String>);
 impl AuthenticationMiddleware {
 
     pub fn redirect(destination: &str) -> Self {
-        AuthenticationMiddleware(Some(destination.into()))
+        Self(Some(destination.into()))
     }
 }
 
