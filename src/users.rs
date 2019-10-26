@@ -321,17 +321,6 @@ where
 
 //#region Session API
 
-/// Representation of a user session
-#[derive(Serialize)]
-#[derive(Queryable)]
-struct Session {
-    id: i32,
-    #[serde(skip_serializing)]
-    _key: String,
-    user_id: i32,
-    created: NaiveDateTime,
-}
-
 /// Credentials required to create a session
 #[derive(Deserialize)]
 struct PutSessionBody {
@@ -394,17 +383,6 @@ fn put_session(
     Ok(response)
 }
 
-/// Retrieves information about all sessions
-fn get_sessions(
-    pool: Data<ConnectionPool>,
-) -> Result<Json<Vec<Session>>>
-{
-    let conn = pool.get()?;
-    let sessions = sessions::table.load(&conn)?;
-
-    Ok(Json(sessions))
-}
-
 //#endregion
 
 
@@ -426,11 +404,10 @@ pub fn configure_api(service: &mut ServiceConfig) {
             .wrap(AuthenticationMiddleware(None))
     );
 
+    // The /sessions resource is used for logging in, so it is left unauthenticated
     service.service(
         web::resource("/sessions")
-            .route(web::get().to(get_sessions))
             .route(web::put().to(put_session))
-            .wrap(AuthenticationMiddleware(None))
     );
 }
 
