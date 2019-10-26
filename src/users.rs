@@ -343,6 +343,10 @@ impl AuthenticationMiddleware {
     pub fn redirect(destination: &str) -> Self {
         Self(Some(destination.into()))
     }
+
+    pub fn reject() -> Self {
+        Self(None)
+    }
 }
 
 impl<S> Transform<S> for AuthenticationMiddleware
@@ -442,7 +446,7 @@ pub fn configure_api(service: &mut ServiceConfig) {
         web::resource("/users")
             .route(web::get().to(get_users))
             .route(web::put().to(put_user))
-            .wrap(AuthenticationMiddleware(None))
+            .wrap(AuthenticationMiddleware::reject())
     );
 
     service.service(
@@ -450,7 +454,7 @@ pub fn configure_api(service: &mut ServiceConfig) {
             .route(web::get().to(get_user))
             .route(web::patch().to(patch_user))
             .route(web::delete().to(delete_user))
-            .wrap(AuthenticationMiddleware(None))
+            .wrap(AuthenticationMiddleware::reject())
     );
 
     // The /sessions resource is used for logging in, so it is left unauthenticated

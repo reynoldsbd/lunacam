@@ -19,6 +19,7 @@ use crate::api::{Orientation, StreamSettings};
 use crate::db::{ConnectionPool, PooledConnection};
 use crate::db::schema::cameras;
 use crate::error::Result;
+use crate::users::AuthenticationMiddleware;
 
 
 /// Representation of a streaming camera
@@ -281,11 +282,20 @@ fn delete_camera(
 /// Configures the */cameras* API resource
 pub fn configure_api(service: &mut ServiceConfig) {
 
-    service.route("/cameras", web::get().to(get_cameras));
-    service.route("/cameras", web::put().to(put_camera));
-    service.route("/cameras/{id}", web::get().to(get_camera));
-    service.route("/cameras/{id}", web::patch().to(patch_camera));
-    service.route("/cameras/{id}", web::delete().to(delete_camera));
+    service.service(
+        web::resource("/cameras")
+            .route(web::get().to(get_cameras))
+            .route(web::put().to(put_camera))
+            .wrap(AuthenticationMiddleware::reject())
+    );
+
+    service.service(
+        web::resource("/cameras/{id}")
+            .route(web::get().to(get_camera))
+            .route(web::patch().to(patch_camera))
+            .route(web::delete().to(delete_camera))
+            .wrap(AuthenticationMiddleware::reject())
+    );
 }
 
 
