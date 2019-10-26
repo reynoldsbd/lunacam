@@ -7,7 +7,7 @@ use tera::{Context, Tera};
 use lunacam::cameras;
 use lunacam::db::{ConnectionPool};
 use lunacam::error::Result;
-use lunacam::users;
+use lunacam::users::{self, AuthenticationMiddleware};
 
 
 fn render_template_response(
@@ -88,9 +88,14 @@ fn user_admin(pool: Data<ConnectionPool>, templates: Data<Tera>) -> Result<HttpR
 /// Configures an Actix service to serve the UI
 pub fn configure(service: &mut ServiceConfig) {
 
-    service.route("/", web::get().to(index));
     service.route("/login", web::get().to(login));
-    service.route("/cameras/{id}", web::get().to(camera));
-    service.route("/admin/cameras", web::get().to(camera_admin));
-    service.route("/admin/users", web::get().to(user_admin));
+
+    service.service(
+        web::scope("")
+            .route("/",              web::get().to(index))
+            .route("/cameras/{id}",  web::get().to(camera))
+            .route("/admin/cameras", web::get().to(camera_admin))
+            .route("/admin/users",   web::get().to(user_admin))
+            .wrap(AuthenticationMiddleware::redirect("/login"))
+    );
 }

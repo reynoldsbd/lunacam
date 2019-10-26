@@ -251,7 +251,7 @@ fn delete_user(
 
 const SESSION_COOKIE: &str = "lcsession";
 
-struct AuthenticationService<S> {
+pub struct AuthenticationService<S> {
     dest: Option<String>,
     service: S,
 }
@@ -294,7 +294,14 @@ where
     }
 }
 
-struct AuthenticationMiddleware(Option<String>);
+pub struct AuthenticationMiddleware(Option<String>);
+
+impl AuthenticationMiddleware {
+
+    pub fn redirect(destination: &str) -> Self {
+        AuthenticationMiddleware(Some(destination.into()))
+    }
+}
 
 impl<S> Transform<S> for AuthenticationMiddleware
 where
