@@ -1,4 +1,4 @@
-class CamEntry extends HTMLElement {
+class UserEntry extends HTMLElement {
 
     //#region Web Component
 
@@ -6,25 +6,23 @@ class CamEntry extends HTMLElement {
 
         super();
 
-        this.body = document.getElementById('cam-entry-template')
+        this.body = document.getElementById('user-entry-template')
             .content
             .cloneNode(true);
         this.bodyAppended = false;
 
-        // Bind template elements to properties of this object
+        // Bind template elemets to properties of this object
         let elements = {
-            addressField: 'cam-address-field',
             cancelButton: 'cancel-button',
             deleteButton: 'delete-button',
             dropdownIndicator: 'dropdown-indicator',
-            enabledSwitch: 'cam-enabled',
-            enabledSwitchLabel: 'cam-enabled-label',
             formWrapper: 'form-wrapper',
             header: 'header',
-            nameLabel: 'cam-name-label',
-            nameField: 'cam-name-field',
-            orientationSelect: 'cam-orientation-select',
+            passwordConfirmField: 'password-cfrm-field',
+            passwordField: 'password-field',
             saveButton: 'save-button',
+            usernameLabel: 'username-label',
+            usernameField: 'username-field'
         };
         Object.keys(elements).forEach(propertyName => {
             this[propertyName] = this.body.getElementById(elements[propertyName]);
@@ -34,7 +32,6 @@ class CamEntry extends HTMLElement {
         // Bind event handlers
         this.cancelButton.onclick = e => this.onCancelButtonClicked(e);
         this.deleteButton.onclick = e => this.onDeleteButtonClicked(e);
-        this.enabledSwitch.onclick = e => this.onEnabledSwitchClicked(e);
         this.header.onclick = e => this.onHeaderClicked(e);
         this.saveButton.onclick = e => this.onSaveButtonClicked(e);
     }
@@ -52,48 +49,31 @@ class CamEntry extends HTMLElement {
 
     static get observedAttributes() {
         return [
-            'cam-address',
-            'cam-enabled',
-            'cam-id',
-            'cam-name',
-            'cam-orientation',
+            'username',
+            'user-id',
         ];
     }
 
     attributeChangedCallback(name, _, newValue) {
         switch (name) {
-            case 'cam-address':
-                this.addressField.value = newValue;
+            case 'username':
+                this.usernameLabel.innerText = newValue;
+                this.usernameField.value = newValue;
                 break;
-            case 'cam-enabled':
-                this.enabledSwitch.checked = (newValue == 'true');
-                break;
-            case 'cam-id':
+            case 'user-id':
                 this.header.hidden = false;
                 this.showDeleteButton();
-                let switchId = newValue + '-enabled';
-                this.enabledSwitch.setAttribute('id', switchId);
-                this.enabledSwitchLabel.setAttribute('for', switchId);
-                break;
-            case 'cam-name':
-                this.nameField.value = newValue;
-                this.nameLabel.innerText = newValue;
-                break;
-            case 'cam-orientation':
-                this.orientationSelect.value = newValue;
                 break;
         }
     }
 
     //#endregion
 
-    reload(camera) {
-
-        this.setAttribute('cam-address', camera.address);
-        this.setAttribute('cam-enabled', camera.enabled);
-        this.setAttribute('cam-id', camera.id);
-        this.setAttribute('cam-name', camera.name);
-        this.setAttribute('cam-orientation', camera.orientation);
+    reload(user) {
+        this.setAttribute('username', user.username);
+        this.setAttribute('user-id', user.id);
+        this.passwordField.value = '';
+        this.passwordConfirmField.value = '';
     }
 
     //#region Form Display
@@ -124,7 +104,7 @@ class CamEntry extends HTMLElement {
 
     //#region API Interaction
 
-    uploadCamera(camera, showSuccessMessage = true) {
+    uploadUser(user) {
 
         // Only allow one in-flight submission at a time
         if (this.activeSubmission) {
@@ -135,54 +115,49 @@ class CamEntry extends HTMLElement {
         this.saveButton.disabled = true;
         this.saveButton.classList.add('is-loading');
         this.cancelButton.disabled = true;
-        this.enabledSwitch.disabled = true;
 
-        let url = '/api/cameras';
+        let url = '/api/users';
         let init = {
             headers: {
                 'Content-Type': 'application/json'
             },
-            credentials: 'same-origin'
+            credentials: 'same-origin',
         };
 
-        if (this.hasAttribute('cam-id')) {
-            url += '/' + this.getAttribute('cam-id');
-            init.method = 'PATCH';
+        if (this.hasAttribute('user-id')) {
+             url += '/' + this.getAttribute('user-id');
+             init.method = 'PATCH';
         } else {
             init.method = 'PUT';
         }
-        init.body = JSON.stringify(camera);
+        init.body = JSON.stringify(user);
 
         fetch(url, init)
-            .then(r => this.handleUploadResponse(r, showSuccessMessage));
+            .then(r => this.handleUploadResponse(r));
     }
 
-    handleUploadResponse(response, showSuccessMessage) {
+    handleUploadResponse(response) {
 
         this.activeSubmission = false;
         this.saveButton.disabled = false;
         this.saveButton.classList.remove('is-loading');
         this.cancelButton.disabled = false;
-        this.enabledSwitch.disabled = false;
 
         let jsonPromise = response.json();
 
         if (response.ok) {
-            jsonPromise.then(c => {
-                this.reload(c);
-                if (showSuccessMessage) {
-                    showMessage('Camera changes were saved successfully', 'success');
-                }
+            jsonPromise.then(u => {
+                this.reload(u);
+                showMessage('User changes were saved successfully', 'success');
             });
-
         } else {
             jsonPromise.then(e => showMessage(e.message, 'error'));
         }
     }
 
-    deleteCamera() {
+    deleteUser() {
 
-        let url = '/api/cameras/' + this.getAttribute('cam-id');
+        let url = '/api/users/' + this.getAttribute('user-id');
         let init = {
             method: 'DELETE',
             credentials: 'same-origin',
@@ -195,11 +170,11 @@ class CamEntry extends HTMLElement {
     handleDeleteResponse(response) {
 
         if (response.ok) {
-            showMessage('Camera successfully deleted', 'success');
+            showMessage('User successfully deleted', 'success');
             this.parentElement.removeChild(this);
 
         } else {
-            response.json()
+            repsonse.json()
                 .then(e => showMessage(e.message, 'error'));
         }
     }
@@ -211,32 +186,22 @@ class CamEntry extends HTMLElement {
     onCancelButtonClicked(_) {
 
         // If this entry is unsaved, delete it when the cancel button is pressed
-        if (!this.hasAttribute('cam-id')) {
+        if (!this.hasAttribute('user-id')) {
             this.parentElement.removeChild(this);
 
         // Otherwise, reset form contents to initial values
         } else {
-            this.addressField.value = this.getAttribute('cam-address');
-            this.enabledSwitch.checked = (this.getAttribute('cam-enabled') == 'true');
-            this.nameField.value = this.getAttribute('cam-name');
-            this.orientationSelect.value = this.getAttribute('cam-orientation');
+            this.passwordConfirmField.value = '';
+            this.passwordField.value = '';
+            this.usernameField.value = this.getAttribute('username');
         }
     }
 
     onDeleteButtonClicked(_) {
 
-        if (confirm('Are you sure you want to delete this camera?')) {
-            this.deleteCamera();
+        if (confirm('Are you sure you want to delete this user?')) {
+            this.deleteUser();
         }
-    }
-
-    onEnabledSwitchClicked(_) {
-
-        let camera = {
-            enabled: this.enabledSwitch.checked,
-        };
-
-        this.uploadCamera(camera, false);
     }
 
     onHeaderClicked(_) {
@@ -250,31 +215,38 @@ class CamEntry extends HTMLElement {
 
     onSaveButtonClicked(_) {
 
-        let camera = {
-            address: this.addressField.value,
-            name: this.nameField.value,
-            orientation: this.orientationSelect.value,
+        let user = {
+            username: this.usernameField.value,
         };
 
-        this.uploadCamera(camera);
+        if (this.passwordField.value) {
+            if (this.passwordField.value != this.passwordConfirmField.value) {
+                showMessage('Passwords do not match', 'error');
+                return;
+            }
+
+            user.password = this.passwordField.value;
+        }
+
+        this.uploadUser(user);
     }
 
     //#endregion
 }
 
-customElements.define('cam-entry', CamEntry);
+customElements.define('user-entry', UserEntry);
 
 
-var addCameraButton = document.getElementById('add-button');
-var cameraList = document.getElementById('cam-list');
+var addUserButton = document.getElementById('add-button');
+var userList = document.getElementById('user-list');
 
-function addCamera() {
+function addUser() {
 
-    let newCamEntry = document.createElement('cam-entry');
-    newCamEntry.hideDeleteButton();
-    newCamEntry.header.hidden = true;
-    newCamEntry.showForm();
-    cameraList.appendChild(newCamEntry);
+    let newUserEntry = document.createElement('user-entry');
+    newUserEntry.hideDeleteButton();
+    newUserEntry.header.hidden = true;
+    newUserEntry.showForm();
+    userList.appendChild(newUserEntry);
 }
 
-addCameraButton.onclick = addCamera;
+addUserButton.onclick = addUser;

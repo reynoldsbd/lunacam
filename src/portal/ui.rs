@@ -2,10 +2,12 @@
 
 use actix_web::HttpResponse;
 use actix_web::web::{self, Data, Path, ServiceConfig};
-use lunacam::Result;
 use tera::{Context, Tera};
-use crate::Resources;
-use crate::camera::CameraManager;
+
+use lunacam::cameras;
+use lunacam::db::{ConnectionPool};
+use lunacam::error::Result;
+use lunacam::users::{self, AuthenticationMiddleware};
 
 
 fn render_template_response(
@@ -24,43 +26,76 @@ fn render_template_response(
 }
 
 
-fn index(resources: Data<Resources>) -> Result<HttpResponse> {
+fn index(pool: Data<ConnectionPool>, templates: Data<Tera>) -> Result<HttpResponse> {
 
-    let cameras = resources.get_cameras()?;
+    let conn = pool.get()?;
+    let cameras = cameras::all(&conn)?;
 
     let mut context = Context::new();
     context.insert("cameras", &cameras);
 
-    render_template_response(&resources.templates, "index.html", context)
+    render_template_response(&templates, "index.html", context)
 }
 
 
-fn camera(path: Path<(i32,)>, resources: Data<Resources>) -> Result<HttpResponse> {
+fn login(templates: Data<Tera>) -> Result<HttpResponse> {
 
-    let camera = resources.get_camera(path.0)?;
+    let context = Context::new();
+    render_template_response(&templates, "login.html", context)
+}
+
+
+fn camera(
+    pool: Data<ConnectionPool>,
+    templates: Data<Tera>,
+    path: Path<(i32,)>,
+) -> Result<HttpResponse>
+{
+    let conn = pool.get()?;
+    let camera = cameras::get(path.0, &conn)?;
 
     let mut context = Context::new();
     context.insert("camera", &camera);
 
-    render_template_response(&resources.templates, "camera.html", context)
+    render_template_response(&templates, "camera.html", context)
 }
 
 
-fn camera_admin(resources: Data<Resources>) -> Result<HttpResponse> {
+fn camera_admin(pool: Data<ConnectionPool>, templates: Data<Tera>) -> Result<HttpResponse> {
 
-    let cameras = resources.get_cameras()?;
+    let conn = pool.get()?;
+    let cameras = cameras::all(&conn)?;
 
     let mut context = Context::new();
     context.insert("cameras", &cameras);
 
-    render_template_response(&resources.templates, "admin/cameras.html", context)
+    render_template_response(&templates, "admin/cameras.html", context)
+}
+
+
+fn user_admin(pool: Data<ConnectionPool>, templates: Data<Tera>) -> Result<HttpResponse> {
+
+    let conn = pool.get()?;
+    let users = users::all(&conn)?;
+
+    let mut context = Context::new();
+    context.insert("users", &users);
+
+    render_template_response(&templates, "admin/users.html", context)
 }
 
 
 /// Configures an Actix service to serve the UI
 pub fn configure(service: &mut ServiceConfig) {
 
-    service.route("/", web::get().to(index));
-    service.route("/cameras/{id}", web::get().to(camera));
-    service.route("/admin/cameras", web::get().to(camera_admin));
+    service.route("/login", web::get().to(login));
+
+    service.service(
+        web::scope("")
+            .route("/",              web::get().to(index))
+            .route("/cameras/{id}",  web::get().to(camera))
+            .route("/admin/cameras", web::get().to(camera_admin))
+            .route("/admin/users",   web::get().to(user_admin))
+            .wrap(AuthenticationMiddleware::redirect("/login"))
+    );
 }
