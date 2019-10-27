@@ -22,11 +22,15 @@ Development generally requires the following tools, which should be easy to acqu
 operating system. On Windows, the use of Ubuntu via [WSL](https://docs.microsoft.com/en-us/windows/wsl/about)
 is supported and recommended.
 
-* Standard development tools (make, gcc/clang, bash, git, ...)
-  * On Ubuntu, installing the *build-essential* package is sufficient
+* Standard development tools (make, gcc, bash, git, ...)
+  * *build-essential* package on Ubuntu
+* Clang version 3.9 or higher
+  * *clang* package on Ubuntu
 * [Rust](https://rustup.rs/)
 * [Yarn](https://yarnpkg.com/lang/en/docs/install/)
 * [Sass](https://sass-lang.com/install)
+* If you plan on modifying the database schema, you may find diesel_cli useful
+  * Recommend installing with `--no-default-features` and `--features "sqlite-bundled"`
 
 ## Dependencies
 
