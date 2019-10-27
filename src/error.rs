@@ -18,6 +18,9 @@ pub enum Error {
     /// Failure establishing connection to database
     DatabaseConnection(diesel::result::ConnectionError),
 
+    /// Error hashing or verifying a password
+    Hashing(argonautica::Error),
+
     /// General I/O error
     Io(io::Error),
 

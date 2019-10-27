@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}Login{% endblock title %}
+
+{% block content %}
+<div class="container">
+
+    <h3 class="title has-text-centered">Login</h3>
+
+    <div class="box">
+
+        <div class="field">
+            <label class="label">Username</label>
+            <div class="control">
+                <input type="text" id="username" class="input" placeholder="Username...">
+            </div>
+        </div>
+
+        <div class="field">
+            <label class="label">Password:</label>
+            <div class="control">
+                <input type="password" id="password" class="input" placeholder="Password...">
+            </div>
+        </div>
+
+        <div class="field is-grouped is-grouped-centered">
+            <p class="control">
+                <button id="submit" class="button is-primary">Submit</button>
+            </p>
+        </div>
+
+    </div>
+
+</div>
+{% endblock content %}
+
+{% block extrajs %}
+<script src="/static/js/login.js"></script>
+{% endblock %}

@@ -7,7 +7,7 @@ use crate::error::Result;
 use crate::api::{Orientation, StreamSettings};
 use crate::db::ConnectionPool;
 use crate::prochost::ProcHost;
-use crate::settings::SettingsProvider;
+use crate::settings;
 
 
 /// Current state of the stream
@@ -95,7 +95,8 @@ impl VideoStream {
     /// to ensure each `VideoStream` has unique state.
     pub fn new(pool: ConnectionPool) -> Result<Self> {
 
-        let state: State = pool.get_setting(STATE_SETTING)?
+        let conn = pool.get()?;
+        let state: State = settings::get(STATE_SETTING, &conn)?
             .unwrap_or_default();
 
         let mut host = ProcHost::new(make_command(state.orientation));
@@ -152,7 +153,8 @@ impl VideoStream {
 
         if do_stop || do_reconfig || do_start {
             trace!("flushing stream settings");
-            self.pool.set_setting(STATE_SETTING, &self.state)?;
+            let conn = self.pool.get()?;
+            settings::set(STATE_SETTING, &self.state, &conn)?;
         }
 
         Ok(())

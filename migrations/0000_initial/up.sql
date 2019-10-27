@@ -18,15 +18,11 @@ CREATE TABLE cameras (
         PRIMARY KEY ASC
         NOT NULL,
 
-    friendly_name
+    name
         TEXT
         NOT NULL,
 
-    hostname
-        TEXT
-        NOT NULL,
-
-    device_key
+    address
         TEXT
         NOT NULL,
 
@@ -41,3 +37,44 @@ CREATE TABLE cameras (
         DEFAULT 0
 
 );
+
+CREATE TABLE users (
+
+    id
+        INTEGER
+        PRIMARY KEY ASC
+        NOT NULL,
+
+    username
+        TEXT
+        NOT NULL
+        UNIQUE,
+
+    pwhash
+        TEXT
+        NOT NULL
+
+);
+
+CREATE TABLE sessions (
+
+    id
+        INTEGER
+        PRIMARY KEY ASC
+        NOT NULL,
+
+    key
+        TEXT
+        NOT NULL
+        UNIQUE,
+
+    user_id
+        INTEGER
+        NOT NULL
+        REFERENCES users (id)
+            ON DELETE CASCADE
+
+);
+
+CREATE UNIQUE INDEX idx_session_key
+ON sessions (key);
