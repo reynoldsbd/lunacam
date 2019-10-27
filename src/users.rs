@@ -11,7 +11,6 @@ use actix_web::http::{Cookie, StatusCode};
 use actix_web::web::{self, Data, Json, ServiceConfig};
 use argonautica::{Hasher, Verifier};
 use argonautica::input::SecretKey;
-use chrono::{NaiveDateTime, Utc};
 use diesel::prelude::*;
 use diesel::result::{Error as DieselError, QueryResult};
 use futures::{Future, Poll};
@@ -293,7 +292,6 @@ struct Session {
     id: i32,
     key: String,
     user_id: i32,
-    created: NaiveDateTime,
 }
 
 fn authenticate_request(req: &ServiceRequest) -> Result<bool> {
@@ -313,8 +311,6 @@ fn authenticate_request(req: &ServiceRequest) -> Result<bool> {
     let session_res: QueryResult<Session> = sessions::table
         .filter(session_filter)
         .first(&conn);
-
-    // TODO: check that matched session is not expired
 
     match session_res {
         Ok(_) => Ok(true),
@@ -421,7 +417,6 @@ struct PutSessionBody {
 struct NewSession<'a> {
     key: &'a str,
     user_id: i32,
-    created: NaiveDateTime,
 }
 
 /// Response returned after successful session creation
@@ -453,7 +448,6 @@ fn put_session(
     let session = NewSession {
         key: &key,
         user_id: user.id,
-        created: Utc::now().naive_utc(),
     };
     diesel::insert_into(sessions::table)
         .values(&session)

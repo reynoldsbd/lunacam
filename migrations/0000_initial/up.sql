@@ -72,11 +72,7 @@ CREATE TABLE sessions (
         INTEGER
         NOT NULL
         REFERENCES users (id)
-            ON DELETE CASCADE,
-
-    created
-        DATETIME
-        NOT NULL
+            ON DELETE CASCADE
 
 );
 

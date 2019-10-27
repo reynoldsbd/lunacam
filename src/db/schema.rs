@@ -13,7 +13,6 @@ table! {
         id -> Integer,
         key -> Text,
         user_id -> Integer,
-        created -> Timestamp,
     }
 }
 
