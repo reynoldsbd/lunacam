@@ -359,11 +359,9 @@ fn reload_proxy() -> Result<()> {
 
 
 /// Ensures proxy is properly configured
-pub fn initialize_proxy_config(pool: &ConnectionPool, templates: &Tera) -> Result<()> {
+pub fn initialize_proxy_config(conn: &PooledConnection, templates: &Tera) -> Result<()> {
 
-    let conn = pool.get()?;
-
-    let cameras: Vec<Camera> = cameras::table.load(&conn)?;
+    let cameras: Vec<Camera> = cameras::table.load(conn)?;
 
     for camera in cameras {
         if camera.enabled {

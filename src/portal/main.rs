@@ -36,7 +36,11 @@ fn main() -> Result<()> {
     let template_dir = format!("{}/**/*", template_dir);
     let templates = Tera::new(&template_dir)?;
 
-    cameras::initialize_proxy_config(&pool, &templates)?;
+    {
+        let conn = pool.get()?;
+        cameras::initialize_proxy_config(&conn, &templates)?;
+        users::maybe_create_default_user(&conn)?;
+    }
 
     let pool = Data::new(pool);
     let templates = Data::new(templates);

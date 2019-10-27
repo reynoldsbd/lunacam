@@ -17,7 +17,7 @@ use diesel::result::{Error as DieselError, QueryResult};
 use futures::{Future, Poll};
 use futures::future::{self, FutureResult};
 use lazy_static::lazy_static;
-use log::{debug, error, info, trace};
+use log::{debug, error, info, trace, warn};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 
@@ -97,6 +97,14 @@ fn verify_password(hash: &str, password: &str, conn: &PooledConnection) -> Resul
 
 //#region User account API
 
+/// Used when creating a new user record with Diesel
+#[derive(Insertable)]
+#[table_name = "users"]
+struct NewUser<'a> {
+    username: &'a str,
+    pwhash: &'a str,
+}
+
 /// Representation of a user account
 #[derive(Serialize)]
 #[derive(AsChangeset, Identifiable, Queryable)]
@@ -108,19 +116,54 @@ struct User {
     pwhash: String,
 }
 
+impl User {
+
+    /// Creates a new user account using the given credentials
+    fn create(username: &str, password: &str, conn: &PooledConnection) -> Result<Self> {
+
+        let pwhash = hash_password(password, conn)?;
+        let user = NewUser { username, pwhash: &pwhash };
+
+        debug!("adding new user to database");
+        diesel::insert_into(users::table)
+            .values(&user)
+            .execute(conn)?;
+
+        // Retrieve the row we just inserted
+        let user_filter = users::username.eq(username);
+        let user: Self = users::table.filter(user_filter)
+            .get_result(conn)?;
+
+        info!("created new user {}", user.id);
+
+        Ok(user)
+    }
+}
+
+const DEFAULT_USERNAME: &str = "lunacam";
+const DEFAULT_PASSWORD: &str = "lunacam";
+
+/// Creates a default user account if no other users are present
+pub fn maybe_create_default_user(conn: &PooledConnection) -> Result<()> {
+
+    debug!("foo");
+
+    let user_count = users::table.count()
+        .execute(conn)?;
+
+    if user_count == 0 {
+        warn!("creating default user account");
+        User::create(DEFAULT_USERNAME, DEFAULT_PASSWORD, conn)?;
+    }
+
+    Ok(())
+}
+
 /// User representation required by PUT requests
 #[derive(Deserialize)]
 struct PutUserBody {
     password: String,
     username: String,
-}
-
-/// Used when creating a new user record with Diesel
-#[derive(Insertable)]
-#[table_name = "users"]
-struct NewUser {
-    username: String,
-    pwhash: String,
 }
 
 /// Creates a new user
@@ -130,22 +173,9 @@ fn put_user(
 ) -> Result<Json<User>>
 {
     let body = body.into_inner();
-
-    debug!("adding new user to database");
     let conn = pool.get()?;
-    let new_user = NewUser {
-        username: body.username,
-        pwhash: hash_password(&body.password, &conn)?,
-    };
-    diesel::insert_into(users::table)
-        .values(&new_user)
-        .execute(&conn)?;
 
-    // Get the row we just inserted
-    let user: User = users::table.filter(users::username.eq(new_user.username))
-        .get_result(&conn)?;
-
-    info!("created new user {}", user.id);
+    let user = User::create(&body.username, &body.password, &conn)?;
 
     Ok(Json(user))
 }
@@ -241,6 +271,10 @@ fn delete_user(
         .execute(&conn)?;
 
     info!("deleted user {}", id);
+
+    // Can't reuse conn, because it will not reflect the recently deleted user
+    #[cfg(debug_assertions)]
+    maybe_create_default_user(&pool.get()?)?;
 
     Ok(())
 }
