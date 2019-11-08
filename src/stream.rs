@@ -1,6 +1,8 @@
 //! Video stream management
 
 use std::process::{Command, Stdio};
+
+use actix_web::web::{self, Json, ServiceConfig};
 use log::{debug, info, trace};
 use serde::{Deserialize, Serialize};
 use crate::error::Result;
@@ -168,4 +170,38 @@ impl VideoStream {
             orientation: Some(self.state.orientation),
         }
     }
+}
+
+
+//#region Stream API
+
+/// 
+struct Stream {
+    orientation: Orientation,
+    transcoder: ProcHost,
+}
+
+/// Retrieves information about the video stream
+fn get_stream() -> Result<Json<Stream>> {
+
+    // TODO
+}
+
+/// Updates video stream settings
+fn patch_stream() -> Result<Json<Stream>> {
+
+    // TODO
+}
+
+//#endregion
+
+
+/// Configures the */stream* API resource
+pub fn configure_api(service: &mut ServiceConfig) {
+
+    service.service(
+        web::resource("/stream")
+            .route(web::get().to(get_stream))
+            .route(web::patch().to(patch_stream))
+    );
 }
