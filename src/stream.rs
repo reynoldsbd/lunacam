@@ -7,24 +7,15 @@ use std::process::{Command, Stdio};
 use std::sync::RwLock;
 
 use actix_web::web::{self, Data, Json, ServiceConfig};
-use log::{debug, info, trace};
+use log::{debug, trace};
 use serde::{Deserialize, Serialize};
 
 use crate::{do_read, do_write};
 use crate::error::Result;
-use crate::api::{Orientation, StreamSettings};
-use crate::db::ConnectionPool;
+use crate::api::{Orientation};
+use crate::db::{ConnectionPool, PooledConnection};
 use crate::prochost::ProcHost;
 use crate::settings;
-
-
-/// Current state of the stream
-#[derive(Default)]
-#[derive(Deserialize, Serialize)]
-struct State {
-    enabled: bool,
-    orientation: Orientation,
-}
 
 
 /// Creates a `Command` for starting the transcoder
@@ -76,123 +67,22 @@ fn make_command(_orientation: Orientation) -> Command {
 
 
 /// Key used to store stream settings
-const STATE_SETTING: &str = "streamState";
+const STREAM_STATE_SETTING: &str = "streamState";
 
 
-/// Represents a video stream
-///
-/// An external program (FFmpeg) is used to capture raw camera frames and transcode them into a
-/// suitable streaming format.
-#[allow(clippy::module_name_repetitions)] // "Stream" is too generic
-pub struct VideoStream {
-    state: State,
-    pool: ConnectionPool,
-    host: ProcHost,
-}
-
-impl VideoStream {
-
-    /// Creates the `VideoStream`
-    ///
-    /// Loads settings from persistent storage and initializes the stream according to that state.
-    ///
-    /// All instances of `VideoStream` currently use the same hard-coded settings key. Because of
-    /// this, only one instance of `VideoStream` should ever exist at a given time.
-    ///
-    /// In order to support multiple video streams per LunaCam node, additional work will be needed
-    /// to ensure each `VideoStream` has unique state.
-    pub fn new(pool: ConnectionPool) -> Result<Self> {
-
-        let conn = pool.get()?;
-        let state: State = settings::get(STATE_SETTING, &conn)?
-            .unwrap_or_default();
-
-        let mut host = ProcHost::new(make_command(state.orientation));
-        if state.enabled {
-            info!("starting stream");
-            host.start()?;
-        }
-
-        Ok(Self {
-            state,
-            pool,
-            host
-        })
-    }
-
-    /// Updates stream settings
-    pub fn update(&mut self, settings: StreamSettings) -> Result<()> {
-
-        let mut do_stop = false;
-        let mut do_reconfig = false;
-        let mut do_start = true;
-
-        if let Some(enabled) = settings.enabled {
-            if self.state.enabled != enabled {
-                self.state.enabled = enabled;
-                do_stop = !enabled;
-                do_start = enabled;
-            }
-        }
-
-        if let Some(orientation) = settings.orientation {
-            if self.state.orientation != orientation {
-                self.state.orientation = orientation;
-                do_stop = true;
-                do_reconfig = true;
-                do_start = true;
-            }
-        }
-
-        if do_stop {
-            info!("stopping stream");
-            self.host.stop()?;
-        }
-
-        if do_reconfig {
-            debug!("reconfiguring transcoder host");
-            self.host = ProcHost::new(make_command(self.state.orientation));
-        }
-
-        if do_start {
-            info!("starting stream");
-            self.host.start()?;
-        }
-
-        if do_stop || do_reconfig || do_start {
-            trace!("flushing stream settings");
-            let conn = self.pool.get()?;
-            settings::set(STATE_SETTING, &self.state, &conn)?;
-        }
-
-        Ok(())
-    }
-
-    /// Retrieves current state of the stream
-    pub fn settings(&self) -> StreamSettings {
-
-        StreamSettings {
-            enabled: Some(self.state.enabled),
-            orientation: Some(self.state.orientation),
-        }
-    }
-}
-
-
-//#region Stream API
-
-struct Stream {
+pub struct Stream {
     orientation: Orientation,
     transcoder: ProcHost,
 }
 
-#[derive(Deserialize, Serialize)]
-struct Settings {
+
+#[derive(Default, Deserialize, Serialize)]
+struct StreamState {
     enabled: bool,
     orientation: Orientation,
 }
 
-impl From<&Stream> for Settings {
+impl From<&Stream> for StreamState {
     fn from(stream: &Stream) -> Self {
         Self {
             enabled: stream.transcoder.running(),
@@ -201,10 +91,11 @@ impl From<&Stream> for Settings {
     }
 }
 
+
 /// Retrieves information about the video stream
 fn get_stream(
     stream: Data<RwLock<Stream>>,
-) -> Result<Json<Settings>> {
+) -> Result<Json<StreamState>> {
 
     let stream = do_read!(stream);
     let settings = (&*stream).into();
@@ -212,18 +103,20 @@ fn get_stream(
     Ok(Json(settings))
 }
 
+
 #[derive(Deserialize)]
 struct PatchStreamBody {
     enabled: Option<bool>,
     orientation: Option<Orientation>,
 }
 
+
 /// Updates video stream settings
 fn patch_stream(
     pool: Data<ConnectionPool>,
     stream: Data<RwLock<Stream>>,
     body: Json<PatchStreamBody>,
-) -> Result<Json<Settings>> {
+) -> Result<Json<StreamState>> {
 
     let mut stream = do_write!(stream);
 
@@ -269,13 +162,29 @@ fn patch_stream(
     if do_stop || do_reconfig || do_start {
         trace!("flushing stream settings");
         let conn = pool.get()?;
-        settings::set(STATE_SETTING, &settings, &conn)?;
+        settings::set(STREAM_STATE_SETTING, &settings, &conn)?;
     }
 
     Ok(Json(settings))
 }
 
-//#endregion
+
+pub fn initialize(conn: &PooledConnection) -> Result<Stream> {
+
+    let settings: StreamState = settings::get(STREAM_STATE_SETTING, conn)?
+        .unwrap_or_default();
+
+    let mut transcoder = ProcHost::new(make_command(settings.orientation));
+    if settings.enabled {
+        debug!("starting transcoder");
+        transcoder.start()?;
+    }
+
+    Ok(Stream {
+        orientation: settings.orientation,
+        transcoder,
+    })
+}
 
 
 /// Configures the */stream* API resource
