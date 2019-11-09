@@ -1,5 +1,5 @@
 use std::mem;
-use std::sync::Mutex;
+use std::sync::RwLock;
 
 use actix_web::{App, HttpServer};
 use actix_web::web::{self, Data};
@@ -20,10 +20,12 @@ fn main() -> Result<()> {
     let stream = stream::initialize(&conn)?;
     mem::drop(conn);
 
-    let stream = Data::new(Mutex::new(stream));
+    let pool = Data::new(pool);
+    let stream = Data::new(RwLock::new(stream));
 
     HttpServer::new(move ||
             App::new()
+                .register_data(pool.clone())
                 .register_data(stream.clone())
                 .service(web::scope("/api").configure(stream::configure_api))
         )
