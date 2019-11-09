@@ -3,7 +3,7 @@ FROM archlinux/base
 WORKDIR /root
 
 # RUN apk add --no-cache curl git
-RUN pacman --noconfirm -Sy base-devel git
+RUN pacman --noconfirm -Sy base-devel git clang lib32-glibc
 
 # Install and configure Rust
 RUN curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain stable -y
