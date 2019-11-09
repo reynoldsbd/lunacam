@@ -130,6 +130,13 @@ impl ProcHost {
 
         Ok(())
     }
+
+    pub fn running(&self) -> bool {
+
+        let hi = do_lock!(self.0);
+
+        hi.child.is_some()
+    }
 }
 
 /// Child process is terminated when `ProcHost` is dropped

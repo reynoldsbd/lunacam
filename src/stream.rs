@@ -1,10 +1,16 @@
 //! Video stream management
 
-use std::process::{Command, Stdio};
+// Actix handlers have lots of needless pass-by-value (Data, Json, and Path structs)
+#![allow(clippy::needless_pass_by_value)]
 
-use actix_web::web::{self, Json, ServiceConfig};
+use std::process::{Command, Stdio};
+use std::sync::RwLock;
+
+use actix_web::web::{self, Data, Json, ServiceConfig};
 use log::{debug, info, trace};
 use serde::{Deserialize, Serialize};
+
+use crate::{do_read, do_write};
 use crate::error::Result;
 use crate::api::{Orientation, StreamSettings};
 use crate::db::ConnectionPool;
@@ -175,22 +181,98 @@ impl VideoStream {
 
 //#region Stream API
 
-/// 
 struct Stream {
     orientation: Orientation,
     transcoder: ProcHost,
 }
 
-/// Retrieves information about the video stream
-fn get_stream() -> Result<Json<Stream>> {
+#[derive(Deserialize, Serialize)]
+struct Settings {
+    enabled: bool,
+    orientation: Orientation,
+}
 
-    // TODO
+impl From<&Stream> for Settings {
+    fn from(stream: &Stream) -> Self {
+        Self {
+            enabled: stream.transcoder.running(),
+            orientation: stream.orientation,
+        }
+    }
+}
+
+/// Retrieves information about the video stream
+fn get_stream(
+    stream: Data<RwLock<Stream>>,
+) -> Result<Json<Settings>> {
+
+    let stream = do_read!(stream);
+    let settings = (&*stream).into();
+
+    Ok(Json(settings))
+}
+
+#[derive(Deserialize)]
+struct PatchStreamBody {
+    enabled: Option<bool>,
+    orientation: Option<Orientation>,
 }
 
 /// Updates video stream settings
-fn patch_stream() -> Result<Json<Stream>> {
+fn patch_stream(
+    pool: Data<ConnectionPool>,
+    stream: Data<RwLock<Stream>>,
+    body: Json<PatchStreamBody>,
+) -> Result<Json<Settings>> {
 
-    // TODO
+    let mut stream = do_write!(stream);
+
+    let mut do_stop = false;
+    let mut do_reconfig = false;
+    let mut do_start = false;
+
+    if let Some(enabled) = body.enabled {
+        if stream.transcoder.running() != enabled {
+            trace!("updating stream enabled state");
+            do_stop = !enabled;
+            do_start = enabled;
+        }
+    }
+
+    if let Some(orientation) = body.orientation {
+        if stream.orientation != orientation {
+            trace!("updating stream orientation");
+            stream.orientation = orientation;
+            do_stop = true;
+            do_reconfig = true;
+            do_start = true;
+        }
+    }
+
+    if do_stop {
+        debug!("stopping transcoder");
+        stream.transcoder.stop()?;
+    }
+
+    if do_reconfig {
+        trace!("reconfiguring transcoder host");
+        stream.transcoder = ProcHost::new(make_command(stream.orientation));
+    }
+
+    if do_start {
+        debug!("starting transcoder");
+        stream.transcoder.start()?;
+    }
+
+    let settings = (&*stream).into();
+
+    if do_stop || do_reconfig || do_start {
+        trace!("flushing stream settings");
+        let conn = pool.get()?;
+        settings::set(STATE_SETTING, &settings, &conn)?;
+    }
+
+    Ok(Json(settings))
 }
 
 //#endregion
