@@ -1,6 +1,7 @@
 #!/bin/bash -e
 
 install -m 644 files/config.txt               "${ROOTFS_DIR}/boot/config.txt"
+install -m 644 files/hostname                 "${ROOTFS_DIR}/etc/hostname"
 install -m 644 files/gadget.conf              "${ROOTFS_DIR}/etc/modules-load.d/gadget.conf"
 install -m 644 files/usb0.if                  "${ROOTFS_DIR}/etc/network/interfaces.d/usb0"
 install -m 644 files/isc-dhcp-server.defaults "${ROOTFS_DIR}/etc/default/isc-dhcp-server"
