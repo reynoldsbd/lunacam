@@ -1,7 +1,5 @@
 //! Camera management
 
-// Actix handlers have lots of needless pass-by-value (Data, Json, and Path structs)
-#![allow(clippy::needless_pass_by_value)]
 
 use std::env;
 use std::fs;
@@ -15,7 +13,7 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use tera::{Context, Tera};
 
-use crate::api::{Orientation, StreamSettings};
+use crate::stream::{Orientation, PatchStreamBody, StreamState};
 use crate::db::{ConnectionPool, PooledConnection};
 use crate::db::schema::cameras;
 use crate::error::Result;
@@ -66,7 +64,7 @@ fn put_camera(
     // Validate connection before touching the database
     debug!("connecting to camera at {}", body.address);
     let url = format!("http://{}/api/stream", body.address);
-    let stream: StreamSettings = client.get(&url)
+    let stream: StreamState = client.get(&url)
         .send()?
         .json()?;
 
@@ -75,8 +73,8 @@ fn put_camera(
     let new_cam = NewCamera {
         name: body.name,
         address: body.address,
-        enabled: stream.enabled.unwrap(), // TODO: refactor stream
-        orientation: stream.orientation.unwrap(), // TODO: refactor stream
+        enabled: stream.enabled,
+        orientation: stream.orientation,
     };
     diesel::insert_into(cameras::table)
         .values(&new_cam)
@@ -161,7 +159,7 @@ fn patch_camera(
     let mut do_connect = false;
     let mut do_update = false;
     let mut do_save = false;
-    let mut new_stream = StreamSettings {
+    let mut new_stream = PatchStreamBody {
         enabled: None,
         orientation: None,
     };
@@ -207,7 +205,7 @@ fn patch_camera(
     let url = format!("http://{}/api/stream", camera.address);
     if do_connect {
         debug!("connecting to camera at {}", camera.address);
-        let current_stream: StreamSettings = client.get(&url)
+        let current_stream: StreamState = client.get(&url)
             .send()?
             .json()?;
 
@@ -216,12 +214,12 @@ fn patch_camera(
         // settings.
         if new_stream.enabled.is_none() {
             trace!("updating enabled for camera {}", id);
-            camera.enabled = current_stream.enabled.unwrap();
+            camera.enabled = current_stream.enabled;
             do_save = true;
         }
         if new_stream.orientation.is_none() {
             trace!("updating orientation for camera {}", id);
-            camera.orientation = current_stream.orientation.unwrap();
+            camera.orientation = current_stream.orientation;
             do_save = true;
         }
     }

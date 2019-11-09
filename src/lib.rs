@@ -1,6 +1,4 @@
 #![warn(clippy::all)]
-#![warn(clippy::pedantic)]
-#![allow(clippy::doc_markdown)]
 
 #[macro_use]
 extern crate derive_more;
@@ -12,7 +10,6 @@ extern crate diesel;
 extern crate diesel_migrations;
 
 
-pub mod api;
 pub mod cameras;
 pub mod db;
 pub mod error;

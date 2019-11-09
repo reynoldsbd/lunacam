@@ -1,32 +1,13 @@
-use std::sync::Mutex;
+use std::mem;
+use std::sync::RwLock;
+
 use actix_web::{App, HttpServer};
-use actix_web::web::{self, Data, Json};
-use lunacam::{do_lock, Result};
-use lunacam::api::StreamSettings;
+use actix_web::web::{self, Data};
+
+use lunacam::error::Result;
 use lunacam::db;
 use lunacam::logging;
-use lunacam::stream::VideoStream;
-
-
-fn get_stream(stream: Data<Mutex<VideoStream>>) -> Result<Json<StreamSettings>> {
-
-    let stream = do_lock!(stream);
-
-    Ok(Json(stream.settings()))
-}
-
-
-fn patch_stream(
-    stream: Data<Mutex<VideoStream>>,
-    settings: Json<StreamSettings>,
-) -> Result<Json<StreamSettings>> {
-
-    let mut stream = do_lock!(stream);
-
-    stream.update(*settings)?;
-
-    Ok(Json(stream.settings()))
-}
+use lunacam::stream;
 
 
 fn main() -> Result<()> {
@@ -34,14 +15,19 @@ fn main() -> Result<()> {
     logging::init();
 
     let pool = db::connect()?;
-    let stream = VideoStream::new(pool)?;
-    let stream = Data::new(Mutex::new(stream));
+
+    let conn = pool.get()?;
+    let stream = stream::initialize(&conn)?;
+    mem::drop(conn);
+
+    let pool = Data::new(pool);
+    let stream = Data::new(RwLock::new(stream));
 
     HttpServer::new(move ||
             App::new()
+                .register_data(pool.clone())
                 .register_data(stream.clone())
-                .route("/api/stream", web::get().to(get_stream))
-                .route("/api/stream", web::patch().to(patch_stream))
+                .service(web::scope("/api").configure(stream::configure_api))
         )
         .bind("127.0.0.1:9350")?
         .run()?;

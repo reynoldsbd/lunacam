@@ -76,8 +76,10 @@ fn host_wdg(hi: &Mutex<HostState>) {
 
 /// Hosts and monitors a child process
 ///
-/// `ProcHost` is a wrapper around the standard library's `Child` that watches the child process and
-/// restarts it as necessary.
+/// When the host is placed into the running state, the specified child process
+/// is started and checked periodically to ensure it is still running. If the
+/// process exits for any reason other than being terminated via the host (i.e.
+/// by calling `ProcHost::stop`), it is automatically restarted.
 pub struct ProcHost(Arc<Mutex<HostState>>);
 
 impl ProcHost {
@@ -130,9 +132,17 @@ impl ProcHost {
 
         Ok(())
     }
+
+    /// Returns whether this host is currently in the running state
+    pub fn running(&self) -> bool {
+
+        let hi = do_lock!(self.0);
+
+        hi.child.is_some()
+    }
 }
 
-/// Child process is terminated when `ProcHost` is dropped
+/// Child process is automatically terminated when `ProcHost` is dropped
 impl Drop for ProcHost {
     fn drop(&mut self) {
         if let Err(err) = self.stop() {
