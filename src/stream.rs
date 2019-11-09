@@ -1,7 +1,5 @@
 //! Video stream management
 
-// Actix handlers have lots of needless pass-by-value (Data, Json, and Path structs)
-#![allow(clippy::needless_pass_by_value)]
 
 use std::io::Write;
 use std::process::{Command, Stdio};

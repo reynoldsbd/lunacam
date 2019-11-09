@@ -1,6 +1,4 @@
 #![warn(clippy::all)]
-#![warn(clippy::pedantic)]
-#![allow(clippy::doc_markdown)]
 
 #[macro_use]
 extern crate derive_more;
