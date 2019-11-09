@@ -3,19 +3,80 @@
 // Actix handlers have lots of needless pass-by-value (Data, Json, and Path structs)
 #![allow(clippy::needless_pass_by_value)]
 
+use std::io::Write;
 use std::process::{Command, Stdio};
 use std::sync::RwLock;
 
 use actix_web::web::{self, Data, Json, ServiceConfig};
+use diesel::backend::Backend;
+use diesel::deserialize::{self, FromSql};
+use diesel::serialize::{self, Output, ToSql};
+use diesel::sql_types::Integer;
 use log::{debug, trace};
 use serde::{Deserialize, Serialize};
 
 use crate::{do_read, do_write};
 use crate::error::Result;
-use crate::api::{Orientation};
 use crate::db::{ConnectionPool, PooledConnection};
 use crate::prochost::ProcHost;
 use crate::settings;
+
+
+//#region Orientation
+
+/// Video stream orientation
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(AsExpression, FromSqlRow)]
+#[sql_type = "Integer"]
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Orientation {
+    Landscape,
+    Portrait,
+    InvertedLandscape,
+    InvertedPortrait,
+}
+
+impl Default for Orientation {
+    fn default() -> Self {
+        Self::Landscape
+    }
+}
+
+impl<B> FromSql<Integer, B> for Orientation
+where
+    B: Backend,
+    i32: FromSql<Integer, B>,
+{
+    fn from_sql(bytes: Option<&B::RawValue>) -> deserialize::Result<Self> {
+        match i32::from_sql(bytes)? {
+            0 => Ok(Self::Landscape),
+            1 => Ok(Self::Portrait),
+            2 => Ok(Self::InvertedLandscape),
+            3 => Ok(Self::InvertedPortrait),
+            other => Err(format!("Unrecognized value \"{}\"", other).into()),
+        }
+    }
+}
+
+impl<B> ToSql<Integer, B> for Orientation
+where
+    B: Backend,
+    i32: ToSql<Integer, B>,
+{
+    fn to_sql<W: Write>(&self, out: &mut Output<W, B>) -> serialize::Result {
+        let val = match *self {
+            Self::Landscape => 0,
+            Self::Portrait => 1,
+            Self::InvertedLandscape => 2,
+            Self::InvertedPortrait => 3,
+        };
+
+        val.to_sql(out)
+    }
+}
+
+//#endregion
 
 
 /// Creates a `Command` for starting the transcoder
@@ -77,9 +138,9 @@ pub struct Stream {
 
 
 #[derive(Default, Deserialize, Serialize)]
-struct StreamState {
-    enabled: bool,
-    orientation: Orientation,
+pub struct StreamState {
+    pub enabled: bool,
+    pub orientation: Orientation,
 }
 
 impl From<&Stream> for StreamState {
@@ -104,10 +165,10 @@ fn get_stream(
 }
 
 
-#[derive(Deserialize)]
-struct PatchStreamBody {
-    enabled: Option<bool>,
-    orientation: Option<Orientation>,
+#[derive(Deserialize, Serialize)]
+pub struct PatchStreamBody {
+    pub enabled: Option<bool>,
+    pub orientation: Option<Orientation>,
 }
 
 
