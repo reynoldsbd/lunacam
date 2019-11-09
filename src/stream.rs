@@ -1,4 +1,8 @@
 //! Video stream management
+//!
+//! Each host in a LunaCam network may or may not expose a video stream. This
+//! module controls the properties and lifecycle of the current host's video
+//! stream.
 
 
 use std::io::Write;
@@ -129,12 +133,23 @@ fn make_command(_orientation: Orientation) -> Command {
 const STREAM_STATE_SETTING: &str = "streamState";
 
 
+/// Represents the current host's video stream
+///
+/// This type is used to control the video stream for the current host. To
+/// retrieve information about the current stream state, construct a
+/// `StreamState` from an instance of `Stream`
 pub struct Stream {
     orientation: Orientation,
     transcoder: ProcHost,
 }
 
 
+/// Information about the state of a `Stream`
+///
+/// This type provides a public/serializable/deserializable representation of
+/// the state of a `Stream`. You can retrieve an instance using the `From` trait
+/// with an instance of `Stream` or by deserializing the reponse from a
+/// *GET /api/stream* API request
 #[derive(Default, Deserialize, Serialize)]
 pub struct StreamState {
     pub enabled: bool,
@@ -163,6 +178,7 @@ fn get_stream(
 }
 
 
+/// Stream representation required by PATCH requests
 #[derive(Deserialize, Serialize)]
 pub struct PatchStreamBody {
     pub enabled: Option<bool>,
@@ -228,6 +244,10 @@ fn patch_stream(
 }
 
 
+/// Initializes an instance of `Stream` for the current host
+///
+/// This function must be called exactly once over the lifetime of the current
+/// process.
 pub fn initialize(conn: &PooledConnection) -> Result<Stream> {
 
     let settings: StreamState = settings::get(STREAM_STATE_SETTING, conn)?
