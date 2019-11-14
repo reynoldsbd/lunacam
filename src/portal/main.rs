@@ -10,9 +10,8 @@ use lunacam::cameras;
 use lunacam::db;
 use lunacam::error::Result;
 use lunacam::logging;
+use lunacam::ui;
 use lunacam::users;
-
-mod ui;
 
 
 /// Configures an Actix service to serve the API

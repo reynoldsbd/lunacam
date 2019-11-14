@@ -4,10 +4,10 @@ use actix_web::HttpResponse;
 use actix_web::web::{self, Data, Path, ServiceConfig};
 use tera::{Context, Tera};
 
-use lunacam::cameras;
-use lunacam::db::{ConnectionPool};
-use lunacam::error::Result;
-use lunacam::users::{self, AuthenticationMiddleware};
+use crate::cameras;
+use crate::db::{ConnectionPool};
+use crate::error::Result;
+use crate::users::{self, AuthenticationMiddleware};
 
 
 fn render_template_response(
