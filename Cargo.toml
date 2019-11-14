@@ -17,6 +17,12 @@ path = "src/agent/main.rs"
 name = "lcportal"
 path = "src/portal/main.rs"
 
+[features]
+default = ["portal", "stream"]
+portal = []
+stream = []
+stream-api = ["stream"]
+
 [dependencies]
 actix-files = "0.1"
 actix-web = "1.0"
