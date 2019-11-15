@@ -2,7 +2,7 @@
 
 
 use std::borrow::Borrow;
-use std::env;
+use std::env::{self, VarError};
 use diesel::r2d2::{self, ConnectionManager, Pool};
 use diesel::sqlite::SqliteConnection;
 use diesel_migrations::embed_migrations;
@@ -23,13 +23,22 @@ pub type PooledConnection = r2d2::PooledConnection<ConnectionManager<SqliteConne
 embed_migrations!();
 
 
-/// Connects to the LunaCam database
+/// Connects to and initializes the LunaCam database
 ///
-/// Database is created and initialized if necessary.
+/// Database file is named *lunacam.db* and placed under the directory given by
+/// the STATE_DIRECTORY environment variable. If that variable is not present
+/// and this program is compiled in debug mode, the database file is placed in
+/// the current working directory.
 pub fn connect() -> Result<ConnectionPool> {
 
-    let state_dir = env::var("STATE_DIRECTORY")?;
-    let db_url = format!("{}/lunacam.db", state_dir);
+    let db_dir = match env::var("STATE_DIRECTORY") {
+        Ok(dir) => dir,
+        #[cfg(debug_assertions)]
+        Err(VarError::NotPresent) => String::from("."),
+        Err(err) => return Err(err.into()),
+    };
+    let db_url = format!("{}/lunacam.db", db_dir);
+
     let pool = Pool::new(ConnectionManager::new(db_url))?;
 
     // Ensure database is initialized

@@ -1,4 +1,4 @@
-use std::env;
+use std::env::{self, VarError};
 use std::mem;
 use std::sync::RwLock;
 
@@ -21,57 +21,71 @@ use lunacam::users;
 compile_error!("invalid feature selection");
 
 
+/// Loads templates from a directory on disk
+///
+/// Templates are loaded from the directory given by the LC_TEMPLATES
+/// environment variable. If that variable is not present and this program is
+/// compiled in debug mode, templates are loaded from *./templates*.
+fn load_templates() -> Result<Tera> {
+
+    let template_dir = match env::var("LC_TEMPLATES") {
+        Ok(dir)                   => dir,
+        #[cfg(debug_assertions)]
+        Err(VarError::NotPresent) => String::from("templates"),
+        Err(err)                  => return Err(err.into()),
+    };
+
+    let template_dir = dbg!(format!("{}/**/*", template_dir));
+
+    Ok(Tera::new(&template_dir)?)
+}
+
+
 fn main() -> Result<()> {
 
     logging::init();
 
-    // Prepare application resources
+    let client    = Data::new(Client::new());
+    let templates = Data::new(load_templates()?);
+    let pool      = Data::new(db::connect()?);
 
-    #[cfg(debug_assertions)]
-    let static_dir = env::var("LC_STATIC")?;
-
-    let template_dir = env::var("LC_TEMPLATES")?;
-    let template_dir = format!("{}/**/*", template_dir);
-    let templates = Tera::new(&template_dir)?;
-
-    let pool = db::connect()?;
+    // Perform initialization requiring database access
     let conn = pool.get()?;
 
-    #[cfg(feature = "portal")]
-    cameras::initialize_proxy_config(&conn, &templates)?;
-    
-    #[cfg(feature = "portal")]
-    users::maybe_create_default_user(&conn)?;
+    if cfg!(feature = "portal") {
+        cameras::initialize_proxy_config(&conn, &templates)?;
+        users::maybe_create_default_user(&conn)?;
+    }
 
     #[cfg(feature = "stream")]
     let stream = Data::new(RwLock::new(stream::initialize(&conn)?));
 
+    // Finished performing initialization requiring database access
     mem::drop(conn);
-
-    let pool = Data::new(pool);
-    let templates = Data::new(templates);
-    let client = Data::new(Client::new());
 
     HttpServer::new(move || {
 
             let app = App::new()
-                .register_data(pool.clone())
+                .register_data(client.clone())
                 .register_data(templates.clone())
-                .register_data(client.clone());
+                .register_data(pool.clone());
 
             #[cfg(feature = "stream")]
             let app = app.register_data(stream.clone());
 
             let api = web::scope("api");
             #[cfg(feature = "portal")]
-            let api = api.configure(cameras::configure_api)
+            let api = api
+                .configure(cameras::configure_api)
                 .configure(users::configure_api);
             #[cfg(feature = "stream-api")]
             let api = api.configure(stream::configure_api);
             let app = app.service(api);
 
             #[cfg(debug_assertions)]
-            let app = app.service(Files::new("/static", &static_dir));
+            let app = app
+                .service(Files::new("/static/js",  "client/js"))
+                .service(Files::new("/static/css", "build/css"));
 
             #[cfg(feature = "portal")]
             let app = app.configure(ui::configure);

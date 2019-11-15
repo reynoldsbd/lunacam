@@ -5,6 +5,7 @@
 //! stream.
 
 
+use std::env;
 use std::io::Write;
 use std::process::{Command, Stdio};
 use std::sync::RwLock;
@@ -88,7 +89,8 @@ fn make_command(_orientation: Orientation) -> Command {
     let mut cmd = if cfg!(debug_assertions) {
 
         let mut cmd = Command::new("sh");
-        let state_dir = std::env::var("STATE_DIRECTORY").unwrap();
+        let state_dir = env::var("STATE_DIRECTORY")
+            .unwrap_or_else(|_| String::from("."));
         cmd.arg("-c");
         cmd.arg(format!("while : ; do date > {}/time.txt; sleep 1; done", state_dir));
         cmd

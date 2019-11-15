@@ -143,13 +143,13 @@ const DEFAULT_PASSWORD: &str = "lunacam";
 /// Creates a default user account if no other users are present
 pub fn maybe_create_default_user(conn: &PooledConnection) -> Result<()> {
 
-    debug!("foo");
-
-    let user_count = users::table.count()
-        .execute(conn)?;
+    // Can't figure out any other way to reliably get the count of a SQLite
+    // table using Diesel.
+    let users: Vec<User> = users::table.load(conn)?;
+    let user_count = users.len();
 
     if user_count == 0 {
-        warn!("creating default user account");
+        info!("creating default user account");
         User::create(DEFAULT_USERNAME, DEFAULT_PASSWORD, conn)?;
     }
 
