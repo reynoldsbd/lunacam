@@ -2,12 +2,12 @@
 
 param (
     [ValidateSet(
-        "Standalone",
+        "Full",
         "PortalOnly",
         "CameraOnly"
     )]
     [string]
-    $Mode = "Standalone"
+    $Variant = "Full"
 )
 
 $ErrorActionPreference = "Stop"
@@ -26,8 +26,8 @@ if (!$env:PATH.Contains($piToolsDir)) {
     $env:PATH = "$piToolsDir/arm-bcm2708/arm-linux-gnueabihf/bin" + [IO.Path]::PathSeparator + $env:PATH
 }
 
-switch ($Mode) {
-    "Standalone" {
+switch ($Variant) {
+    "Full" {
         $featureFlags = @()
     }
     "PortalOnly" {
@@ -47,6 +47,7 @@ switch ($Mode) {
 }
 
 Push-Location $repoDir
+Write-Host "cross-compiling lcsvc binary"
 cargo build                              `
     --target arm-unknown-linux-gnueabihf `
     --release                            `

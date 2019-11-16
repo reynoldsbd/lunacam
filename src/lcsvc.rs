@@ -35,7 +35,7 @@ fn load_templates() -> Result<Tera> {
         Err(err)                  => return Err(err.into()),
     };
 
-    let template_dir = dbg!(format!("{}/**/*", template_dir));
+    let template_dir = format!("{}/**/*", template_dir);
 
     Ok(Tera::new(&template_dir)?)
 }
