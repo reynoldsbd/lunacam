@@ -6,4 +6,4 @@ pool: Default
 steps:
 - template: templates/make-image.yml
   parameters:
-    variant: agent
+    variant: CameraOnly

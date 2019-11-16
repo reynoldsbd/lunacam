@@ -3,14 +3,17 @@ name = "lunacam"
 version = "0.2.0"
 authors = ["Bobby Reynolds <bobby@reynoldsbd.net>"]
 edition = "2018"
+default-run = "lcsvc"
 
 [[bin]]
-name = "lcagent"
-path = "src/agent/main.rs"
+name = "lcsvc"
+path = "src/lcsvc.rs"
 
-[[bin]]
-name = "lcportal"
-path = "src/portal/main.rs"
+[features]
+default = ["portal", "stream"]
+portal = []
+stream = []
+stream-api = ["stream"]
 
 [dependencies]
 actix-files = "0.1"
