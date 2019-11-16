@@ -5,13 +5,13 @@ use std::sync::RwLock;
 use actix_files::Files;
 use actix_web::{App, HttpServer};
 use actix_web::web::{self, Data};
+use env_logger::Env;
 use reqwest::Client;
 use tera::Tera;
 
 use lunacam::cameras;
 use lunacam::db;
 use lunacam::error::Result;
-use lunacam::logging;
 use lunacam::stream;
 use lunacam::ui;
 use lunacam::users;
@@ -19,6 +19,23 @@ use lunacam::users;
 
 #[cfg(not(any(feature = "portal", feature = "stream-api")))]
 compile_error!("invalid feature selection");
+
+
+#[cfg(debug_assertions)]
+const DEFAULT_FILTER: &str = "info,lunacam=debug";
+#[cfg(not(debug_assertions))]
+const DEFAULT_FILTER: &str = "info";
+
+
+/// Initializes environment-based logging provider
+pub fn init_logging() {
+
+    let env = Env::default()
+        .filter_or("LC_LOG", DEFAULT_FILTER)
+        .write_style("LC_LOG_STYLE");
+
+    env_logger::init_from_env(env);
+}
 
 
 /// Loads templates from a directory on disk
@@ -43,7 +60,7 @@ fn load_templates() -> Result<Tera> {
 
 fn main() -> Result<()> {
 
-    logging::init();
+    init_logging();
 
     let client    = Data::new(Client::new());
     let templates = Data::new(load_templates()?);

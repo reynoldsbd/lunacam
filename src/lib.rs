@@ -14,7 +14,6 @@ pub mod cameras;
 pub mod db;
 pub mod error;
 mod locks;
-pub mod logging;
 pub mod prochost;
 pub mod settings;
 pub mod stream;
