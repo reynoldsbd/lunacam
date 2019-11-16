@@ -9,14 +9,6 @@ default-run = "lcsvc"
 name = "lcsvc"
 path = "src/lcsvc.rs"
 
-[[bin]]
-name = "lcagent"
-path = "src/agent/main.rs"
-
-[[bin]]
-name = "lcportal"
-path = "src/portal/main.rs"
-
 [features]
 default = ["portal", "stream"]
 portal = []
