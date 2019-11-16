@@ -28,7 +28,7 @@ const DEFAULT_FILTER: &str = "info";
 
 
 /// Initializes environment-based logging provider
-pub fn init_logging() {
+fn init_logging() {
 
     let env = Env::default()
         .filter_or("LC_LOG", DEFAULT_FILTER)
