@@ -432,10 +432,19 @@ fn put_session(
     let conn = pool.get()?;
 
     // Validate password
-    let user: User = users::table.filter(users::username.eq(&body.username))
-        .first(&conn)?;
+    let user_filter = users::username.eq(&body.username);
+    let user_query = users::table.filter(user_filter);
+    let user: User = match user_query.first(&conn) {
+        Ok(user) => user,
+        Err(DieselError::NotFound) => {
+            return Err((StatusCode::UNAUTHORIZED, "invalid username or password").into());
+        },
+        Err(err) => {
+            return Err(err.into());
+        }
+    };
     if !verify_password(&user.pwhash, &body.password, &conn)? {
-        return Err((StatusCode::UNAUTHORIZED, "invalid password").into());
+        return Err((StatusCode::UNAUTHORIZED, "invalid username or password").into());
     }
 
     // Generate session key
