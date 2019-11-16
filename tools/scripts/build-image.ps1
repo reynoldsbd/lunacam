@@ -12,7 +12,7 @@ param (
 
 $ErrorActionPreference = "Stop"
 
-$repoDir = Split-Path $PSScriptRoot
+$repoDir = Split-Path (Split-Path $PSScriptRoot)
 $buildDir = Join-Path $repoDir build
 $pigenDir = Join-Path (Join-Path $repoDir tools) pi-gen
 $pigenBuildDir = Join-Path $buildDir pi-gen

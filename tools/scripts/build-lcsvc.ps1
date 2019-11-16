@@ -12,7 +12,7 @@ param (
 
 $ErrorActionPreference = "Stop"
 
-$repoDir = Split-Path $PSScriptRoot
+$repoDir = Split-Path (Split-Path $PSScriptRoot)
 $buildDir = Join-Path $repoDir build
 
 # Cross-compiling binaries compatible with the Pi Zero works best with RPi's
@@ -23,7 +23,8 @@ if (!(Test-Path $piToolsDir)) {
     git clone --depth 1 https://github.com/raspberrypi/tools $piToolsDir
 }
 if (!$env:PATH.Contains($piToolsDir)) {
-    $env:PATH = "$piToolsDir/arm-bcm2708/arm-linux-gnueabihf/bin" + [IO.Path]::PathSeparator + $env:PATH
+    $env:PATH = "$piToolsDir/arm-bcm2708/arm-linux-gnueabihf/bin" +
+        [IO.Path]::PathSeparator + $env:PATH
 }
 
 switch ($Variant) {

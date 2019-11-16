@@ -2,7 +2,7 @@
 
 $ErrorActionPreference = "Stop"
 
-$repoDir = Split-Path $PSScriptRoot
+$repoDir = Split-Path (Split-Path $PSScriptRoot)
 $clientDir = Join-Path $repoDir client
 $buildDir = Join-Path $repoDir build
 $npmDir = Join-Path $buildDir node_modules
