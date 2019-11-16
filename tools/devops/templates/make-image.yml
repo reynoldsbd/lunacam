@@ -17,5 +17,9 @@ steps:
   inputs:
     scriptPath: tools/devops/install-sass.sh
     args: '"1.23.0" "$(Agent.ToolsDirectory)/Sass/1.23.0/x64"'
-- script: make ${{ parameters.variant }}-image
-  displayName: Build LunaCam Image
+- task: PowerShell@2
+  displayName: Build Image
+  inputs:
+    filePath: $(Build.SourcesDirectory)/tools/scripts/build-image.ps1
+    arguments: -Variant ${{ parameters.variant }}
+    pwsh: true
