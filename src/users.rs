@@ -21,7 +21,7 @@ use serde::{Deserialize, Serialize};
 use crate::db::{ConnectionPool, PooledConnection};
 use crate::db::schema::{sessions, users};
 use crate::do_lock;
-use crate::error::Result;
+use crate::error::{Error, Result};
 use crate::settings;
 
 
@@ -47,7 +47,8 @@ fn get_secret_key(conn: &PooledConnection) -> Result<SecretKey<'static>> {
     debug!("loading secret key from database");
     if let Some(key_b64) = settings::get::<String>(ARGON2_KEY_SETTING, conn)? {
         trace!("loaded secret key from database");
-        let new_key = SecretKey::from_base64_encoded(key_b64)?;
+        let new_key = SecretKey::from_base64_encoded(key_b64)
+            .expect("failed to decode secret key");
         key.replace(new_key.to_owned());
         return Ok(new_key);
     }
@@ -73,7 +74,8 @@ fn hash_password(password: &str, conn: &PooledConnection) -> Result<String> {
 
     let hash = hasher.with_secret_key(get_secret_key(conn)?)
         .with_password(password)
-        .hash()?;
+        .hash()
+        .expect("failed to hash password");
 
     Ok(hash)
 }
@@ -84,7 +86,8 @@ fn verify_password(hash: &str, password: &str, conn: &PooledConnection) -> Resul
         .with_secret_key(get_secret_key(conn)?)
         .with_hash(hash)
         .with_password(password)
-        .verify()?;
+        .verify()
+        .expect("failed to verify password");
 
     Ok(res)
 }
@@ -432,10 +435,19 @@ fn put_session(
     let conn = pool.get()?;
 
     // Validate password
-    let user: User = users::table.filter(users::username.eq(&body.username))
-        .first(&conn)?;
+    let user_filter = users::username.eq(&body.username);
+    let user_query = users::table.filter(user_filter);
+    let user: User = match user_query.first(&conn) {
+        Ok(user) => user,
+        Err(DieselError::NotFound) => {
+            return Err(Error::web(StatusCode::UNAUTHORIZED, "invalid username or password"));
+        },
+        Err(err) => {
+            return Err(err.into());
+        }
+    };
     if !verify_password(&user.pwhash, &body.password, &conn)? {
-        return Err((StatusCode::UNAUTHORIZED, "invalid password").into());
+        return Err(Error::web(StatusCode::UNAUTHORIZED, "invalid username or password"));
     }
 
     // Generate session key
