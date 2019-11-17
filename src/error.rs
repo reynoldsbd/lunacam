@@ -11,10 +11,6 @@ use serde::Serialize;
 #[derive(Debug, Display)]
 pub enum Error {
 
-    /// Error hashing or verifying a password
-    Hashing(argonautica::Error),
-
-
     /// Error produced by a failed web request
     #[display(fmt = "{}", _1)]
     Web(StatusCode, &'static str),
@@ -25,6 +21,7 @@ pub enum Error {
 
 impl Error {
 
+    /// Creates a new `Error` with custom HTTP status code and message
     pub fn web(status: StatusCode, msg: &'static str) -> Self {
         Self::Web(status, msg)
     }
