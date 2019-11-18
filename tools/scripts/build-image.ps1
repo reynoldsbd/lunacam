@@ -18,12 +18,6 @@ $pigenDir = Join-Path (Join-Path $repoDir tools) pi-gen
 $pigenBuildDir = Join-Path $buildDir pi-gen
 $rustBuildDir = "$buildDir/target/arm-unknown-linux-gnueabihf/release"
 
-# Build prerequisites
-& "$PSScriptRoot/build-lcsvc.ps1" -Variant $Variant
-if (($Variant -eq "Full") -or ($Variant -eq "PortalOnly")) {
-    & "$PSScriptRoot/build-css.ps1"
-}
-
 if (!(Test-Path $pigenBuildDir)) {
     Write-Host "cloning pi-gen"
     git clone --depth 1 https://github.com/RPi-Distro/pi-gen $pigenBuildDir
@@ -43,43 +37,47 @@ function prepareStage {
 }
 
 prepareStage "common"
+$commonDir = "$pigenBuildDir/common"
+
+& "$PSScriptRoot/build-lcsvc.ps1" -Variant $Variant
+Copy-Item $rustBuildDir/lcsvc $commonDir/03-lcsvc/files/lcsvc
+
+$templateDir = "$commonDir/01-portal/files/templates"
+Remove-Item -Recurse -Force $templateDir -ErrorAction Ignore
+$null = New-Item -Type Directory $templateDir
+Copy-Item $repoDir/templates $templateDir
+
 Copy-Item $pigenDir/config.sh $pigenBuildDir/config
+
+if (($Variant -eq "Full") -or ($Variant -eq "PortalOnly")) {
+    prepareStage "portal"
+    $portalDir = "$pigenBuildDir/portal"
+
+    & "$PSScriptRoot/build-css.ps1"
+
+    $staticDir = "$portalDir/01-portal/files/static"
+    Remove-Item -Recurse -Force $staticDir -ErrorAction Ignore
+    $null = New-Item -Type Directory $staticDir
+    Copy-Item $buildDir/css $staticDir/css
+    Copy-Item $repoDir/client/js $staticDir/js
+
+    Copy-Item $pigenDir/config-portal.sh $pigenBuildDir/config-portal
+}
+
+if (($Variant -eq "Full") -or ($Variant -eq "CameraOnly")) {
+    prepareStage "agent"
+
+    Copy-Item $pigenDir/config-agent.sh $pigenBuildDir/config-agent
+}
 
 switch ($Variant) {
     "Full" {
         throw "full image variant not yet supported"
     }
     "PortalOnly" {
-        prepareStage "portal"
-
-        $portalDir = "$pigenBuildDir/portal"
-
-        Copy-Item $rustBuildDir/lcsvc $portalDir/01-portal/files/lcportal
-
-        $staticDir = "$portalDir/01-portal/files/static"
-        Remove-Item -Recurse -Force $staticDir -ErrorAction Ignore
-        $null = New-Item -Type Directory $staticDir
-        Copy-Item $buildDir/css $staticDir/css
-        Copy-Item $repoDir/client/js $staticDir/js
-
-        $templateDir = "$portalDir/01-portal/files/templates"
-        Remove-Item -Recurse -Force $templateDir -ErrorAction Ignore
-        $null = New-Item -Type Directory $templateDir
-        Copy-Item $repoDir/templates $templateDir
-
-        Copy-Item $pigenDir/config-portal.sh $pigenBuildDir/config-portal
-
         $configName = "portal"
     }
     "CameraOnly" {
-        prepareStage "agent"
-
-        $agentDir = "$pigenBuildDir/agent"
-
-        Copy-Item $rustBuildDir/lcsvc $agentDir/02-agent/files/lcagent
-
-        Copy-Item $pigenDir/config-agent.sh $pigenBuildDir/config-agent
-
         $configName = "agent"
     }
 }
