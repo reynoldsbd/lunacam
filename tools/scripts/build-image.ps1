@@ -42,7 +42,7 @@ $commonDir = "$pigenBuildDir/common"
 & "$PSScriptRoot/build-lcsvc.ps1" -Variant $Variant
 Copy-Item $rustBuildDir/lcsvc $commonDir/03-lcsvc/files/lcsvc
 
-$templateDir = "$commonDir/01-portal/files/templates"
+$templateDir = "$commonDir/03-lcsvc/files/templates"
 Remove-Item -Recurse -Force $templateDir -ErrorAction Ignore
 $null = New-Item -Type Directory $templateDir
 Copy-Item $repoDir/templates $templateDir
