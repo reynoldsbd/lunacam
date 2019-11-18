@@ -4,6 +4,8 @@ pr: none
 pool: Default
 
 steps:
+- checkout: self
+  clean: false
 - template: templates/make-image.yml
   parameters:
     variant: CameraOnly
