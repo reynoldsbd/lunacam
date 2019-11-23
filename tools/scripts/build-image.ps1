@@ -74,12 +74,22 @@ if ($Variant -ne "CameraOnly") {
 
 if ($Variant -ne "PortalOnly") {
 
-    prepareStage "agent"
+    prepareStage "stream"
 
-    $stageList += " agent"
+    $stageList += " stream"
 }
 
-"export STAGE_LIST=`"$stageList`"" > $pigenBuildDir/stage-list
+prepareStage "finalize"
+$stageList += " finalize"
+
+$imgSuffix = switch ($Variant) {
+    "CameraOnly" { "-camera" }
+    "PortalOnly" { "-portal" }
+}
+@"
+export STAGE_LIST="$stageList"
+export LC_IMG_SUFFIX="$imgSuffix"
+"@ >> $pigenBuildDir/config
 
 Push-Location $pigenBuildDir
 Write-Host "building raspbian image"
