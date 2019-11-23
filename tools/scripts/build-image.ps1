@@ -34,6 +34,12 @@ function prepareStage {
     Remove-Item -Recurse -Force $pigenBuildDir/$name -ErrorAction Ignore
     Copy-Item -Recurse $pigenDir/$name $pigenBuildDir/$name
     Copy-Item $pigenDir/prerun.sh $pigenBuildDir/$name/prerun.sh
+
+    # Ensure all copied scripts are executable
+    Get-ChildItem -Recurse $pigenBuildDir/$name |
+        Where-Object Name -Match "\.sh$" |
+        Select-Object -ExpandProperty FullName |
+        xargs chmod +x
 }
 
 prepareStage "common"
