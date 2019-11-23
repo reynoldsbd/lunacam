@@ -15,6 +15,7 @@ pub mod db;
 pub mod error;
 mod locks;
 pub mod prochost;
+pub mod proxy;
 pub mod settings;
 pub mod stream;
 pub mod ui;

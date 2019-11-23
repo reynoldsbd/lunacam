@@ -4,19 +4,19 @@
 use std::env;
 use std::fs;
 use std::path::Path;
-use std::process::{Command, Stdio};
 
 use actix_web::web::{self, Data, Json, ServiceConfig};
 use diesel::prelude::*;
-use log::{debug, error, info, trace, warn};
+use log::{debug, error, info, trace};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use tera::{Context, Tera};
 
-use crate::stream::{Orientation, PatchStreamBody, StreamState};
 use crate::db::{ConnectionPool, PooledConnection};
 use crate::db::schema::cameras;
 use crate::error::Result;
+use crate::proxy;
+use crate::stream::{Orientation, PatchStreamBody, StreamState};
 use crate::users::AuthenticationMiddleware;
 
 
@@ -86,7 +86,7 @@ fn put_camera(
 
     if camera.enabled {
         write_proxy_config(&camera, &templates)
-            .and_then(|_| reload_proxy())
+            .and_then(|_| proxy::reload())
             .unwrap_or_else(|e|
                 error!("failed to configure proxy for camera {}: {}", camera.id, e)
             );
@@ -268,7 +268,7 @@ fn delete_camera(
         .execute(&conn)?;
 
     clear_proxy_config(id)
-        .and_then(|_| reload_proxy())
+        .and_then(|_| proxy::reload())
         .unwrap_or_else(|e| error!("failed to clear proxy configuration for camera {}: {}", id, e));
 
     info!("deleted camera {}", id);
@@ -336,26 +336,6 @@ fn clear_proxy_config(id: i32) -> Result<()> {
 }
 
 
-/// Reloads proxy server configuration
-fn reload_proxy() -> Result<()> {
-
-    debug!("reloading proxy");
-
-    let status = Command::new("/usr/bin/sudo")
-        .args(&["-n", "/usr/bin/systemctl", "reload", "nginx.service"])
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status()?;
-
-    if !status.success() {
-        warn!("failed to reload nginx");
-    }
-
-    Ok(())
-}
-
-
 /// Ensures proxy is properly configured
 pub fn initialize_proxy_config(conn: &PooledConnection, templates: &Tera) -> Result<()> {
 
@@ -375,7 +355,7 @@ pub fn initialize_proxy_config(conn: &PooledConnection, templates: &Tera) -> Res
         }
     }
 
-    reload_proxy()
+    proxy::reload()
         .unwrap_or_else(|e| error!("failed to reload proxy configuration: {}", e));
 
     Ok(())
