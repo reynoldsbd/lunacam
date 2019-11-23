@@ -1,3 +1,3 @@
 #!/bin/bash -e
 
-install -m 644 files/nginx.conf "${ROOTFS_DIR}/etc/nginx/nginx.conf"
+install -m 644 files/static-files.conf "${ROOTFS_DIR}/usr/share/lunacam/nginx/static-files.conf"
