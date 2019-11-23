@@ -49,9 +49,8 @@ $commonDir = "$pigenBuildDir/common"
 Copy-Item $rustBuildDir/lcsvc $commonDir/03-lcsvc/files/lcsvc
 
 $templateDir = "$commonDir/03-lcsvc/files/templates"
-Remove-Item -Recurse -Force $templateDir -ErrorAction Ignore
 $null = New-Item -Type Directory $templateDir
-Copy-Item $repoDir/templates $templateDir
+Copy-Item -Recurse $repoDir/templates/* $templateDir
 
 Copy-Item $pigenDir/config.sh $pigenBuildDir/config
 
