@@ -55,7 +55,10 @@ Copy-Item $repoDir/templates $templateDir
 
 Copy-Item $pigenDir/config.sh $pigenBuildDir/config
 
-if (($Variant -eq "Full") -or ($Variant -eq "PortalOnly")) {
+$stageList = "stage0 stage1 stage2 common"
+
+if ($Variant -ne "CameraOnly") {
+
     prepareStage "portal"
     $portalDir = "$pigenBuildDir/portal"
 
@@ -67,29 +70,20 @@ if (($Variant -eq "Full") -or ($Variant -eq "PortalOnly")) {
     Copy-Item $buildDir/css $staticDir/css
     Copy-Item $repoDir/client/js $staticDir/js
 
-    Copy-Item $pigenDir/config-portal.sh $pigenBuildDir/config-portal
+    $stageList += " portal"
 }
 
-if (($Variant -eq "Full") -or ($Variant -eq "CameraOnly")) {
+if ($Variant -ne "PortalOnly") {
+
     prepareStage "agent"
 
-    Copy-Item $pigenDir/config-agent.sh $pigenBuildDir/config-agent
+    $stageList += " agent"
 }
 
-switch ($Variant) {
-    "Full" {
-        throw "full image variant not yet supported"
-    }
-    "PortalOnly" {
-        $configName = "portal"
-    }
-    "CameraOnly" {
-        $configName = "agent"
-    }
-}
+"export STAGE_LIST=`"$stageList`"" > $pigenBuildDir/stage-list
 
 Push-Location $pigenBuildDir
 Write-Host "building raspbian image"
 docker rm -v pigen_work
-./build-docker.sh -c config-$configName
+./build-docker.sh -c config
 Pop-Location
