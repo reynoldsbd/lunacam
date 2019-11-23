@@ -1,6 +1,5 @@
 [Unit]
 Description=LunaCam Service
-ReloadPropagatedFrom=dev-video0.device
 
 [Service]
 User=lunacam

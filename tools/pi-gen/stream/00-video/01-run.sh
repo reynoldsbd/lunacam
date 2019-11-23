@@ -2,6 +2,7 @@
 
 install -m 644 files/modules-load.conf "${ROOTFS_DIR}/usr/lib/modules-load.d/lcstream.conf"
 install -m 644 files/udev.rules        "${ROOTFS_DIR}/usr/lib/udev/rules.d/lcstream.rules"
+install -m 644 files/lcsvc-reload.conf "${ROOTFS_DIR}/usr/lib/systemd/system/lcsvc.service.d/reload.conf"
 install -m 644 files/tmpfiles.conf     "${ROOTFS_DIR}/usr/lib/tmpfiles.d/lcstream.conf"
 
 cat >> "${ROOTFS_DIR}/boot/config.txt" << EOF
