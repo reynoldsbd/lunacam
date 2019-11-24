@@ -1,5 +1,5 @@
-//! Manages the Nginx server behind which the LunaCam application is
-//! reverse-proxied
+//! Manages the Nginx server behind which the LunaCam application and HLS
+//! streams are reverse-proxied
 
 use std::env;
 use std::fs;

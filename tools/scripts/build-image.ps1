@@ -66,8 +66,8 @@ if ($Variant -ne "CameraOnly") {
     $staticDir = "$portalDir/01-portal/files/static"
     Remove-Item -Recurse -Force $staticDir -ErrorAction Ignore
     $null = New-Item -Type Directory $staticDir
-    Copy-Item $buildDir/css $staticDir/css
-    Copy-Item $repoDir/client/js $staticDir/js
+    Copy-Item -Recurse $buildDir/css $staticDir/css
+    Copy-Item -Recurse $repoDir/client/js $staticDir/js
 
     $stageList += " portal"
 }
