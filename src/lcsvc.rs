@@ -12,6 +12,7 @@ use tera::Tera;
 use lunacam::cameras;
 use lunacam::db;
 use lunacam::error::Result;
+use lunacam::proxy;
 use lunacam::stream;
 use lunacam::ui;
 use lunacam::users;
@@ -62,6 +63,8 @@ fn main() -> Result<()> {
 
     init_logging();
 
+    proxy::init()?;
+
     let client    = Data::new(Client::new());
     let templates = Data::new(load_templates()?);
     let pool      = Data::new(db::connect()?);
@@ -75,7 +78,7 @@ fn main() -> Result<()> {
     }
 
     #[cfg(feature = "stream")]
-    let stream = Data::new(RwLock::new(stream::initialize(&conn)?));
+    let stream = Data::new(RwLock::new(stream::initialize(&conn, &templates)?));
 
     // Finished performing initialization requiring database access
     mem::drop(conn);

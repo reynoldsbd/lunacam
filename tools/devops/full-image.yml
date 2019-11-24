@@ -8,4 +8,4 @@ steps:
   clean: false
 - template: templates/make-image.yml
   parameters:
-    variant: CameraOnly
+    variant: Full

@@ -6,7 +6,9 @@
 
 
 use std::env;
+use std::fs;
 use std::io::Write;
+use std::path::Path;
 use std::process::{Command, Stdio};
 use std::sync::RwLock;
 
@@ -17,11 +19,13 @@ use diesel::serialize::{self, Output, ToSql};
 use diesel::sql_types::Integer;
 use log::{debug, trace};
 use serde::{Deserialize, Serialize};
+use tera::{Context, Tera};
 
 use crate::{do_read, do_write};
 use crate::error::Result;
 use crate::db::{ConnectionPool, PooledConnection};
 use crate::prochost::ProcHost;
+use crate::proxy;
 use crate::settings;
 
 
@@ -131,6 +135,45 @@ fn make_command(_orientation: Orientation) -> Command {
 }
 
 
+/// Gets the location of the HLS stream's proxy configuration file
+fn get_proxy_config_path() -> Result<impl AsRef<Path>> {
+
+    let state_dir = env::var("STATE_DIRECTORY")?;
+    let path = format!("{}/nginx/hls.conf", state_dir);
+
+    Ok(path)
+}
+
+
+/// Writes proxy configuration for the HLS stream
+fn write_proxy_config(templates: &Tera) -> Result<()> {
+
+    debug!("writing proxy configuration for HLS stream");
+
+    let config = templates.render("hls.conf", Context::new())?;
+
+    let config_path = get_proxy_config_path()?;
+
+    fs::write(&config_path, config)?;
+
+    Ok(())
+}
+
+
+/// Removes proxy configuration for the HLS stream
+fn clear_proxy_config() -> Result<()> {
+
+    let config_path = get_proxy_config_path()?;
+
+    if fs::metadata(&config_path).is_ok() {
+        debug!("clearing proxy configuration for HLS stream");
+        fs::remove_file(&config_path)?;
+    }
+
+    Ok(())
+}
+
+
 /// Key used to store stream settings
 const STREAM_STATE_SETTING: &str = "streamState";
 
@@ -192,6 +235,7 @@ pub struct PatchStreamBody {
 fn patch_stream(
     pool: Data<ConnectionPool>,
     stream: Data<RwLock<Stream>>,
+    templates: Data<Tera>,
     body: Json<PatchStreamBody>,
 ) -> Result<Json<StreamState>> {
 
@@ -222,6 +266,8 @@ fn patch_stream(
     if do_stop {
         debug!("stopping transcoder");
         stream.transcoder.stop()?;
+        clear_proxy_config()?;
+        proxy::reload()?;
     }
 
     if do_reconfig {
@@ -232,6 +278,8 @@ fn patch_stream(
     if do_start {
         debug!("starting transcoder");
         stream.transcoder.start()?;
+        write_proxy_config(&templates)?;
+        proxy::reload()?;
     }
 
     let settings = (&*stream).into();
@@ -250,7 +298,7 @@ fn patch_stream(
 ///
 /// This function must be called exactly once over the lifetime of the current
 /// process.
-pub fn initialize(conn: &PooledConnection) -> Result<Stream> {
+pub fn initialize(conn: &PooledConnection, templates: &Tera) -> Result<Stream> {
 
     let settings: StreamState = settings::get(STREAM_STATE_SETTING, conn)?
         .unwrap_or_default();
@@ -259,7 +307,12 @@ pub fn initialize(conn: &PooledConnection) -> Result<Stream> {
     if settings.enabled {
         debug!("starting transcoder");
         transcoder.start()?;
+        write_proxy_config(templates)?;
+    } else {
+        clear_proxy_config()?;
     }
+
+    proxy::reload()?;
 
     Ok(Stream {
         orientation: settings.orientation,
