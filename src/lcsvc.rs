@@ -78,7 +78,7 @@ fn main() -> Result<()> {
     }
 
     #[cfg(feature = "stream")]
-    let stream = Data::new(RwLock::new(stream::initialize(&conn)?));
+    let stream = Data::new(RwLock::new(stream::initialize(&conn, &templates)?));
 
     // Finished performing initialization requiring database access
     mem::drop(conn);

@@ -298,7 +298,7 @@ fn patch_stream(
 ///
 /// This function must be called exactly once over the lifetime of the current
 /// process.
-pub fn initialize(conn: &PooledConnection) -> Result<Stream> {
+pub fn initialize(conn: &PooledConnection, templates: &Tera) -> Result<Stream> {
 
     let settings: StreamState = settings::get(STREAM_STATE_SETTING, conn)?
         .unwrap_or_default();
@@ -307,7 +307,12 @@ pub fn initialize(conn: &PooledConnection) -> Result<Stream> {
     if settings.enabled {
         debug!("starting transcoder");
         transcoder.start()?;
+        write_proxy_config(templates)?;
+    } else {
+        clear_proxy_config()?;
     }
+
+    proxy::reload()?;
 
     Ok(Stream {
         orientation: settings.orientation,
