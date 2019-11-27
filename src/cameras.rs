@@ -5,6 +5,7 @@ use std::env;
 use std::fs;
 use std::path::Path;
 
+use actix_web::http::{StatusCode};
 use actix_web::web::{self, Data, Json, ServiceConfig};
 use diesel::prelude::*;
 use log::{debug, error, info, trace};
@@ -14,7 +15,7 @@ use tera::{Context, Tera};
 
 use crate::db::{ConnectionPool, PooledConnection};
 use crate::db::schema::cameras;
-use crate::error::Result;
+use crate::error::{Error, Result};
 use crate::proxy;
 use crate::stream::{Orientation, PatchStreamBody, Stream, StreamState};
 use crate::users::AuthenticationMiddleware;
@@ -196,6 +197,12 @@ fn patch_camera(
     }
 
     if let Some(address) = body.address {
+        if camera.local {
+            return Error::web(
+                StatusCode::BAD_REQUEST,
+                "cannot update address of local camera",
+            );
+        }
         if camera.address != address {
             trace!("updating address for camera {}", id);
             camera.address = address;
@@ -264,9 +271,19 @@ fn delete_camera(
 ) -> Result<()>
 {
     let id = path.0;
+    let conn = pool.get()?;
+
+    debug!("retrieving camera {} from database", id);
+    let camera: Camera = cameras::table.find(id)
+        .get_result(&conn)?;
+    if camera.local {
+        return Error::web(
+            StatusCode::BAD_REQUEST,
+            "cannot delete local camera",
+        );
+    }
 
     debug!("deleting camera {} from database", id);
-    let conn = pool.get()?;
     diesel::delete(cameras::table.filter(cameras::id.eq(id)))
         .execute(&conn)?;
 
