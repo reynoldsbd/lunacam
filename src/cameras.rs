@@ -30,6 +30,7 @@ struct Camera {
     address: String,
     enabled: bool,
     orientation: Orientation,
+    local: bool,
 }
 
 
