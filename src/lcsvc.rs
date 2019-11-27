@@ -72,13 +72,21 @@ fn main() -> Result<()> {
     // Perform initialization requiring database access
     let conn = pool.get()?;
 
+    #[cfg(feature = "stream")]
+    let stream = stream::initialize(&conn, &templates)?;
+
     if cfg!(feature = "portal") {
-        cameras::initialize_proxy_config(&conn, &templates)?;
+        cameras::initialize(
+            &conn,
+            &templates,
+            #[cfg(feature = "stream")]
+            &stream,
+        )?;
         users::maybe_create_default_user(&conn)?;
     }
 
     #[cfg(feature = "stream")]
-    let stream = Data::new(RwLock::new(stream::initialize(&conn, &templates)?));
+    let stream = Data::new(RwLock::new(stream));
 
     // Finished performing initialization requiring database access
     mem::drop(conn);

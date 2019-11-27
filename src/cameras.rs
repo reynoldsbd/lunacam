@@ -16,7 +16,7 @@ use crate::db::{ConnectionPool, PooledConnection};
 use crate::db::schema::cameras;
 use crate::error::Result;
 use crate::proxy;
-use crate::stream::{Orientation, PatchStreamBody, StreamState};
+use crate::stream::{Orientation, PatchStreamBody, Stream, StreamState};
 use crate::users::AuthenticationMiddleware;
 
 
@@ -49,6 +49,7 @@ struct NewCamera {
     address: String,
     enabled: bool,
     orientation: Orientation,
+    local: bool,
 }
 
 
@@ -76,6 +77,7 @@ fn put_camera(
         address: body.address,
         enabled: stream.enabled,
         orientation: stream.orientation,
+        local: false,
     };
     diesel::insert_into(cameras::table)
         .values(&new_cam)
@@ -337,12 +339,26 @@ fn clear_proxy_config(id: i32) -> Result<()> {
 }
 
 
-/// Ensures proxy is properly configured
-pub fn initialize_proxy_config(conn: &PooledConnection, templates: &Tera) -> Result<()> {
+/// Initializes the `cameras` module
+///
+/// Performs the following operations to make this module usable:
+///
+/// * Ensures proxy is properly configured
+/// * Ensures locally-attached cameras are properly identified and registered in
+///   the database
+///
+/// This function must be called exactly once before using the rest of the APIs
+/// in this module.
+pub fn initialize(
+    conn: &PooledConnection,
+    templates: &Tera,
+    #[cfg(feature = "stream")]
+    stream: &Stream,
+) -> Result<()> {
 
     let cameras: Vec<Camera> = cameras::table.load(conn)?;
 
-    for camera in cameras {
+    for camera in &cameras {
         if camera.enabled {
             write_proxy_config(&camera, templates)
                 .unwrap_or_else(|e|
@@ -358,6 +374,28 @@ pub fn initialize_proxy_config(conn: &PooledConnection, templates: &Tera) -> Res
 
     proxy::reload()
         .unwrap_or_else(|e| error!("failed to reload proxy configuration: {}", e));
+
+    #[cfg(feature = "stream")]
+    {
+        let local_cam_count = cameras.iter()
+            .count();
+
+        assert!(local_cam_count <= 1);
+
+        if local_cam_count == 0 {
+            info!("initializing local camera");
+            let local_cam = NewCamera {
+                name: String::from("Local Camera"),
+                address: String::from(""),
+                enabled: stream.transcoder.running(),
+                orientation: stream.orientation,
+                local: true,
+            };
+            diesel::insert_into(cameras::table)
+                .values(&local_cam)
+                .execute(conn)?;
+        }
+    }
 
     Ok(())
 }

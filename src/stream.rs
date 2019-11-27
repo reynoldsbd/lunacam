@@ -184,8 +184,8 @@ const STREAM_STATE_SETTING: &str = "streamState";
 /// retrieve information about the current stream state, construct a
 /// `StreamState` from an instance of `Stream`
 pub struct Stream {
-    orientation: Orientation,
-    transcoder: ProcHost,
+    pub(crate) orientation: Orientation,
+    pub(crate) transcoder: ProcHost,
 }
 
 
