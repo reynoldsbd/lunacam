@@ -4,6 +4,7 @@
 use std::env;
 use std::fs;
 use std::path::Path;
+use std::sync::RwLock;
 
 use actix_web::http::{StatusCode};
 use actix_web::web::{self, Data, Json, ServiceConfig};
@@ -13,11 +14,12 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use tera::{Context, Tera};
 
+use crate::do_write;
 use crate::db::{ConnectionPool, PooledConnection};
 use crate::db::schema::cameras;
 use crate::error::{Error, Result};
 use crate::proxy;
-use crate::stream::{Orientation, PatchStreamBody, Stream, StreamState};
+use crate::stream::{Orientation, Stream, StreamState, StreamUpdate};
 use crate::users::AuthenticationMiddleware;
 
 
@@ -143,11 +145,14 @@ struct PatchCameraBody {
 
 
 /// Updates information about the specified camera
+#[allow(clippy::assertions_on_constants)]
 #[allow(clippy::cognitive_complexity)]
 fn patch_camera(
     pool: Data<ConnectionPool>,
     client: Data<Client>,
     templates: Data<Tera>,
+    #[cfg(feature = "stream")]
+    stream: Data<RwLock<Stream>>,
     path: web::Path<(i32,)>,
     body: Json<PatchCameraBody>,
 ) -> Result<Json<Camera>>
@@ -163,7 +168,7 @@ fn patch_camera(
     let mut do_connect = false;
     let mut do_update = false;
     let mut do_save = false;
-    let mut new_stream = PatchStreamBody {
+    let mut new_stream = StreamUpdate {
         enabled: None,
         orientation: None,
     };
@@ -235,10 +240,17 @@ fn patch_camera(
     }
 
     if do_update {
-        debug!("sending new stream settings to {}", camera.address);
-        client.patch(&url)
-            .json(&new_stream)
-            .send()?;
+        if camera.local {
+            assert!(cfg!(feature = "stream"));
+            debug!("updating local stream settings");
+            #[cfg(feature = "stream")]
+            do_write!(stream).update(&new_stream, &conn, &templates)?;
+        } else {
+            debug!("sending new stream settings to {}", camera.address);
+            client.patch(&url)
+                .json(&new_stream)
+                .send()?;
+        }
     }
 
     if do_save {

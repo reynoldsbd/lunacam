@@ -178,6 +178,14 @@ fn clear_proxy_config() -> Result<()> {
 const STREAM_STATE_SETTING: &str = "streamState";
 
 
+/// Describes an update to the state of a video stream
+#[derive(Deserialize, Serialize)]
+pub struct StreamUpdate {
+    pub enabled: Option<bool>,
+    pub orientation: Option<Orientation>,
+}
+
+
 /// Represents the current host's video stream
 ///
 /// This type is used to control the video stream for the current host. To
@@ -186,6 +194,75 @@ const STREAM_STATE_SETTING: &str = "streamState";
 pub struct Stream {
     pub(crate) orientation: Orientation,
     pub(crate) transcoder: ProcHost,
+}
+
+impl Stream {
+
+    /// Retrieves a serializable representation of this stream's state
+    pub fn state(&self) -> StreamState {
+
+        StreamState {
+            enabled: self.transcoder.running(),
+            orientation: self.orientation,
+        }
+    }
+
+    /// Updates this stream's settings
+    pub fn update(
+        &mut self,
+        update: &StreamUpdate,
+        conn: &PooledConnection,
+        templates: &Tera,
+    ) -> Result<()> {
+
+        let mut do_stop = false;
+        let mut do_reconfig = false;
+        let mut do_start = false;
+
+        if let Some(enabled) = update.enabled {
+            if self.transcoder.running() != enabled {
+                trace!("updating stream enabled state");
+                do_stop = !enabled;
+                do_start = enabled;
+            }
+        }
+
+        if let Some(orientation) = update.orientation {
+            if self.orientation != orientation {
+                trace!("updating stream orientation");
+                self.orientation = orientation;
+                do_stop = true;
+                do_reconfig = true;
+                do_start = true;
+            }
+        }
+
+        if do_stop {
+            debug!("stopping transcoder");
+            self.transcoder.stop()?;
+            clear_proxy_config()?;
+            proxy::reload()?;
+        }
+
+        if do_reconfig {
+            trace!("reconfiguring transcoder host");
+            self.transcoder = ProcHost::new(make_command(self.orientation));
+        }
+
+        if do_start {
+            debug!("starting transcoder");
+            self.transcoder.start()?;
+            write_proxy_config(templates)?;
+            proxy::reload()?;
+        }
+
+        if do_stop || do_reconfig || do_start {
+            trace!("flushing stream settings");
+            settings::set(STREAM_STATE_SETTING, &self.state(), conn)?;
+        }
+
+        Ok(())
+    }
 }
 
 
@@ -201,15 +278,6 @@ pub struct StreamState {
     pub orientation: Orientation,
 }
 
-impl From<&Stream> for StreamState {
-    fn from(stream: &Stream) -> Self {
-        Self {
-            enabled: stream.transcoder.running(),
-            orientation: stream.orientation,
-        }
-    }
-}
-
 
 /// Retrieves information about the video stream
 fn get_stream(
@@ -217,17 +285,8 @@ fn get_stream(
 ) -> Result<Json<StreamState>> {
 
     let stream = do_read!(stream);
-    let settings = (&*stream).into();
 
-    Ok(Json(settings))
-}
-
-
-/// Stream representation required by PATCH requests
-#[derive(Deserialize, Serialize)]
-pub struct PatchStreamBody {
-    pub enabled: Option<bool>,
-    pub orientation: Option<Orientation>,
+    Ok(Json(stream.state()))
 }
 
 
@@ -236,61 +295,15 @@ fn patch_stream(
     pool: Data<ConnectionPool>,
     stream: Data<RwLock<Stream>>,
     templates: Data<Tera>,
-    body: Json<PatchStreamBody>,
+    body: Json<StreamUpdate>,
 ) -> Result<Json<StreamState>> {
 
     let mut stream = do_write!(stream);
+    let conn = pool.get()?;
 
-    let mut do_stop = false;
-    let mut do_reconfig = false;
-    let mut do_start = false;
+    stream.update(&body, &conn, &templates)?;
 
-    if let Some(enabled) = body.enabled {
-        if stream.transcoder.running() != enabled {
-            trace!("updating stream enabled state");
-            do_stop = !enabled;
-            do_start = enabled;
-        }
-    }
-
-    if let Some(orientation) = body.orientation {
-        if stream.orientation != orientation {
-            trace!("updating stream orientation");
-            stream.orientation = orientation;
-            do_stop = true;
-            do_reconfig = true;
-            do_start = true;
-        }
-    }
-
-    if do_stop {
-        debug!("stopping transcoder");
-        stream.transcoder.stop()?;
-        clear_proxy_config()?;
-        proxy::reload()?;
-    }
-
-    if do_reconfig {
-        trace!("reconfiguring transcoder host");
-        stream.transcoder = ProcHost::new(make_command(stream.orientation));
-    }
-
-    if do_start {
-        debug!("starting transcoder");
-        stream.transcoder.start()?;
-        write_proxy_config(&templates)?;
-        proxy::reload()?;
-    }
-
-    let settings = (&*stream).into();
-
-    if do_stop || do_reconfig || do_start {
-        trace!("flushing stream settings");
-        let conn = pool.get()?;
-        settings::set(STREAM_STATE_SETTING, &settings, &conn)?;
-    }
-
-    Ok(Json(settings))
+    Ok(Json(stream.state()))
 }
 
 
