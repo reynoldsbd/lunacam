@@ -258,16 +258,18 @@ fn patch_camera(
         diesel::update(&camera)
             .set(&camera)
             .execute(&conn)?;
-        if camera.enabled {
-            write_proxy_config(&camera, &templates)
-                .unwrap_or_else(|e|
-                    error!("failed to configure proxy for camera {}: {}", camera.id, e)
-                );
-        } else {
-            clear_proxy_config(camera.id)
-                .unwrap_or_else(|e|
-                    error!("failed to clear proxy configuration for camera {}: {}", camera.id, e)
-                );
+        if !camera.local {
+            if camera.enabled {
+                write_proxy_config(&camera, &templates)
+                    .unwrap_or_else(|e|
+                        error!("failed to configure proxy for camera {}: {}", camera.id, e)
+                    );
+            } else {
+                clear_proxy_config(camera.id)
+                    .unwrap_or_else(|e|
+                        error!("failed to clear proxy configuration for camera {}: {}", camera.id, e)
+                    );
+            }
         }
     }
 
@@ -388,16 +390,18 @@ pub fn initialize(
     let cameras: Vec<Camera> = cameras::table.load(conn)?;
 
     for camera in &cameras {
-        if camera.enabled {
-            write_proxy_config(&camera, templates)
-                .unwrap_or_else(|e|
-                    error!("failed to configure proxy for camera {}: {}", camera.id, e)
-                );
-        } else {
-            clear_proxy_config(camera.id)
-                .unwrap_or_else(|e|
-                    error!("failed to clear proxy configuration for camera {}: {}", camera.id, e)
-                );
+        if !camera.local {
+            if camera.enabled {
+                write_proxy_config(&camera, templates)
+                    .unwrap_or_else(|e|
+                        error!("failed to configure proxy for camera {}: {}", camera.id, e)
+                    );
+            } else {
+                clear_proxy_config(camera.id)
+                    .unwrap_or_else(|e|
+                        error!("failed to clear proxy configuration for camera {}: {}", camera.id, e)
+                    );
+            }
         }
     }
 
