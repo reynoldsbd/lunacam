@@ -38,7 +38,7 @@
             </div>
         </div>
 
-        <div class="field is-horizontal">
+        <div class="field is-horizontal" id="cam-address-wrapper">
             <div class="field-label is-normal">
                 <label class="label">Device Address</label>
             </div>
@@ -101,6 +101,7 @@
         <div id="cam-list">
             {% for camera in cameras %}
             <cam-entry
+                cam-local="{{ camera.local }}"
                 cam-enabled="{{ camera.enabled }}"
                 cam-hostname="{{ camera.address }}"
                 cam-id="{{ camera.id }}"
