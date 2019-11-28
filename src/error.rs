@@ -22,8 +22,8 @@ pub enum Error {
 impl Error {
 
     /// Creates a new `Error` with custom HTTP status code and message
-    pub fn web(status: StatusCode, msg: &'static str) -> Self {
-        Self::Web(status, msg)
+    pub fn web<T>(status: StatusCode, msg: &'static str) -> Result<T> {
+        Err(Self::Web(status, msg))
     }
 }
 

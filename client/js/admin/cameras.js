@@ -14,6 +14,7 @@ class CamEntry extends HTMLElement {
         // Bind template elements to properties of this object
         let elements = {
             addressField: 'cam-address-field',
+            addressWrapper: 'cam-address-wrapper',
             cancelButton: 'cancel-button',
             deleteButton: 'delete-button',
             dropdownIndicator: 'dropdown-indicator',
@@ -55,6 +56,7 @@ class CamEntry extends HTMLElement {
             'cam-address',
             'cam-enabled',
             'cam-id',
+            'cam-local',
             'cam-name',
             'cam-orientation',
         ];
@@ -70,10 +72,19 @@ class CamEntry extends HTMLElement {
                 break;
             case 'cam-id':
                 this.header.hidden = false;
-                this.showDeleteButton();
+                if (!this.isLocal) {
+                    this.showDeleteButton();
+                }
                 let switchId = newValue + '-enabled';
                 this.enabledSwitch.setAttribute('id', switchId);
                 this.enabledSwitchLabel.setAttribute('for', switchId);
+                break;
+            case 'cam-local':
+                if (newValue == 'true') {
+                    this.isLocal = true;
+                    this.addressWrapper.hidden = true;
+                    this.hideDeleteButton();
+                }
                 break;
             case 'cam-name':
                 this.nameField.value = newValue;

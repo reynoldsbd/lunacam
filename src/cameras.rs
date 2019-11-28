@@ -4,7 +4,9 @@
 use std::env;
 use std::fs;
 use std::path::Path;
+use std::sync::RwLock;
 
+use actix_web::http::{StatusCode};
 use actix_web::web::{self, Data, Json, ServiceConfig};
 use diesel::prelude::*;
 use log::{debug, error, info, trace};
@@ -12,11 +14,12 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use tera::{Context, Tera};
 
+use crate::do_write;
 use crate::db::{ConnectionPool, PooledConnection};
 use crate::db::schema::cameras;
-use crate::error::Result;
+use crate::error::{Error, Result};
 use crate::proxy;
-use crate::stream::{Orientation, PatchStreamBody, StreamState};
+use crate::stream::{Orientation, Stream, StreamState, StreamUpdate};
 use crate::users::AuthenticationMiddleware;
 
 
@@ -30,6 +33,7 @@ struct Camera {
     address: String,
     enabled: bool,
     orientation: Orientation,
+    local: bool,
 }
 
 
@@ -48,6 +52,7 @@ struct NewCamera {
     address: String,
     enabled: bool,
     orientation: Orientation,
+    local: bool,
 }
 
 
@@ -75,6 +80,7 @@ fn put_camera(
         address: body.address,
         enabled: stream.enabled,
         orientation: stream.orientation,
+        local: false,
     };
     diesel::insert_into(cameras::table)
         .values(&new_cam)
@@ -139,11 +145,14 @@ struct PatchCameraBody {
 
 
 /// Updates information about the specified camera
+#[allow(clippy::assertions_on_constants)]
 #[allow(clippy::cognitive_complexity)]
 fn patch_camera(
     pool: Data<ConnectionPool>,
     client: Data<Client>,
     templates: Data<Tera>,
+    #[cfg(feature = "stream")]
+    stream: Data<RwLock<Stream>>,
     path: web::Path<(i32,)>,
     body: Json<PatchCameraBody>,
 ) -> Result<Json<Camera>>
@@ -159,7 +168,7 @@ fn patch_camera(
     let mut do_connect = false;
     let mut do_update = false;
     let mut do_save = false;
-    let mut new_stream = PatchStreamBody {
+    let mut new_stream = StreamUpdate {
         enabled: None,
         orientation: None,
     };
@@ -193,6 +202,12 @@ fn patch_camera(
     }
 
     if let Some(address) = body.address {
+        if camera.local {
+            return Error::web(
+                StatusCode::BAD_REQUEST,
+                "cannot update address of local camera",
+            );
+        }
         if camera.address != address {
             trace!("updating address for camera {}", id);
             camera.address = address;
@@ -225,10 +240,17 @@ fn patch_camera(
     }
 
     if do_update {
-        debug!("sending new stream settings to {}", camera.address);
-        client.patch(&url)
-            .json(&new_stream)
-            .send()?;
+        if camera.local {
+            assert!(cfg!(feature = "stream"));
+            debug!("updating local stream settings");
+            #[cfg(feature = "stream")]
+            do_write!(stream).update(&new_stream, &conn, &templates)?;
+        } else {
+            debug!("sending new stream settings to {}", camera.address);
+            client.patch(&url)
+                .json(&new_stream)
+                .send()?;
+        }
     }
 
     if do_save {
@@ -236,16 +258,18 @@ fn patch_camera(
         diesel::update(&camera)
             .set(&camera)
             .execute(&conn)?;
-        if camera.enabled {
-            write_proxy_config(&camera, &templates)
-                .unwrap_or_else(|e|
-                    error!("failed to configure proxy for camera {}: {}", camera.id, e)
-                );
-        } else {
-            clear_proxy_config(camera.id)
-                .unwrap_or_else(|e|
-                    error!("failed to clear proxy configuration for camera {}: {}", camera.id, e)
-                );
+        if !camera.local {
+            if camera.enabled {
+                write_proxy_config(&camera, &templates)
+                    .unwrap_or_else(|e|
+                        error!("failed to configure proxy for camera {}: {}", camera.id, e)
+                    );
+            } else {
+                clear_proxy_config(camera.id)
+                    .unwrap_or_else(|e|
+                        error!("failed to clear proxy configuration for camera {}: {}", camera.id, e)
+                    );
+            }
         }
     }
 
@@ -261,9 +285,19 @@ fn delete_camera(
 ) -> Result<()>
 {
     let id = path.0;
+    let conn = pool.get()?;
+
+    debug!("retrieving camera {} from database", id);
+    let camera: Camera = cameras::table.find(id)
+        .get_result(&conn)?;
+    if camera.local {
+        return Error::web(
+            StatusCode::BAD_REQUEST,
+            "cannot delete local camera",
+        );
+    }
 
     debug!("deleting camera {} from database", id);
-    let conn = pool.get()?;
     diesel::delete(cameras::table.filter(cameras::id.eq(id)))
         .execute(&conn)?;
 
@@ -336,27 +370,65 @@ fn clear_proxy_config(id: i32) -> Result<()> {
 }
 
 
-/// Ensures proxy is properly configured
-pub fn initialize_proxy_config(conn: &PooledConnection, templates: &Tera) -> Result<()> {
+/// Initializes the `cameras` module
+///
+/// Performs the following operations to make this module usable:
+///
+/// * Ensures proxy is properly configured
+/// * Ensures locally-attached cameras are properly identified and registered in
+///   the database
+///
+/// This function must be called exactly once before using the rest of the APIs
+/// in this module.
+pub fn initialize(
+    conn: &PooledConnection,
+    templates: &Tera,
+    #[cfg(feature = "stream")]
+    stream: &Stream,
+) -> Result<()> {
 
     let cameras: Vec<Camera> = cameras::table.load(conn)?;
 
-    for camera in cameras {
-        if camera.enabled {
-            write_proxy_config(&camera, templates)
-                .unwrap_or_else(|e|
-                    error!("failed to configure proxy for camera {}: {}", camera.id, e)
-                );
-        } else {
-            clear_proxy_config(camera.id)
-                .unwrap_or_else(|e|
-                    error!("failed to clear proxy configuration for camera {}: {}", camera.id, e)
-                );
+    for camera in &cameras {
+        if !camera.local {
+            if camera.enabled {
+                write_proxy_config(&camera, templates)
+                    .unwrap_or_else(|e|
+                        error!("failed to configure proxy for camera {}: {}", camera.id, e)
+                    );
+            } else {
+                clear_proxy_config(camera.id)
+                    .unwrap_or_else(|e|
+                        error!("failed to clear proxy configuration for camera {}: {}", camera.id, e)
+                    );
+            }
         }
     }
 
     proxy::reload()
         .unwrap_or_else(|e| error!("failed to reload proxy configuration: {}", e));
+
+    #[cfg(feature = "stream")]
+    {
+        let local_cam_count = cameras.iter()
+            .count();
+
+        assert!(local_cam_count <= 1);
+
+        if local_cam_count == 0 {
+            info!("initializing local camera");
+            let local_cam = NewCamera {
+                name: String::from("Local Camera"),
+                address: String::from(""),
+                enabled: stream.transcoder.running(),
+                orientation: stream.orientation,
+                local: true,
+            };
+            diesel::insert_into(cameras::table)
+                .values(&local_cam)
+                .execute(conn)?;
+        }
+    }
 
     Ok(())
 }

@@ -5,6 +5,7 @@ table! {
         address -> Text,
         enabled -> Bool,
         orientation -> Integer,
+        local -> Bool,
     }
 }
 
