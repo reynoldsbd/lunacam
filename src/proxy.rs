@@ -5,7 +5,7 @@ use std::env;
 use std::fs;
 use std::process::{Command, Stdio};
 
-use log::{debug, warn};
+use log::{debug, trace, warn};
 
 use crate::error::Result;
 
@@ -13,12 +13,19 @@ use crate::error::Result;
 /// Ensures the proxy config directory exists
 pub fn init() -> Result<()> {
 
-    let state_dir = env::var("STATE_DIRECTORY")?;
-    let config_dir = format!("{}/nginx", state_dir);
+    trace!("identifying proxy config directory");
+    let state_dir = match env::var("STATE_DIRECTORY") {
+        Ok(dir) => dir,
+        #[cfg(debug_assertions)]
+        Err(std::env::VarError::NotPresent) => String::from("."),
+        Err(err) => return Err(err.into()),
+    };
 
+    let config_dir = format!("{}/nginx", state_dir);
+    trace!("checking for presence of proxy config directory {}", config_dir);
     if fs::metadata(&config_dir).is_err() {
 
-        debug!("creating proxy config dir");
+        debug!("creating proxy config dir {}", config_dir);
         fs::create_dir_all(&config_dir)?;
     }
 

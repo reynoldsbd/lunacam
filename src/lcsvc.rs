@@ -6,6 +6,7 @@ use actix_files::Files;
 use actix_web::{App, HttpServer};
 use actix_web::web::{self, Data};
 use env_logger::Env;
+use log::{debug, trace};
 use reqwest::Client;
 use tera::Tera;
 
@@ -36,6 +37,8 @@ fn init_logging() {
         .write_style("LC_LOG_STYLE");
 
     env_logger::init_from_env(env);
+
+    trace!("initialized logging");
 }
 
 
@@ -46,6 +49,7 @@ fn init_logging() {
 /// compiled in debug mode, templates are loaded from *./templates*.
 fn load_templates() -> Result<Tera> {
 
+    trace!("identifying template directory");
     let template_dir = match env::var("LC_TEMPLATES") {
         Ok(dir)                   => dir,
         #[cfg(debug_assertions)]
@@ -53,9 +57,11 @@ fn load_templates() -> Result<Tera> {
         Err(err)                  => return Err(err.into()),
     };
 
+    debug!("loading templates from {}", template_dir);
     let template_dir = format!("{}/**/*", template_dir);
+    let templates = Tera::new(&template_dir)?;
 
-    Ok(Tera::new(&template_dir)?)
+    Ok(templates)
 }
 
 
