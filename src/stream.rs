@@ -138,7 +138,14 @@ fn make_command(_orientation: Orientation) -> Command {
 /// Gets the location of the HLS stream's proxy configuration file
 fn get_proxy_config_path() -> Result<impl AsRef<Path>> {
 
-    let state_dir = env::var("STATE_DIRECTORY")?;
+    trace!("identifying proxy config directory");
+    let state_dir = match env::var("STATE_DIRECTORY") {
+        Ok(dir) => dir,
+        #[cfg(debug_assertions)]
+        Err(std::env::VarError::NotPresent) => String::from("."),
+        Err(err) => return Err(err.into()),
+    };
+
     let path = format!("{}/nginx/hls.conf", state_dir);
 
     Ok(path)
@@ -313,9 +320,11 @@ fn patch_stream(
 /// process.
 pub fn initialize(conn: &PooledConnection, templates: &Tera) -> Result<Stream> {
 
+    trace!("loading stream settings");
     let settings: StreamState = settings::get(STREAM_STATE_SETTING, conn)?
         .unwrap_or_default();
 
+    trace!("initializing stream");
     let mut transcoder = ProcHost::new(make_command(settings.orientation));
     if settings.enabled {
         debug!("starting transcoder");
