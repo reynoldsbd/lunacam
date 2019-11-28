@@ -63,6 +63,12 @@ fn get_secret_key(conn: &PooledConnection) -> Result<SecretKey<'static>> {
 }
 
 
+// These values are chosen such that hashing takes approximately one second on a
+// Raspberry Pi Zero W
+const ARGON2_ITERATIONS: u32 = 24;
+const ARGON2_MEMORY_SIZE: u32 = 1024;
+
+
 fn hash_password(password: &str, conn: &PooledConnection) -> Result<String> {
 
     // Don't really understand why, but declaring hasher with a separate statement forces the 'a in
@@ -72,7 +78,10 @@ fn hash_password(password: &str, conn: &PooledConnection) -> Result<String> {
     // because password is not 'static.
     let mut hasher = Hasher::new();
 
-    let hash = hasher.with_secret_key(get_secret_key(conn)?)
+    let hash = hasher
+        .configure_iterations(ARGON2_ITERATIONS)
+        .configure_memory_size(ARGON2_MEMORY_SIZE)
+        .with_secret_key(get_secret_key(conn)?)
         .with_password(password)
         .hash()
         .expect("failed to hash password");
