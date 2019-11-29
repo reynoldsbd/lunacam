@@ -18,6 +18,7 @@ use diesel::deserialize::{self, FromSql};
 use diesel::serialize::{self, Output, ToSql};
 use diesel::sql_types::Integer;
 use log::{debug, trace};
+use rand::Rng;
 use serde::{Deserialize, Serialize};
 use tera::{Context, Tera};
 
@@ -102,6 +103,11 @@ fn make_command(_orientation: Orientation) -> Command {
     // In release mode, start the actual transcoder process
     } else {
 
+
+        let hls_key_dir = env::var("STATE_DIRECTORY")
+            .unwrap_or_else(|_| String::from("."));
+        let hls_key_info_path = format!("{}/stream.keyinfo", hls_key_dir);
+
         // TODO: parameterize orientation, output path, ...
         let mut cmd = Command::new("ffmpeg");
         cmd.args(&[
@@ -122,6 +128,7 @@ fn make_command(_orientation: Orientation) -> Command {
             // Output stream
             "-f", "hls",
             "-hls_flags", "delete_segments",
+            "-hls_key_info_file", &hls_key_info_path,
             "/tmp/lunacam/hls/stream.m3u8",
         ]);
         cmd
@@ -201,6 +208,7 @@ pub struct StreamUpdate {
 pub struct Stream {
     pub(crate) orientation: Orientation,
     pub(crate) transcoder: ProcHost,
+    key: [u8; 16],
 }
 
 impl Stream {
@@ -211,6 +219,7 @@ impl Stream {
         StreamState {
             enabled: self.transcoder.running(),
             orientation: self.orientation,
+            key: self.key,
         }
     }
 
@@ -279,10 +288,21 @@ impl Stream {
 /// the state of a `Stream`. You can retrieve an instance using the `From` trait
 /// with an instance of `Stream` or by deserializing the reponse from a
 /// *GET /api/stream* API request
-#[derive(Default, Deserialize, Serialize)]
+#[derive(Deserialize, Serialize)]
 pub struct StreamState {
     pub enabled: bool,
     pub orientation: Orientation,
+    pub key: [u8; 16],
+}
+
+impl Default for StreamState {
+    fn default() -> Self {
+        Self {
+            enabled: Default::default(),
+            orientation: Default::default(),
+            key: rand::thread_rng().gen(),
+        }
+    }
 }
 
 
@@ -321,12 +341,29 @@ fn patch_stream(
 pub fn initialize(conn: &PooledConnection, templates: &Tera) -> Result<Stream> {
 
     trace!("loading stream settings");
-    let settings: StreamState = settings::get(STREAM_STATE_SETTING, conn)?
-        .unwrap_or_default();
+    let state: StreamState = match settings::get(STREAM_STATE_SETTING, conn)? {
+        Some(state) => state,
+        None => {
+            let state = Default::default();
+            settings::set(STREAM_STATE_SETTING, &state, conn)?;
+            state
+        }
+    };
+
+    // Write configuration files used by FFmpeg to encrypt the HLS
+    // stream. For more information, see the FFmpeg docs for hls_key_info_file.
+    debug!("configuring HLS encryption");
+    let hls_key_dir = env::var("STATE_DIRECTORY")
+        .unwrap_or_else(|_| String::from("."));
+    let hls_key_path = format!("{}/stream.key", hls_key_dir);
+    fs::write(&hls_key_path, state.key)?;
+    let hls_key_info = format!("stream.key\n{}\n", hls_key_path);
+    let hls_key_info_path = format!("{}/stream.keyinfo", hls_key_dir);
+    fs::write(hls_key_info_path, hls_key_info)?;
 
     trace!("initializing stream");
-    let mut transcoder = ProcHost::new(make_command(settings.orientation));
-    if settings.enabled {
+    let mut transcoder = ProcHost::new(make_command(state.orientation));
+    if state.enabled {
         debug!("starting transcoder");
         transcoder.start()?;
         write_proxy_config(templates)?;
@@ -337,8 +374,9 @@ pub fn initialize(conn: &PooledConnection, templates: &Tera) -> Result<Stream> {
     proxy::reload()?;
 
     Ok(Stream {
-        orientation: settings.orientation,
+        orientation: state.orientation,
         transcoder,
+        key: state.key,
     })
 }
 
