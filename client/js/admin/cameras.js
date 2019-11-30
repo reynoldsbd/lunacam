@@ -262,10 +262,13 @@ class CamEntry extends HTMLElement {
     onSaveButtonClicked(_) {
 
         let camera = {
-            address: this.addressField.value,
             name: this.nameField.value,
             orientation: this.orientationSelect.value,
         };
+
+        if (!this.isLocal) {
+            camera.address = this.addressField.value;
+        }
 
         this.uploadCamera(camera);
     }
