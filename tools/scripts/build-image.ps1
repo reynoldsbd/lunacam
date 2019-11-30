@@ -52,6 +52,7 @@ $templateDir = "$commonDir/03-lcsvc/files/templates"
 $null = New-Item -Type Directory $templateDir
 Copy-Item -Recurse $repoDir/templates/* $templateDir
 
+Copy-Item $pigenDir/utils.sh $pigenBuildDir/utils.sh
 Copy-Item $pigenDir/config.sh $pigenBuildDir/config
 
 $stageList = "stage0 stage1 stage2 common"

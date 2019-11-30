@@ -7,3 +7,5 @@ export TIMEZONE_DEFAULT="America/Los_Angeles"
 export FIRST_USER_NAME="admin"
 export FIRST_USER_PASS="admin"
 export ENABLE_SSH="1"
+
+export LC_UTILS="$(pwd)/utils.sh"
