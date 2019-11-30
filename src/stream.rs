@@ -208,7 +208,7 @@ pub struct StreamUpdate {
 pub struct Stream {
     pub(crate) orientation: Orientation,
     pub(crate) transcoder: ProcHost,
-    key: [u8; 16],
+    pub(crate) key: [u8; 16],
 }
 
 impl Stream {
