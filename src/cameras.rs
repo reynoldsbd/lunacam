@@ -48,13 +48,13 @@ struct PutCameraBody {
 
 #[derive(Insertable)]
 #[table_name = "cameras"]
-struct NewCamera {
-    name: String,
-    address: String,
+struct NewCamera<'a> {
+    name: &'a str,
+    address: &'a str,
     enabled: bool,
     orientation: Orientation,
     local: bool,
-    key: Vec<u8>,
+    key: &'a [u8],
 }
 
 
@@ -66,8 +66,6 @@ fn put_camera(
     body: Json<PutCameraBody>,
 ) -> Result<Json<Camera>>
 {
-    let body = body.into_inner();
-
     // Validate connection before touching the database
     debug!("connecting to camera at {}", body.address);
     let url = format!("http://{}/api/stream", body.address);
@@ -78,12 +76,12 @@ fn put_camera(
     debug!("adding new camera to database");
     let conn = pool.get()?;
     let new_cam = NewCamera {
-        name: body.name,
-        address: body.address,
+        name: &body.name,
+        address: &body.address,
         enabled: stream.enabled,
         orientation: stream.orientation,
         local: false,
-        key: Vec::from(stream.key.as_ref()),
+        key: &stream.key,
     };
     diesel::insert_into(cameras::table)
         .values(&new_cam)
@@ -417,12 +415,12 @@ pub fn initialize(
         if local_cam_count == 0 {
             info!("initializing local camera");
             let local_cam = NewCamera {
-                name: String::from("Local Camera"),
-                address: String::from(""),
+                name: "Local Camera",
+                address: "",
                 enabled: stream.transcoder.running(),
                 orientation: stream.orientation,
                 local: true,
-                key: Vec::from(stream.key.as_ref()),
+                key: &stream.key,
             };
             diesel::insert_into(cameras::table)
                 .values(&local_cam)
