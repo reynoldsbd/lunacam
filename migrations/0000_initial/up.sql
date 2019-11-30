@@ -39,7 +39,11 @@ CREATE TABLE cameras (
     local
         BOOLEAN
         NOT NULL
-        DEFAULT FALSE
+        DEFAULT FALSE,
+
+    key
+        BLOB
+        NOT NULL
 
 );
 

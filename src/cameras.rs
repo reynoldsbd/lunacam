@@ -27,13 +27,14 @@ use crate::users::AuthenticationMiddleware;
 #[derive(Serialize)]
 #[derive(AsChangeset, Identifiable, Queryable)]
 #[table_name = "cameras"]
-struct Camera {
-    id: i32,
-    name: String,
-    address: String,
-    enabled: bool,
-    orientation: Orientation,
-    local: bool,
+pub struct Camera {
+    pub id: i32,
+    pub name: String,
+    pub address: String,
+    pub enabled: bool,
+    pub orientation: Orientation,
+    pub local: bool,
+    pub key: Vec<u8>,
 }
 
 
@@ -47,12 +48,13 @@ struct PutCameraBody {
 
 #[derive(Insertable)]
 #[table_name = "cameras"]
-struct NewCamera {
-    name: String,
-    address: String,
+struct NewCamera<'a> {
+    name: &'a str,
+    address: &'a str,
     enabled: bool,
     orientation: Orientation,
     local: bool,
+    key: &'a [u8],
 }
 
 
@@ -64,8 +66,6 @@ fn put_camera(
     body: Json<PutCameraBody>,
 ) -> Result<Json<Camera>>
 {
-    let body = body.into_inner();
-
     // Validate connection before touching the database
     debug!("connecting to camera at {}", body.address);
     let url = format!("http://{}/api/stream", body.address);
@@ -76,11 +76,12 @@ fn put_camera(
     debug!("adding new camera to database");
     let conn = pool.get()?;
     let new_cam = NewCamera {
-        name: body.name,
-        address: body.address,
+        name: &body.name,
+        address: &body.address,
         enabled: stream.enabled,
         orientation: stream.orientation,
         local: false,
+        key: &stream.key,
     };
     diesel::insert_into(cameras::table)
         .values(&new_cam)
@@ -258,18 +259,16 @@ fn patch_camera(
         diesel::update(&camera)
             .set(&camera)
             .execute(&conn)?;
-        if !camera.local {
-            if camera.enabled {
-                write_proxy_config(&camera, &templates)
-                    .unwrap_or_else(|e|
-                        error!("failed to configure proxy for camera {}: {}", camera.id, e)
-                    );
-            } else {
-                clear_proxy_config(camera.id)
-                    .unwrap_or_else(|e|
-                        error!("failed to clear proxy configuration for camera {}: {}", camera.id, e)
-                    );
-            }
+        if camera.enabled {
+            write_proxy_config(&camera, &templates)
+                .unwrap_or_else(|e|
+                    error!("failed to configure proxy for camera {}: {}", camera.id, e)
+                );
+        } else {
+            clear_proxy_config(camera.id)
+                .unwrap_or_else(|e|
+                    error!("failed to clear proxy configuration for camera {}: {}", camera.id, e)
+                );
         }
     }
 
@@ -390,18 +389,16 @@ pub fn initialize(
     let cameras: Vec<Camera> = cameras::table.load(conn)?;
 
     for camera in &cameras {
-        if !camera.local {
-            if camera.enabled {
-                write_proxy_config(&camera, templates)
-                    .unwrap_or_else(|e|
-                        error!("failed to configure proxy for camera {}: {}", camera.id, e)
-                    );
-            } else {
-                clear_proxy_config(camera.id)
-                    .unwrap_or_else(|e|
-                        error!("failed to clear proxy configuration for camera {}: {}", camera.id, e)
-                    );
-            }
+        if camera.enabled {
+            write_proxy_config(&camera, templates)
+                .unwrap_or_else(|e|
+                    error!("failed to configure proxy for camera {}: {}", camera.id, e)
+                );
+        } else {
+            clear_proxy_config(camera.id)
+                .unwrap_or_else(|e|
+                    error!("failed to clear proxy configuration for camera {}: {}", camera.id, e)
+                );
         }
     }
 
@@ -418,11 +415,12 @@ pub fn initialize(
         if local_cam_count == 0 {
             info!("initializing local camera");
             let local_cam = NewCamera {
-                name: String::from("Local Camera"),
-                address: String::from(""),
+                name: "Local Camera",
+                address: "",
                 enabled: stream.transcoder.running(),
                 orientation: stream.orientation,
                 local: true,
+                key: &stream.key,
             };
             diesel::insert_into(cameras::table)
                 .values(&local_cam)
@@ -444,9 +442,9 @@ pub fn all(conn: &PooledConnection) -> Result<impl Serialize> {
 
 
 /// Retrieves serializable representation of the specified camera
-pub fn get(id: i32, conn: &PooledConnection) -> Result<impl Serialize> {
+pub fn get(id: i32, conn: &PooledConnection) -> Result<Camera> {
 
-    let user: Camera = cameras::table.find(id)
+    let user = cameras::table.find(id)
         .get_result(conn)?;
 
     Ok(user)

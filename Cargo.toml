@@ -20,6 +20,7 @@ actix-files = "0.1"
 actix-web = "1.0"
 argonautica = "0.2"
 base64 = "0.10"
+bytes = "0.4"
 derive_more = "0.15"
 diesel = { version = "1.4", features = ["r2d2", "sqlite"] }
 diesel_migrations = "1.4"

@@ -6,6 +6,7 @@ table! {
         enabled -> Bool,
         orientation -> Integer,
         local -> Bool,
+        key -> Binary,
     }
 }
 

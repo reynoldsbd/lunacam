@@ -2,6 +2,7 @@
 
 use actix_web::HttpResponse;
 use actix_web::web::{self, Data, Path, ServiceConfig};
+use bytes::Bytes;
 use tera::{Context, Tera};
 
 use crate::cameras;
@@ -61,6 +62,21 @@ fn camera(
 }
 
 
+fn camera_key(
+    pool: Data<ConnectionPool>,
+    path: Path<(i32,)>,
+) -> Result<HttpResponse>
+{
+    let conn = pool.get()?;
+
+    let camera = cameras::get(path.0, &conn)?;
+    let response = HttpResponse::Ok()
+        .body(Bytes::from(camera.key));
+
+    Ok(response)
+}
+
+
 fn camera_admin(pool: Data<ConnectionPool>, templates: Data<Tera>) -> Result<HttpResponse> {
 
     let conn = pool.get()?;
@@ -92,10 +108,11 @@ pub fn configure(service: &mut ServiceConfig) {
 
     service.service(
         web::scope("")
-            .route("/",              web::get().to(index))
-            .route("/cameras/{id}",  web::get().to(camera))
-            .route("/admin/cameras", web::get().to(camera_admin))
-            .route("/admin/users",   web::get().to(user_admin))
+            .route("/",                  web::get().to(index))
+            .route("/cameras/{id}",      web::get().to(camera))
+            .route("/cameras/{id}/key",  web::get().to(camera_key))
+            .route("/admin/cameras",     web::get().to(camera_admin))
+            .route("/admin/users",       web::get().to(user_admin))
             .wrap(AuthenticationMiddleware::redirect("/login"))
     );
 }

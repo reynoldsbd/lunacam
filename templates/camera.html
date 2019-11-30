@@ -11,13 +11,13 @@
     <div id="message-area">
     </div>
 
-    {% if camera.local %}
-        {% set cam_url = "/stream/stream.m3u8" %}
-    {% else %}
-        {% set cam_url = "/streams/" ~ camera.id ~ "/stream.m3u8" %}
-    {% endif %}
-
-    <video id="stream" controls width="100%" height="auto" data-stream-url="{{ cam_url }}"></video>
+    <video
+        id="stream"
+        width="100%"
+        height="auto"
+        data-stream-url="/streams/{{ camera.id }}/stream.m3u8"
+        controls>
+    </video>
 
 </div>
 
