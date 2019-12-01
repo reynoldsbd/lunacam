@@ -1,12 +1,10 @@
 # Out-of-source build tree
 /build
 
-# Application database
+# Application state
 lunacam.db
-
-# Local customizations
-sysroot.local/
-install.local.sh
+stream.key
+stream.keyinfo
 
 # Editor configuration
 .vscode/
