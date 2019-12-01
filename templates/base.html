@@ -17,17 +17,27 @@
     <body>
 
         <nav class="navbar" role="navigation" aria-label="main navigation">
+
             <div class="navbar-brand">
-                <a class="navbar-item" href="/">Live Stream</a>
+                <a class="navbar-item" href="/">All Cameras</a>
                 <div class="navbar-burger" role="button" aria-label="menu" aria-expanded="false">
                     <span aria-hidden="true"></span>
                     <span aria-hidden="true"></span>
                     <span aria-hidden="true"></span>
                 </div>
             </div>
+
             <div class="navbar-menu">
                 <div class="navbar-end">
-                    <a class="navbar-item" href="/admin/">Admin</a>
+
+                    <div class="navbar-item has-dropdown is-hoverable">
+                        <a class="navbar-link">Administration</a>
+                        <div class="navbar-dropdown">
+                            <a class="navbar-item" href="/admin/cameras">Cameras</a>
+                            <a class="navbar-item" href="/admin/users">Users</a>
+                        </div>
+                    </a>
+
                 </div>
             </div>
         </nav>
