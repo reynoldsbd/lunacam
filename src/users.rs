@@ -282,7 +282,6 @@ fn delete_user(
     info!("deleted user {}", id);
 
     // Can't reuse conn, because it will not reflect the recently deleted user
-    #[cfg(debug_assertions)]
     maybe_create_default_user(&pool.get()?)?;
 
     Ok(())

@@ -88,14 +88,13 @@ where
 
 
 /// Creates a `Command` for starting the transcoder
-fn make_command(_orientation: Orientation) -> Command {
+fn make_command(_orientation: Orientation) -> Result<Command> {
 
     // In debug mode, start a dummy process
     let mut cmd = if cfg!(debug_assertions) {
 
         let mut cmd = Command::new("sh");
-        let state_dir = env::var("STATE_DIRECTORY")
-            .unwrap_or_else(|_| String::from("."));
+        let state_dir = env::var("STATE_DIRECTORY")?;
         cmd.arg("-c");
         cmd.arg(format!("while : ; do date > {}/time.txt; sleep 1; done", state_dir));
         cmd
@@ -104,8 +103,7 @@ fn make_command(_orientation: Orientation) -> Command {
     } else {
 
 
-        let hls_key_dir = env::var("STATE_DIRECTORY")
-            .unwrap_or_else(|_| String::from("."));
+        let hls_key_dir = env::var("STATE_DIRECTORY")?;
         let hls_key_info_path = format!("{}/stream.keyinfo", hls_key_dir);
 
         // TODO: parameterize orientation, output path, ...
@@ -138,7 +136,7 @@ fn make_command(_orientation: Orientation) -> Command {
         .stdout(Stdio::null())
         .stderr(Stdio::null());
 
-    cmd
+    Ok(cmd)
 }
 
 
@@ -146,12 +144,7 @@ fn make_command(_orientation: Orientation) -> Command {
 fn get_proxy_config_path() -> Result<impl AsRef<Path>> {
 
     trace!("identifying proxy config directory");
-    let state_dir = match env::var("STATE_DIRECTORY") {
-        Ok(dir) => dir,
-        #[cfg(debug_assertions)]
-        Err(std::env::VarError::NotPresent) => String::from("."),
-        Err(err) => return Err(err.into()),
-    };
+    let state_dir = env::var("STATE_DIRECTORY")?;
 
     let path = format!("{}/nginx/hls.conf", state_dir);
 
@@ -262,7 +255,7 @@ impl Stream {
 
         if do_reconfig {
             trace!("reconfiguring transcoder host");
-            self.transcoder = ProcHost::new(make_command(self.orientation));
+            self.transcoder = ProcHost::new(make_command(self.orientation)?);
         }
 
         if do_start {
@@ -353,8 +346,7 @@ pub fn initialize(conn: &PooledConnection, templates: &Tera) -> Result<Stream> {
     // Write configuration files used by FFmpeg to encrypt the HLS
     // stream. For more information, see the FFmpeg docs for hls_key_info_file.
     debug!("configuring HLS encryption");
-    let hls_key_dir = env::var("STATE_DIRECTORY")
-        .unwrap_or_else(|_| String::from("."));
+    let hls_key_dir = env::var("STATE_DIRECTORY")?;
     let hls_key_path = format!("{}/stream.key", hls_key_dir);
     fs::write(&hls_key_path, state.key)?;
     let hls_key_info = format!("stream.key\n{}\n", hls_key_path);
@@ -362,7 +354,7 @@ pub fn initialize(conn: &PooledConnection, templates: &Tera) -> Result<Stream> {
     fs::write(hls_key_info_path, hls_key_info)?;
 
     trace!("initializing stream");
-    let mut transcoder = ProcHost::new(make_command(state.orientation));
+    let mut transcoder = ProcHost::new(make_command(state.orientation)?);
     if state.enabled {
         debug!("starting transcoder");
         transcoder.start()?;

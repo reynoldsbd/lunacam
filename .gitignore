@@ -1,10 +1,5 @@
 # Out-of-source build tree
 /build
 
-# Application state
-lunacam.db
-stream.key
-stream.keyinfo
-
 # Editor configuration
 .vscode/

@@ -2,7 +2,7 @@
 
 
 use std::borrow::Borrow;
-use std::env::{self, VarError};
+use std::env;
 
 use diesel::r2d2::{self, ConnectionManager, Pool};
 use diesel::sqlite::SqliteConnection;
@@ -34,15 +34,10 @@ embed_migrations!();
 /// the current working directory.
 pub fn connect() -> Result<ConnectionPool> {
 
-    trace!("identifying state directory");
-    let db_dir = match env::var("STATE_DIRECTORY") {
-        Ok(dir) => dir,
-        #[cfg(debug_assertions)]
-        Err(VarError::NotPresent) => String::from("."),
-        Err(err) => return Err(err.into()),
-    };
-
+    trace!("identifying database location");
+    let db_dir = env::var("STATE_DIRECTORY")?;
     let db_url = format!("{}/lunacam.db", db_dir);
+
     debug!("connecting to database at {}", db_url);
     let pool = Pool::new(ConnectionManager::new(db_url))?;
 
