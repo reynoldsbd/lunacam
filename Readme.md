@@ -91,13 +91,7 @@ acquire for any operating system. On Windows, the use of Ubuntu via
 * [diesel_cli](https://github.com/diesel-rs/diesel/tree/master/diesel_cli) (if modifying the database schema)
   * Recommend installing with `--no-default-features` and `--features "sqlite-bundled"`
 
-## Building and Running
-
-Start by running */toosl/scripts/build-css.ps1*, which compiles Sass stylesheets
-and prepares the static CSS directory. This script should be re-run whenever
-something under */client/style/* is modified.
-
-Then use Cargo to build and run:
+Once dependencies are installed, simply use Cargo to build and run:
 
 ```shell
 cargo run
