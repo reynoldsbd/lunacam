@@ -95,6 +95,7 @@ $deployZip = if ($NoZip) { "0" } else { "1" }
 export STAGE_LIST="$stageList"
 export LC_IMG_SUFFIX="$imgSuffix"
 export DEPLOY_ZIP="$deployZip"
+export WORK_DIR="/pi-gen/work/lunacam"
 "@ >> $pigenBuildDir/config
 
 Push-Location $pigenBuildDir

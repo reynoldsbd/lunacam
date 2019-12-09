@@ -270,6 +270,8 @@ fn patch_camera(
                     error!("failed to clear proxy configuration for camera {}: {}", camera.id, e)
                 );
         }
+        proxy::reload()
+            .unwrap_or_else(|e| error!("failed to reload proxy configuration: {}", e));
     }
 
     info!("successfully updated camera {}", id);
