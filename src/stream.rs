@@ -157,7 +157,7 @@ fn write_proxy_config(templates: &Tera) -> Result<()> {
 
     debug!("writing proxy configuration for HLS stream");
 
-    let config = templates.render("hls.conf", Context::new())?;
+    let config = templates.render("hls.conf", &Context::new())?;
 
     let config_path = get_proxy_config_path()?;
 

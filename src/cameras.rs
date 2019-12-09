@@ -345,7 +345,7 @@ fn write_proxy_config(camera: &Camera, templates: &Tera) -> Result<()> {
 
     let mut context = Context::new();
     context.insert("camera", camera);
-    let config = templates.render("proxy.conf", context)?;
+    let config = templates.render("proxy.conf", &context)?;
 
     debug!("writing proxy configuration for camera {}", camera.id);
     let config_path = get_proxy_config_path(camera.id)?;
