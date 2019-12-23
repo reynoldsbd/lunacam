@@ -127,7 +127,7 @@ fn make_command(_orientation: Orientation) -> Result<Command> {
             "-f", "hls",
             "-hls_flags", "delete_segments",
             "-hls_key_info_file", &hls_key_info_path,
-            "/tmp/lunacam/hls/stream.m3u8",
+            "/dev/shm/lunacam/hls/stream.m3u8",
         ]);
         cmd
     };
