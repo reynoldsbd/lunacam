@@ -35,7 +35,7 @@ switch ($Variant) {
         $featureFlags = @(
             "--no-default-features"
             "--features"
-            "portal stream"
+            "portal"
         )
     }
     "CameraOnly" {
