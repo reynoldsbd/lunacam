@@ -1,3 +1,5 @@
+# LunaCam
+
 LunaCam is a secure and self-hosted video streaming system designed primarily
 for the Raspberry Pi. With it, you can stream video from one or more cameras
 over the Internet using only a web browser.
@@ -67,9 +69,44 @@ gadget is configured out of the box with an IP address of 192.168.7.3.
 Once connected, run `sudo raspi-config` and configure the following:
 
 1. Change the *admin* user's default password
-2. Change the default hostname
-3. Connect to the network
-4. Resize the root partition to fit your SD card
+2. Connect to a wireless network
+3. Set a new hostname (default is *lunacam*)
+4. Resize the root partition to fit your SD card (optional, LunaCam will run
+  perfectly fine without doing so)
+
+Shut down, position the camera as desired, and connect a power source. You
+should now be able to access the web UI by pointing a browser at the Pi's IP
+address.
+
+Sign in using *lunacam* as the default username and password, then navigate to
+the */admin/users* page and **change these default credentials**. From this
+page, you may also configure additional usernames and passwords.
+
+Next, navigate to */admin/cameras* and set the name of initial camera feed. This
+page allows you to configure/start/stop camera streams and set up connections to
+additional *camera-only* LunaCam devices.
+
+Finally, navigate to the site root (*/*) to view all streams.
+
+## Tips and Tricks
+
+To get the most out of LunaCam, you'll probably want to reconfigure your home
+router as follows:
+
+1. Assign a static IP address to each LunaCam device, allowing you to access
+  them remotely using predictable addresses.
+2. Set up port-forwarding for port 80, allowing you to access the web UI and
+  camera streams remotely. Note that you should only perform this configuration
+  **once**, for the initial LunaCam device (the one that hosts the portal). All
+  other cameras can be viewed and controlled via the same portal.
+
+The process for configuring the above varies wildly by router, so I won't try to
+capture the details here.
+
+Advanced users may also wish to configure TLS encryption for the LunaCam web
+portal. Certbot makes this super easy:
+
+https://certbot.eff.org/lets-encrypt/debianbuster-nginx
 
 
 # Local Development
@@ -122,10 +159,10 @@ For more thorough testing, you can build complete SD card images locally using
 
 Licensed under either of:
 
- * Apache License, Version 2.0
-   ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
- * MIT license
-   ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
+* Apache License, Version 2.0
+  ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
+* MIT license
+  ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
 
 at your option.
 
