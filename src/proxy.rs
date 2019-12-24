@@ -14,12 +14,7 @@ use crate::error::Result;
 pub fn init() -> Result<()> {
 
     trace!("identifying proxy config directory");
-    let state_dir = match env::var("STATE_DIRECTORY") {
-        Ok(dir) => dir,
-        #[cfg(debug_assertions)]
-        Err(std::env::VarError::NotPresent) => String::from("."),
-        Err(err) => return Err(err.into()),
-    };
+    let state_dir = env::var("STATE_DIRECTORY")?;
 
     let config_dir = format!("{}/nginx", state_dir);
     trace!("checking for presence of proxy config directory {}", config_dir);

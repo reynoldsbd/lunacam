@@ -17,7 +17,7 @@ fn render_template_response(
     context: Context,
 ) -> Result<HttpResponse> {
 
-    let body = templates.render(name, context)?;
+    let body = templates.render(name, &context)?;
 
     let response = HttpResponse::Ok()
         .content_type("text/html")

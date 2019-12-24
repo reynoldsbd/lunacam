@@ -5,3 +5,6 @@ target-dir = "build/target"
 # https://github.com/rust-lang/rust/issues/28924
 # would be cool if this was chosen automatically
 linker = "arm-linux-gnueabihf-gcc"
+
+[target.'cfg(all())']
+runner = "pwsh tools/scripts/runner.ps1"

@@ -7,7 +7,10 @@ param (
         "CameraOnly"
     )]
     [string]
-    $Variant = "Full"
+    $Variant = "Full",
+
+    [switch]
+    $NoZip
 )
 
 $ErrorActionPreference = "Stop"
@@ -52,6 +55,7 @@ $templateDir = "$commonDir/03-lcsvc/files/templates"
 $null = New-Item -Type Directory $templateDir
 Copy-Item -Recurse $repoDir/templates/* $templateDir
 
+Copy-Item $pigenDir/utils.sh $pigenBuildDir/utils.sh
 Copy-Item $pigenDir/config.sh $pigenBuildDir/config
 
 $stageList = "stage0 stage1 stage2 common"
@@ -86,13 +90,18 @@ $imgSuffix = switch ($Variant) {
     "CameraOnly" { "-camera" }
     "PortalOnly" { "-portal" }
 }
+$deployZip = if ($NoZip) { "0" } else { "1" }
 @"
 export STAGE_LIST="$stageList"
 export LC_IMG_SUFFIX="$imgSuffix"
+export DEPLOY_ZIP="$deployZip"
+export WORK_DIR="/pi-gen/work/lunacam"
 "@ >> $pigenBuildDir/config
 
 Push-Location $pigenBuildDir
 Write-Host "building raspbian image"
-docker rm -v pigen_work
+$Env:CONTAINER_NAME = "lc_pigen_$Variant"
+$Env:PRESERVE_CONTAINER = "1"
+$Env:CONTINUE = "1"
 ./build-docker.sh -c config
 Pop-Location

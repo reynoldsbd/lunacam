@@ -1,4 +1,4 @@
-use std::env::{self, VarError};
+use std::env;
 use std::mem;
 use std::sync::RwLock;
 
@@ -23,17 +23,11 @@ use lunacam::users;
 compile_error!("invalid feature selection");
 
 
-#[cfg(debug_assertions)]
-const DEFAULT_FILTER: &str = "info,lunacam=debug";
-#[cfg(not(debug_assertions))]
-const DEFAULT_FILTER: &str = "info";
-
-
 /// Initializes environment-based logging provider
 fn init_logging() {
 
     let env = Env::default()
-        .filter_or("LC_LOG", DEFAULT_FILTER)
+        .filter_or("LC_LOG", "info")
         .write_style("LC_LOG_STYLE");
 
     env_logger::init_from_env(env);
@@ -50,12 +44,7 @@ fn init_logging() {
 fn load_templates() -> Result<Tera> {
 
     trace!("identifying template directory");
-    let template_dir = match env::var("LC_TEMPLATES") {
-        Ok(dir)                   => dir,
-        #[cfg(debug_assertions)]
-        Err(VarError::NotPresent) => String::from("templates"),
-        Err(err)                  => return Err(err.into()),
-    };
+    let template_dir = env::var("LC_TEMPLATES")?;
 
     debug!("loading templates from {}", template_dir);
     let template_dir = format!("{}/**/*", template_dir);

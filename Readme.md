@@ -1,138 +1,173 @@
-LunaCam turns your Raspberry Pi into a streaming video camera with a user-friendly interface and
-control panel.
+# LunaCam
 
-The project is named "LunaCam" because I use it to watch my dog, Luna, while I'm away from home.
+LunaCam is a secure and self-hosted video streaming system designed primarily
+for the Raspberry Pi. With it, you can stream video from one or more cameras
+over the Internet using only a web browser.
+
+*Why "LunaCam"?*
+
+I started this project as a way to monitor my dog, Luna, while I'm away from
+home. My hope is that this project will be used for other purposes, but as of
+yet I haven't found a generic (and unused) name that's quite as catchy!
+
+
+# Overview
+
+A minimal LunaCam setup consists of a single Raspberry Pi with an attached
+camera module, running a specialized version of Raspbian. The Pi exposes a web
+portal as the primary means of viewing/controlling video streams and
+administering the overall system.
+
+Additional video streams can be added to the system by provisioning additional
+Pis with a special "camera-only" version of LunaCam's OS. These Pis can then be
+added to the system using the first Pi's web portal. All cameras in the system
+can be viewed from the web portal.
+
+Video streams exposed by LunaCam are encrypted. Users must enter a username and
+password before they are allowed to view any stream. The web portal provides a
+basic means for administering user accounts.
+
+A LunaCam system is intended to live behind some kind of firewall, such as a
+home router. As with much other web-based, self-hosted software, accessing
+LunaCam over the Internet requires port forwarding or a reverse-proxy.
+
+
+# Supported Hardware
+
+LunaCam should work on any model of the Raspberry Pi. It is optimized for the
+Raspberry Pi Zero W in particular. The only (currently) supported camera is the
+official camera module.
+
+My personal recommendation is Adafruit's Pi Zero W Camera Pack:
+
+https://www.adafruit.com/product/3414
 
 
 # Getting Started
 
-To ensure a smooth and compatible installation, LunaCam requires a customized SD card image. At this
-time, you must build the image yourself.
+Start by downloading [the latest release](https://github.com/reynoldsbd/lunacam/releases)
+of LunaCam's Raspbian-based OS. There are several variations of this OS image to
+choose from:
 
-> Although it is possible to build LunaCam on macOS and Linux, these instructions are currently
-> tailored to Windows.
+* *lunacam-X.Y.Z.zip* - Contains a full LunaCam stack, including web UI and
+  support for streaming from an attached camera module. **Choose this image if
+  you're just starting out.**
+* *lunacam-camera-X.Y.Z.zip* - No web UI, only support for streaming. Use this
+  image when adding an additional camera to an existing LunaCam system.
+* *lunacam-portal-X.Y.Z.zip* - Web UI only. Does not support streaming from a
+  camera module. This image is useful for offloading the web UI workload to a
+  device that does not have an attached camera.
 
-## Dependencies
+Unzip the image, flash it to an SD card, and use it to boot your favorite
+Raspberry Pi. Congratulations, LunaCam is now installed and running! However,
+some additional configuration is needed before you have a usable setup.
 
-Building the LunaCam SD card image requires the following software to be installed:
+Log in to the device using "admin" for both the username and password. If you're
+using a Zero W (or any other model supporting USB OTG), note that an ethernet
+gadget is configured out of the box with an IP address of 192.168.7.3.
 
-* Windows 10 Pro - required for Docker
-* [Docker for Windows](https://docs.docker.com/docker-for-windows/install/)
-  * Enable Docker setting *"Expose daemon on tcp://localhost:2375 without TLS"*
-  * If you want build to run faster, configure Docker to use more CPUs and RAM
-* Ubuntu [WSL](https://docs.microsoft.com/en-us/windows/wsl/install-win10) distro
-  * `sudo apt install build-essential`
-  * [Docker for Linux](https://docs.docker.com/install/linux/docker-ce/ubuntu/)
-    * Set *DOCKER_HOST* environment variable to *tcp://localhost:2375*
-  * [Sass](https://sass-lang.com/install)
+Once connected, run `sudo raspi-config` and configure the following:
 
-## Customization
+1. Change the *admin* user's default password
+2. Connect to a wireless network
+3. Set a new hostname (default is *lunacam*)
+4. Resize the root partition to fit your SD card (optional, LunaCam will run
+  perfectly fine without doing so)
 
-You may customize the SD card image by adding files to the directory */system/root.local*. The
-contents of this directory are copied into LunaCam's root filesystem. LunaCam is based on Arch
-Linux, and many aspects of the system can be customized by simply "dropping in" configuration files.
+Shut down, position the camera as desired, and connect a power source. You
+should now be able to access the web UI by pointing a browser at the Pi's IP
+address.
 
-For cases where drop-in configuration is not sufficient, you may also provide custom logic using
-*/system/local.sh*. If present, this script is run at the end of the image creation process. The
-script is run as *root* and **inside** the new system, so commands like `systemctl enable foo` will
-have the desired effect of enabling the *foo* service on the new system.
+Sign in using *lunacam* as the default username and password, then navigate to
+the */admin/users* page and **change these default credentials**. From this
+page, you may also configure additional usernames and passwords.
 
-> **Warning:** */system/local.sh* and the contents of */system/root.local/* are copied onto the new
-> SD card image. Anybody with access to the image will be able to see these files and any secrets
-> they contain (e.g. network or user passwords).
+Next, navigate to */admin/cameras* and set the name of initial camera feed. This
+page allows you to configure/start/stop camera streams and set up connections to
+additional *camera-only* LunaCam devices.
 
-### Network Configuration
+Finally, navigate to the site root (*/*) to view all streams.
 
-Most of LunaCam's features can be controlled using its UI, but at the very least you should
-configure the network so you can access that UI.
+## Tips and Tricks
 
-> This section assumes your Pi's wireless adapter is named *wlan0*. This is the case for models with
-> built in adapters, such as the Raspberry Pi 3 and Zero W. If you're using a third-party adapter,
-> you may need to use a different adapter name.
+To get the most out of LunaCam, you'll probably want to reconfigure your home
+router as follows:
 
-First, create the file */system/root.local/etc/wpa_supplicant/wpa_supplicant-wlan0.conf* with the
-following contents (replacing *\<SSID>* and *\<PSK>* with appropriate values):
+1. Assign a static IP address to each LunaCam device, allowing you to access
+  them remotely using predictable addresses.
+2. Set up port-forwarding for port 80, allowing you to access the web UI and
+  camera streams remotely. Note that you should only perform this configuration
+  **once**, for the initial LunaCam device (the one that hosts the portal). All
+  other cameras can be viewed and controlled via the same portal.
 
-```
-network={
-  ssid="<SSID>"
-  psk="<PSK>"
-}
-```
+The process for configuring the above varies wildly by router, so I won't try to
+capture the details here.
 
-Then, add the following to */system/root.local/etc/systemd/network/wlan0.network*:
+Advanced users may also wish to configure TLS encryption for the LunaCam web
+portal. Certbot makes this super easy:
 
-```
-[Match]
-Name=wlan0
+https://certbot.eff.org/lets-encrypt/debianbuster-nginx
 
-[Network]
-DHCP=yes
-MulticastDNS=yes
-```
 
-If you wish, specify a hostname with */system/root.local/etc/hostname*.
+# Local Development
 
-Finally, create */system/local.sh* and add the following to enable WiFi at boot time:
+During active development, LunaCam can be compiled and run on nearly any
+workstation. This makes it very easy to build and test changes locally, without
+the hassle of cross-compilation or deploying bits to hardware.
 
-```bash
-#!/bin/bash
+Development generally requires the following tools, which should be easy to
+acquire for any operating system. On Windows, the use of Ubuntu via
+[WSL](https://docs.microsoft.com/en-us/windows/wsl/about) is recommended.
 
-systemctl enable wpa_supplicant@wlan0
-```
+* [Rust](https://rustup.rs/)
+* Clang version 3.9 or higher
+  * *clang* package on Ubuntu
+* [PowerShell 6](https://docs.microsoft.com/en-us/powershell/scripting/install/installing-powershell?view=powershell-6)
+* [Yarn](https://yarnpkg.com/lang/en/docs/install/)
+* [Sass](https://sass-lang.com/install)
+* [diesel_cli](https://github.com/diesel-rs/diesel/tree/master/diesel_cli) (if modifying the database schema)
+  * Recommend installing with `--no-default-features` and `--features "sqlite-bundled"`
 
-### User Account
-
-Remote access is disabled by default. If you wish to access the new system using SSH, you must
-arrange for the creation of a user account.
-
-Start by copying the contents of your [public SSH key](https://wiki.archlinux.org/index.php/SSH_keys)
-into the the file */system/root.local/etc/skel/.ssh/authorized_keys*. For example:
-
-```shell
-mkdir -p ./system/root.local/etc/skel/.ssh
-cp $HOME/.ssh/id_rsa.pub ./system/root.local/etc/skel/.ssh/authorized_keys
-```
-
-Then, add the following lines to */system/local.sh*, replacing `user` with your desired username.
+Once dependencies are installed, simply use Cargo to build and run:
 
 ```shell
-# Fixup permissions for ~/.ssh
-chmod 700 /etc/skel/.ssh
-chmod 640 /etc/skel/.ssh/authorized_keys
-
-# Create account
-if ! id -u user &> /dev/null
-then
-  echo "    --> creating user"
-  useradd -m -G wheel user
-  passwd -d -e user
-fi
+cargo run
 ```
 
-You will be prompted to set a password upon full login. However, by default, *this password is not
-required by sudo* (required in order to use `make deploy`).
-
-### Expand Root Partition
-
-The generated SD card image weighs in at 2Gb so it can fit on a variety of SD cards. If your SD card
-is larger than this, you may wish to resize the filesystem to make use of all available space.
-
-The easiest way to do this is to run the following command as root *after* logging in to the booted
-system. If the first command warns about being unable to reload the partition table, you will need
-to reboot before running the second command.
+If developing code applicable to the camera-only variant, you'll need to toggle
+some feature flags:
 
 ```shell
-echo ", +" | sfdisk -N 2 /dev/mmcblk0
-resize2fs /dev/mmcblk0p2
+cargo run --no-default-features --features "stream-api"
 ```
 
-## Image Creation
+## Building an SD Card Image
 
-Once you are finished customization, open a WSL shell to the directory containing LunaCam's source
-code and run the command `make sd`. This will create a file called *lunacam.img*, which is your
-customized SD card image.
+For more thorough testing, you can build complete SD card images locally using
+*/tools/scripts/build-image.ps1*. This process is only known to work on Linux
+(including WSL) and requires installing some additional dependencies:
 
-This image can be flashed to an SD card and run on a Raspberry Pi in the same manner as any other SD
-card image. If you're looking for an easy-to-use tool for this, check out
-[Balena Etcher](https://www.balena.io/etcher/).
+* Basic build tools and 32-bit libc headers
+  * On Ubuntu, install *build-essential* and *libc6-dev-i386*
+* Docker
+  * If on a true Linux host, make sure to add your user account to the *docker*
+    group
+  * If using WSL, follow [these instructions](https://nickjanetakis.com/blog/setting-up-docker-for-windows-and-wsl-to-work-flawlessly)
+
+
+# License
+
+Licensed under either of:
+
+* Apache License, Version 2.0
+  ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
+* MIT license
+  ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
+
+at your option.
+
+## Contribution
+
+Unless you explicitly state otherwise, any contribution intentionally submitted
+for inclusion in the work by you, as defined in the Apache-2.0 license, shall be
+dual licensed as above, without any additional terms or conditions.
