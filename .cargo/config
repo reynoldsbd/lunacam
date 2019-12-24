@@ -7,4 +7,4 @@ target-dir = "build/target"
 linker = "arm-linux-gnueabihf-gcc"
 
 [target.'cfg(all())']
-runner = "tools/scripts/runner.ps1"
+runner = "pwsh tools/scripts/runner.ps1"
