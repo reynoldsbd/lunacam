@@ -3,6 +3,7 @@ Description=LunaCam Service
 
 [Service]
 User=lunacam
+RuntimeDirectory=lunacam
 StateDirectory=lunacam
 Environment=LC_TEMPLATES=/usr/share/lunacam/templates
 ExecStart=/usr/bin/lcsvc

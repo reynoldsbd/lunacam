@@ -8,7 +8,6 @@
 use std::env;
 use std::fs;
 use std::io::Write;
-use std::path::Path;
 use std::process::{Command, Stdio};
 use std::sync::RwLock;
 
@@ -141,12 +140,10 @@ fn make_command(_orientation: Orientation) -> Result<Command> {
 
 
 /// Gets the location of the HLS stream's proxy configuration file
-fn get_proxy_config_path() -> Result<impl AsRef<Path>> {
+fn get_proxy_config_path() -> Result<String> {
 
-    trace!("identifying proxy config directory");
-    let state_dir = env::var("STATE_DIRECTORY")?;
-
-    let path = format!("{}/nginx/hls.conf", state_dir);
+    let cfg_dir = proxy::config_dir()?;
+    let path = format!("{}/hls.conf", cfg_dir);
 
     Ok(path)
 }
