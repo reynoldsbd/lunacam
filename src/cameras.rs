@@ -410,6 +410,7 @@ pub fn initialize(
     #[cfg(feature = "stream")]
     {
         let local_cam_count = cameras.iter()
+            .filter(|c| c.local)
             .count();
 
         assert!(local_cam_count <= 1);
