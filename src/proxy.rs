@@ -10,24 +10,6 @@ use log::{debug, trace, warn};
 use crate::error::Result;
 
 
-/// Ensures the proxy config directory exists
-pub fn init() -> Result<()> {
-
-    trace!("identifying proxy config directory");
-    let state_dir = env::var("STATE_DIRECTORY")?;
-
-    let config_dir = format!("{}/nginx", state_dir);
-    trace!("checking for presence of proxy config directory {}", config_dir);
-    if fs::metadata(&config_dir).is_err() {
-
-        debug!("creating proxy config dir {}", config_dir);
-        fs::create_dir_all(&config_dir)?;
-    }
-
-    Ok(())
-}
-
-
 /// Reloads server configuration
 pub fn reload() -> Result<()> {
 
@@ -45,4 +27,22 @@ pub fn reload() -> Result<()> {
     }
 
     Ok(())
+}
+
+
+/// Retrieves the proxy configuration directory, creating it if it does not yet
+/// exist.
+pub fn config_dir() -> Result<String> {
+
+    trace!("identifying proxy config directory");
+
+    let rt_dir = env::var("RUNTIME_DIRECTORY")?;
+    let cfg_dir = format!("{}/nginx", rt_dir);
+
+    if fs::metadata(&cfg_dir).is_err() {
+        debug!("creating proxy config directory {}", cfg_dir);
+        fs::create_dir_all(&cfg_dir)?;
+    }
+
+    Ok(cfg_dir)
 }

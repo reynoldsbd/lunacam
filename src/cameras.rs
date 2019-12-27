@@ -1,7 +1,6 @@
 //! Camera management
 
 
-use std::env;
 use std::fs;
 use std::path::Path;
 use std::sync::RwLock;
@@ -9,7 +8,7 @@ use std::sync::RwLock;
 use actix_web::http::{StatusCode};
 use actix_web::web::{self, Data, Json, ServiceConfig};
 use diesel::prelude::*;
-use log::{debug, error, info, trace};
+use log::{debug, error, info, trace, warn};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use tera::{Context, Tera};
@@ -92,7 +91,7 @@ fn put_camera(
         .first(&conn)?;
 
     if camera.enabled {
-        write_proxy_config(&camera, &templates)
+        write_proxy_config(&camera, &client, &templates)
             .and_then(|_| proxy::reload())
             .unwrap_or_else(|e|
                 error!("failed to configure proxy for camera {}: {}", camera.id, e)
@@ -260,7 +259,7 @@ fn patch_camera(
             .set(&camera)
             .execute(&conn)?;
         if camera.enabled {
-            write_proxy_config(&camera, &templates)
+            write_proxy_config(&camera, &client, &templates)
                 .unwrap_or_else(|e|
                     error!("failed to configure proxy for camera {}: {}", camera.id, e)
                 );
@@ -335,15 +334,32 @@ pub fn configure_api(service: &mut ServiceConfig) {
 /// Gets path of the proxy configuration file for the specified camera
 fn get_proxy_config_path(id: i32) -> Result<impl AsRef<Path>> {
 
-    let state_dir = env::var("STATE_DIRECTORY")?;
-    let path = format!("{}/nginx/proxy-{}.conf", state_dir, id);
+    let cfg_dir = proxy::config_dir()?;
+    let path = format!("{}/proxy-{}.conf", cfg_dir, id);
 
     Ok(path)
 }
 
 
 /// Writes or removes the proxy configuration file for this camera
-fn write_proxy_config(camera: &Camera, templates: &Tera) -> Result<()> {
+fn write_proxy_config(
+    camera: &Camera,
+    client: &Client,
+    templates: &Tera
+) -> Result<()> {
+
+    // Validate remote address before writing proxy config (otherwise, Nginx
+    // will fail to start/reload, potentially making the web UI inaccessible)
+    if !camera.local {
+        debug!("validating connection to camera {}", camera.id);
+        let url = format!("http://{}/api/stream", camera.address);
+        if let Err(err) = client.get(&url).send() {
+            // Misconfigured camera should not bring down the whole system
+            error!("failed to connect to camera {}: {}", camera.id, err);
+            warn!("skipping proxy configuration");
+            return Ok(());
+        }
+    }
 
     let mut context = Context::new();
     context.insert("camera", camera);
@@ -383,6 +399,7 @@ fn clear_proxy_config(id: i32) -> Result<()> {
 /// in this module.
 pub fn initialize(
     conn: &PooledConnection,
+    client: &Client,
     templates: &Tera,
     #[cfg(feature = "stream")]
     stream: &Stream,
@@ -392,7 +409,7 @@ pub fn initialize(
 
     for camera in &cameras {
         if camera.enabled {
-            write_proxy_config(&camera, templates)
+            write_proxy_config(&camera, client, templates)
                 .unwrap_or_else(|e|
                     error!("failed to configure proxy for camera {}: {}", camera.id, e)
                 );
