@@ -1,3 +1,12 @@
+#![warn(clippy::all)]
+
+#[macro_use]
+extern crate derive_more;
+#[macro_use]
+extern crate diesel;
+#[macro_use]
+extern crate diesel_migrations;
+
 use std::env;
 use std::mem;
 use std::sync::RwLock;
@@ -10,12 +19,18 @@ use log::{debug, trace};
 use reqwest::Client;
 use tera::Tera;
 
-use lunacam::cameras;
-use lunacam::db;
-use lunacam::error::Result;
-use lunacam::stream;
-use lunacam::ui;
-use lunacam::users;
+mod cameras;
+mod db;
+mod error;
+mod locks;
+mod prochost;
+mod proxy;
+mod settings;
+mod stream;
+mod ui;
+mod users;
+
+use crate::error::Result;
 
 
 #[cfg(not(any(feature = "portal", feature = "stream-api")))]

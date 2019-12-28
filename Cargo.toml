@@ -4,11 +4,6 @@ version = "1.0.1"
 authors = ["Bobby Reynolds <bobby@reynoldsbd.net>"]
 license = "MIT OR Apache-2.0"
 edition = "2018"
-default-run = "lcsvc"
-
-[[bin]]
-name = "lcsvc"
-path = "src/lcsvc.rs"
 
 [features]
 default = ["portal", "stream"]
