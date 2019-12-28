@@ -12,16 +12,17 @@ stream = []
 stream-api = ["stream"]
 
 [dependencies]
-actix-files = "0.1"
-actix-web = "1.0"
+actix-files = "0.2"
+actix-rt = "1"
+actix-web = "2"
 argonautica = "0.2"
-base64 = "0.10"
-bytes = "0.4"
+base64 = "0.11"
+bytes = "0.5"
 derive_more = "0.99.2"
 diesel = { version = "1.4", features = ["r2d2", "sqlite"] }
 diesel_migrations = "1.4"
 env_logger = "0.7"
-futures = "0.1"
+futures = "0.3"
 lazy_static = "1.4"
 libsqlite3-sys = { version = "0.16", features = ["bundled"] }
 log = "0.4"
@@ -30,5 +31,5 @@ rand = "0.7"
 reqwest = "0.9"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-tera = "1.0.0"
-tokio = "0.1"
+tera = "1"
+tokio = "0.2"

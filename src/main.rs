@@ -68,7 +68,8 @@ fn load_templates() -> Result<Tera> {
 }
 
 
-fn main() -> Result<()> {
+#[actix_rt::main]
+async fn main() -> Result<()> {
 
     init_logging();
 
