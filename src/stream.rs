@@ -297,7 +297,7 @@ impl Default for StreamState {
 
 
 /// Retrieves information about the video stream
-fn get_stream(
+async fn get_stream(
     stream: Data<RwLock<Stream>>,
 ) -> Result<Json<StreamState>> {
 
@@ -308,7 +308,7 @@ fn get_stream(
 
 
 /// Updates video stream settings
-fn patch_stream(
+async fn patch_stream(
     pool: Data<ConnectionPool>,
     stream: Data<RwLock<Stream>>,
     templates: Data<Tera>,

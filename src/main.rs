@@ -7,6 +7,17 @@ extern crate diesel;
 #[macro_use]
 extern crate diesel_migrations;
 
+mod cameras;
+mod db;
+mod error;
+mod locks;
+mod prochost;
+mod proxy;
+mod settings;
+mod stream;
+mod ui;
+mod users;
+
 use std::env;
 use std::mem;
 use std::sync::RwLock;
@@ -18,17 +29,6 @@ use env_logger::Env;
 use log::{debug, trace};
 use reqwest::Client;
 use tera::Tera;
-
-mod cameras;
-mod db;
-mod error;
-mod locks;
-mod prochost;
-mod proxy;
-mod settings;
-mod stream;
-mod ui;
-mod users;
 
 use crate::error::Result;
 
@@ -103,12 +103,12 @@ async fn main() -> Result<()> {
     HttpServer::new(move || {
 
             let app = App::new()
-                .register_data(client.clone())
-                .register_data(templates.clone())
-                .register_data(pool.clone());
+                .app_data(client.clone())
+                .app_data(templates.clone())
+                .app_data(pool.clone());
 
             #[cfg(feature = "stream")]
-            let app = app.register_data(stream.clone());
+            let app = app.app_data(stream.clone());
 
             let api = web::scope("api");
             #[cfg(feature = "portal")]
@@ -130,7 +130,8 @@ async fn main() -> Result<()> {
             app
         })
         .bind("127.0.0.1:9351")?
-        .run()?;
+        .run()
+        .await?;
 
     Ok(())
 }

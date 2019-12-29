@@ -1,18 +1,20 @@
 //! User management
 
-
+use std::future::Future;
+use std::pin::Pin;
+use std::result::Result as StdResult;
 use std::sync::Mutex;
+use std::task::{Context, Poll};
 
 use actix_web::{Error as ActixError, HttpMessage, HttpResponse};
-use actix_web::dev::{Service, ServiceRequest, ServiceResponse, Transform};
+use actix_web::dev::{Body, Service, ServiceRequest, ServiceResponse, Transform};
 use actix_web::http::{Cookie, StatusCode};
 use actix_web::web::{self, Data, Json, ServiceConfig};
 use argonautica::{Hasher, Verifier};
 use argonautica::input::SecretKey;
 use diesel::prelude::*;
 use diesel::result::{Error as DieselError, QueryResult};
-use futures::{Future, Poll};
-use futures::future::{self, FutureResult};
+use futures::future::{self, Ready};
 use lazy_static::lazy_static;
 use log::{debug, error, info, trace, warn};
 use rand::Rng;
@@ -176,7 +178,7 @@ struct PutUserBody {
 }
 
 /// Creates a new user
-fn put_user(
+async fn put_user(
     pool: Data<ConnectionPool>,
     body: Json<PutUserBody>,
 ) -> Result<Json<User>>
@@ -190,7 +192,7 @@ fn put_user(
 }
 
 /// Retrieves information about the specified user
-fn get_user(
+async fn get_user(
     pool: Data<ConnectionPool>,
     path: web::Path<(i32,)>,
 ) -> Result<Json<User>>
@@ -206,7 +208,7 @@ fn get_user(
 }
 
 /// Retrieves information about all users
-fn get_users(
+async fn get_users(
     pool: Data<ConnectionPool>,
 ) -> Result<Json<Vec<User>>>
 {
@@ -225,7 +227,7 @@ struct PatchUserBody {
 }
 
 /// Updates information about the specified user
-fn patch_user(
+async fn patch_user(
     pool: Data<ConnectionPool>,
     path: web::Path<(i32,)>,
     body: Json<PatchUserBody>,
@@ -267,10 +269,10 @@ fn patch_user(
 }
 
 /// Deletes the specified user
-fn delete_user(
+async fn delete_user(
     pool: Data<ConnectionPool>,
     path: web::Path<(i32,)>,
-) -> Result<()>
+) -> Result<HttpResponse>
 {
     let id = path.0;
 
@@ -284,7 +286,7 @@ fn delete_user(
     // Can't reuse conn, because it will not reflect the recently deleted user
     maybe_create_default_user(&pool.get()?)?;
 
-    Ok(())
+    Ok(HttpResponse::NoContent().finish())
 }
 
 //#endregion
@@ -335,16 +337,17 @@ pub struct AuthenticationService<S> {
 
 impl<S> Service for AuthenticationService<S>
 where
-    S: Service<Request = ServiceRequest, Response = ServiceResponse, Error = ActixError>,
+    S: Service<Request = ServiceRequest, Response = ServiceResponse<Body>, Error = ActixError>,
     S::Future: 'static,
 {
     type Request = ServiceRequest;
-    type Response = ServiceResponse;
+    type Response = ServiceResponse<Body>;
     type Error = ActixError;
-    type Future = Box<dyn Future<Item = Self::Response, Error = Self::Error>>;
+    #[allow(clippy::type_complexity)]
+    type Future = Pin<Box<dyn Future<Output=StdResult<Self::Response, Self::Error>>>>;
 
-    fn poll_ready(&mut self) -> Poll<(), Self::Error> {
-        self.service.poll_ready()
+    fn poll_ready(&mut self, ctx: &mut Context) -> Poll<StdResult<(), Self::Error>> {
+        self.service.poll_ready(ctx)
     }
 
     fn call(&mut self, req: ServiceRequest) -> Self::Future {
@@ -357,7 +360,7 @@ where
 
         if is_authenticated {
 
-            Box::new(self.service.call(req))
+            Box::pin(self.service.call(req))
 
         } else {
 
@@ -370,7 +373,7 @@ where
                     .finish()
             };
 
-            Box::new(future::ok(req.into_response(response)))
+            Box::pin(future::ok(req.into_response(response)))
         }
     }
 }
@@ -390,7 +393,7 @@ impl AuthenticationMiddleware {
 
 impl<S> Transform<S> for AuthenticationMiddleware
 where
-    S: Service<Request = ServiceRequest, Response = ServiceResponse, Error = ActixError>,
+    S: Service<Request = ServiceRequest, Response = ServiceResponse<Body>, Error = ActixError>,
     S::Future: 'static,
 {
     type Request = ServiceRequest;
@@ -398,7 +401,7 @@ where
     type Error = ActixError;
     type InitError = ();
     type Transform = AuthenticationService<S>;
-    type Future = FutureResult<Self::Transform, Self::InitError>;
+    type Future = Ready<StdResult<Self::Transform, Self::InitError>>;
 
     fn new_transform(&self, service: S) -> Self::Future {
         future::ok(AuthenticationService {
@@ -435,7 +438,7 @@ struct PutSessionResponse {
 }
 
 /// Creates a new session
-fn put_session(
+async fn put_session(
     pool: Data<ConnectionPool>,
     body: Json<PutSessionBody>
 ) -> Result<HttpResponse>

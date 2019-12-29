@@ -56,10 +56,6 @@ impl ResponseError for Error {
         HttpResponse::build(status)
             .json(body)
     }
-
-    fn render_response(&self) -> HttpResponse {
-        self.error_response()
-    }
 }
 
 

@@ -5,6 +5,7 @@ use std::fs;
 use std::path::Path;
 use std::sync::RwLock;
 
+use actix_web::HttpResponse;
 use actix_web::http::{StatusCode};
 use actix_web::web::{self, Data, Json, ServiceConfig};
 use diesel::prelude::*;
@@ -58,7 +59,7 @@ struct NewCamera<'a> {
 
 
 /// Creates a new camera
-fn put_camera(
+async fn put_camera(
     client: Data<Client>,
     pool: Data<ConnectionPool>,
     templates: Data<Tera>,
@@ -105,7 +106,7 @@ fn put_camera(
 
 
 /// Retrieves information about the specified camera
-fn get_camera(
+async fn get_camera(
     pool: Data<ConnectionPool>,
     path: web::Path<(i32,)>,
 ) -> Result<Json<Camera>>
@@ -122,7 +123,7 @@ fn get_camera(
 
 
 /// Retrieves information about all cameras
-fn get_cameras(
+async fn get_cameras(
     pool: Data<ConnectionPool>,
 ) -> Result<Json<Vec<Camera>>>
 {
@@ -147,7 +148,7 @@ struct PatchCameraBody {
 /// Updates information about the specified camera
 #[allow(clippy::assertions_on_constants)]
 #[allow(clippy::cognitive_complexity)]
-fn patch_camera(
+async fn patch_camera(
     pool: Data<ConnectionPool>,
     client: Data<Client>,
     templates: Data<Tera>,
@@ -279,10 +280,10 @@ fn patch_camera(
 
 
 /// Deletes the specified camera
-fn delete_camera(
+async fn delete_camera(
     pool: Data<ConnectionPool>,
     path: web::Path<(i32,)>,
-) -> Result<()>
+) -> Result<HttpResponse>
 {
     let id = path.0;
     let conn = pool.get()?;
@@ -307,7 +308,7 @@ fn delete_camera(
 
     info!("deleted camera {}", id);
 
-    Ok(())
+    Ok(HttpResponse::NoContent().finish())
 }
 
 
