@@ -27,7 +27,6 @@ use actix_web::{App, HttpServer};
 use actix_web::web::{self, Data};
 use env_logger::Env;
 use log::{debug, trace};
-use reqwest::Client;
 use tera::Tera;
 
 use crate::error::Result;
@@ -73,7 +72,6 @@ async fn main() -> Result<()> {
 
     init_logging();
 
-    let client    = Data::new(Client::new());
     let templates = Data::new(load_templates()?);
     let pool      = Data::new(db::connect()?);
 
@@ -86,11 +84,10 @@ async fn main() -> Result<()> {
     if cfg!(feature = "portal") {
         cameras::initialize(
             &conn,
-            &client,
             &templates,
             #[cfg(feature = "stream")]
             &stream,
-        )?;
+        ).await?;
         users::maybe_create_default_user(&conn)?;
     }
 
@@ -103,7 +100,6 @@ async fn main() -> Result<()> {
     HttpServer::new(move || {
 
             let app = App::new()
-                .app_data(client.clone())
                 .app_data(templates.clone())
                 .app_data(pool.clone());
 

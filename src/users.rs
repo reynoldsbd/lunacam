@@ -451,14 +451,20 @@ async fn put_session(
     let user: User = match user_query.first(&conn) {
         Ok(user) => user,
         Err(DieselError::NotFound) => {
-            return Error::web(StatusCode::UNAUTHORIZED, "invalid username or password");
+            return Err(Error::Web(
+                StatusCode::UNAUTHORIZED,
+                String::from("invalid username or password")
+            ));
         },
         Err(err) => {
             return Err(err.into());
         }
     };
     if !verify_password(&user.pwhash, &body.password, &conn)? {
-        return Error::web(StatusCode::UNAUTHORIZED, "invalid username or password");
+        return Err(Error::Web(
+            StatusCode::UNAUTHORIZED,
+            String::from("invalid username or password")
+        ));
     }
 
     // Generate session key
