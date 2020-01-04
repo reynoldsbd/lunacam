@@ -79,7 +79,8 @@ async fn main() -> Result<()> {
     let conn = pool.get()?;
 
     #[cfg(feature = "stream")]
-    let stream = stream::initialize(&conn, &templates)?;
+    let stream = stream::initialize(&conn, &templates)
+        .await?;
 
     if cfg!(feature = "portal") {
         cameras::initialize(

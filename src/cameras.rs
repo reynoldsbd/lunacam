@@ -42,7 +42,8 @@ impl Camera {
     /// Writes or removes this camera's proxy configuration
     async fn flush_config(&self, client: &Client, templates: &Tera) -> Result<()> {
 
-        let cfg_dir = proxy::config_dir()?;
+        let cfg_dir = proxy::config_dir()
+            .await?;
         let cfg_path = format!("{}/proxy-{}.conf", cfg_dir, self.id);
 
         // If this camera is enabled, ensure an up-to-date config exists
@@ -74,7 +75,8 @@ impl Camera {
             fs::remove_file(&cfg_path).await?;
         }
 
-        proxy::reload()?;
+        proxy::reload()
+            .await?;
 
         Ok(())
     }
@@ -286,7 +288,8 @@ async fn patch_camera(
             assert!(cfg!(feature = "stream"));
             debug!("updating local stream settings");
             #[cfg(feature = "stream")]
-            do_write!(stream).update(&new_stream, &conn, &templates)?;
+            do_write!(stream).update(&new_stream, &conn, &templates)
+                .await?;
         } else {
             debug!("sending new stream settings to {}", camera.address);
             client.patch(&url)

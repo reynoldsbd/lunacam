@@ -140,9 +140,10 @@ fn make_command(_orientation: Orientation) -> Result<Command> {
 
 
 /// Gets the location of the HLS stream's proxy configuration file
-fn get_proxy_config_path() -> Result<String> {
+async fn get_proxy_config_path() -> Result<String> {
 
-    let cfg_dir = proxy::config_dir()?;
+    let cfg_dir = proxy::config_dir()
+        .await?;
     let path = format!("{}/hls.conf", cfg_dir);
 
     Ok(path)
@@ -150,13 +151,14 @@ fn get_proxy_config_path() -> Result<String> {
 
 
 /// Writes proxy configuration for the HLS stream
-fn write_proxy_config(templates: &Tera) -> Result<()> {
+async fn write_proxy_config(templates: &Tera) -> Result<()> {
 
     debug!("writing proxy configuration for HLS stream");
 
     let config = templates.render("hls.conf", &Context::new())?;
 
-    let config_path = get_proxy_config_path()?;
+    let config_path = get_proxy_config_path()
+        .await?;
 
     fs::write(&config_path, config)?;
 
@@ -165,9 +167,10 @@ fn write_proxy_config(templates: &Tera) -> Result<()> {
 
 
 /// Removes proxy configuration for the HLS stream
-fn clear_proxy_config() -> Result<()> {
+async fn clear_proxy_config() -> Result<()> {
 
-    let config_path = get_proxy_config_path()?;
+    let config_path = get_proxy_config_path()
+        .await?;
 
     if fs::metadata(&config_path).is_ok() {
         debug!("clearing proxy configuration for HLS stream");
@@ -214,7 +217,7 @@ impl Stream {
     }
 
     /// Updates this stream's settings
-    pub fn update(
+    pub async fn update(
         &mut self,
         update: &StreamUpdate,
         conn: &PooledConnection,
@@ -246,8 +249,10 @@ impl Stream {
         if do_stop {
             debug!("stopping transcoder");
             self.transcoder.stop()?;
-            clear_proxy_config()?;
-            proxy::reload()?;
+            clear_proxy_config()
+                .await?;
+            proxy::reload()
+                .await?;
         }
 
         if do_reconfig {
@@ -258,8 +263,10 @@ impl Stream {
         if do_start {
             debug!("starting transcoder");
             self.transcoder.start()?;
-            write_proxy_config(templates)?;
-            proxy::reload()?;
+            write_proxy_config(templates)
+                .await?;
+            proxy::reload()
+                .await?;
         }
 
         if do_stop || do_reconfig || do_start {
@@ -318,7 +325,8 @@ async fn patch_stream(
     let mut stream = do_write!(stream);
     let conn = pool.get()?;
 
-    stream.update(&body, &conn, &templates)?;
+    stream.update(&body, &conn, &templates)
+        .await?;
 
     Ok(Json(stream.state()))
 }
@@ -328,7 +336,7 @@ async fn patch_stream(
 ///
 /// This function must be called exactly once over the lifetime of the current
 /// process.
-pub fn initialize(conn: &PooledConnection, templates: &Tera) -> Result<Stream> {
+pub async fn initialize(conn: &PooledConnection, templates: &Tera) -> Result<Stream> {
 
     trace!("loading stream settings");
     let state: StreamState = match settings::get(STREAM_STATE_SETTING, conn)? {
@@ -355,12 +363,15 @@ pub fn initialize(conn: &PooledConnection, templates: &Tera) -> Result<Stream> {
     if state.enabled {
         debug!("starting transcoder");
         transcoder.start()?;
-        write_proxy_config(templates)?;
+        write_proxy_config(templates)
+            .await?;
     } else {
-        clear_proxy_config()?;
+        clear_proxy_config()
+            .await?;
     }
 
-    proxy::reload()?;
+    proxy::reload()
+        .await?;
 
     Ok(Stream {
         orientation: state.orientation,
