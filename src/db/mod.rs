@@ -1,7 +1,6 @@
 //! Database connectivity
 
 
-use std::borrow::Borrow;
 use std::env;
 
 use diesel::r2d2::{self, ConnectionManager, Pool};
@@ -46,20 +45,4 @@ pub fn connect() -> Result<ConnectionPool> {
     embedded_migrations::run(&conn)?;
 
     Ok(pool)
-}
-
-
-/// Provides access to the application database
-pub trait DatabaseContext {
-
-    /// Gets a pooled database connection
-    fn conn(&self) -> Result<PooledConnection>;
-}
-
-impl<T> DatabaseContext for T
-where T: Borrow<ConnectionPool>
-{
-    fn conn(&self) -> Result<PooledConnection> {
-        Ok(self.borrow().get()?)
-    }
 }
