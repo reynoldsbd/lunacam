@@ -248,7 +248,8 @@ impl Stream {
 
         if do_stop {
             debug!("stopping transcoder");
-            self.transcoder.stop()?;
+            self.transcoder.stop()
+                .await?;
             clear_proxy_config()
                 .await?;
             proxy::reload()
@@ -262,7 +263,8 @@ impl Stream {
 
         if do_start {
             debug!("starting transcoder");
-            self.transcoder.start()?;
+            self.transcoder.start()
+                .await?;
             write_proxy_config(templates)
                 .await?;
             proxy::reload()
@@ -367,7 +369,8 @@ pub async fn initialize(conn: &PooledConnection, templates: &Tera) -> Result<Str
     let mut transcoder = ProcHost::new(make_command(state.orientation)?);
     if state.enabled {
         debug!("starting transcoder");
-        transcoder.start()?;
+        transcoder.start()
+            .await?;
         write_proxy_config(templates)
             .await?;
     } else {
