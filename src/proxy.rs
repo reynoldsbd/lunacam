@@ -17,6 +17,11 @@ pub async fn reload() -> Result<()> {
 
     debug!("reloading proxy");
 
+    if cfg!(windows) {
+        warn!("skipping proxy reload on Windows host");
+        return Ok(())
+    }
+
     let status = Command::new("/usr/bin/sudo")
         .args(&["-n", "/usr/bin/systemctl", "reload", "nginx.service"])
         .stdin(Stdio::null())

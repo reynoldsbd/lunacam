@@ -25,10 +25,27 @@ if (!$cssLastBuilt -or ($styleLastModified -ge $cssLastBuilt)) {
 }
 
 
-$Env:STATE_DIRECTORY = "$buildDir/run"
-$Env:LC_LOG = "info,lunacam=debug"
+$Env:STATE_DIRECTORY = "$buildDir/var"
+if (!(Test-Path $Env:STATE_DIRECTORY)) {
+    $null = New-Item -Type Directory -Force $Env:STATE_DIRECTORY
+}
+
+$Env:RUNTIME_DIRECTORY = "$buildDir/run"
+if (!(Test-Path $Env:RUNTIME_DIRECTORY)) {
+    $null = New-Item -Type Directory -Force $Env:RUNTIME_DIRECTORY
+}
+
+# Always start with an empty run dir
+Remove-Item -Recurse -Force $Env:RUNTIME_DIRECTORY/*
+
+if (!$Env:LC_LOG) {
+    $Env:LC_LOG = "info,lunacam=debug"
+}
+
 $Env:LC_TEMPLATES = "$sourceDir/templates"
 
 $binary = $args[0]
 $arguments = $args[1..($args.Count)]
 &$binary $arguments
+
+exit $LASTEXITCODE
