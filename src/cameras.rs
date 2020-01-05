@@ -10,7 +10,7 @@ use actix_web::web::{self, Data, Json, ServiceConfig};
 
 use awc::Client;
 use diesel::prelude::*;
-use log::{debug, error, info, trace, warn};
+use log::{debug, info, trace, warn};
 use serde::{Deserialize, Serialize};
 use tera::{Context, Tera};
 
@@ -40,7 +40,12 @@ pub struct Camera {
 impl Camera {
 
     /// Writes or removes this camera's proxy configuration
-    async fn flush_config(&self, client: &Client, templates: &Tera) -> Result<()> {
+    async fn flush_config(
+        &self,
+        client: &Client,
+        templates: &Tera,
+        reload: bool,
+    ) -> Result<()> {
 
         let cfg_dir = proxy::config_dir()
             .await?;
@@ -75,8 +80,10 @@ impl Camera {
             fs::remove_file(&cfg_path).await?;
         }
 
-        proxy::reload()
-            .await?;
+        if reload {
+            proxy::reload()
+                .await?;
+        }
 
         Ok(())
     }
@@ -138,7 +145,8 @@ async fn put_camera(
     // SQLite) and flush its proxy configuration
     let camera: Camera = cameras::table.order(cameras::id.desc())
         .first(&conn)?;
-    camera.flush_config(&client, &templates).await?;
+    camera.flush_config(&client, &templates, true)
+        .await?;
 
     info!("created new camera {}", camera.id);
 
@@ -303,7 +311,8 @@ async fn patch_camera(
         diesel::update(&camera)
             .set(&camera)
             .execute(&conn)?;
-        camera.flush_config(&client, &templates).await?;
+        camera.flush_config(&client, &templates, true)
+            .await?;
     }
 
     info!("successfully updated camera {}", id);
@@ -335,7 +344,8 @@ async fn delete_camera(
     diesel::delete(cameras::table.filter(cameras::id.eq(id)))
         .execute(&conn)?;
 
-    camera.flush_config(&Client::default(), &templates).await?;
+    camera.flush_config(&Client::default(), &templates, true)
+        .await?;
 
     info!("deleted camera {}", id);
 
@@ -367,9 +377,14 @@ pub fn configure_api(service: &mut ServiceConfig) {
 ///
 /// Performs the following operations to make this module usable:
 ///
-/// * Ensures proxy is properly configured
+/// * Writes the necessary proxy configuration for all registered cameras
 /// * Ensures locally-attached cameras are properly identified and registered in
 ///   the database
+///
+/// Although this function writes proxy configuration data, it is the caller's
+/// responsibility to reload the proxy (via `proxy::reload`). This gives the
+/// caller the opportunity to perform other proxy configuration (i.e.
+/// stream::initialize) without needlessly reloading the proxy multiple times.
 ///
 /// This function must be called exactly once before using the rest of the APIs
 /// in this module.
@@ -384,10 +399,8 @@ pub async fn initialize(
     let cameras: Vec<Camera> = cameras::table.load(conn)?;
 
     for camera in &cameras {
-        if let Err(err) = camera.flush_config(&client, templates).await {
-            error!("failed to flush configuration for camera {}: {}", camera.id, err);
-            warn!("skipping proxy configuration for camera {}", camera.id);
-        }
+        camera.flush_config(&client, templates, false)
+            .await?;
     }
 
     #[cfg(feature = "stream")]

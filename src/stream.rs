@@ -334,6 +334,11 @@ async fn patch_stream(
 
 /// Initializes an instance of `Stream` for the current host
 ///
+/// Although this function writes proxy configuration data, it is the caller's
+/// responsibility to reload the proxy (via `proxy::reload`). This gives the
+/// caller the opportunity to perform other proxy configuration (i.e.
+/// cameras::initialize) without needlessly reloading the proxy multiple times.
+///
 /// This function must be called exactly once over the lifetime of the current
 /// process.
 pub async fn initialize(conn: &PooledConnection, templates: &Tera) -> Result<Stream> {
@@ -369,9 +374,6 @@ pub async fn initialize(conn: &PooledConnection, templates: &Tera) -> Result<Str
         clear_proxy_config()
             .await?;
     }
-
-    proxy::reload()
-        .await?;
 
     Ok(Stream {
         orientation: state.orientation,

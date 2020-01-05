@@ -92,6 +92,9 @@ async fn main() -> Result<()> {
         users::maybe_create_default_user(&conn)?;
     }
 
+    proxy::reload()
+        .await?;
+
     #[cfg(feature = "stream")]
     let stream = Data::new(RwLock::new(stream));
 
