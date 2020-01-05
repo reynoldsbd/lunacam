@@ -92,7 +92,7 @@ fn make_command(_orientation: Orientation) -> Result<Command> {
     // In debug mode, start a dummy process
     let mut cmd = if cfg!(debug_assertions) {
 
-        let mut cmd = Command::new("sh");
+        let mut cmd = Command::new("bash");
         let state_dir = env::var("STATE_DIRECTORY")?;
         cmd.arg("-c");
         cmd.arg(format!("while : ; do date > {}/time.txt; sleep 1; done", state_dir));

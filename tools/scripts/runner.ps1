@@ -24,8 +24,10 @@ if (!$cssLastBuilt -or ($styleLastModified -ge $cssLastBuilt)) {
     &"$PSScriptRoot/build-css.ps1"
 }
 
+# During development, binary expects to be running in the project root directory
+Push-Location $sourceDir
 
-$Env:STATE_DIRECTORY = "$buildDir/var"
+$Env:STATE_DIRECTORY = "./build/var"
 if (!(Test-Path $Env:STATE_DIRECTORY)) {
     $null = New-Item -Type Directory -Force $Env:STATE_DIRECTORY
 }
