@@ -1,76 +1,75 @@
 //! Child process lifecycle management
 
-use std::process::{Child, Command};
-use std::sync::{Arc, Mutex};
-use std::thread;
-use std::time::Duration;
+use std::mem;
+use std::sync::Arc;
+
+use futures::FutureExt;
+
+use tokio::process::{Child, Command};
+use tokio::sync::Mutex;
+use tokio::sync::oneshot::{self, Sender, Receiver};
+use tokio::task::{self, JoinHandle};
+
 use log::{debug, error, trace, warn};
+
 use crate::error::Result;
-use crate::do_lock;
 
 
-/// Internal state of the process host
-struct HostState {
-    cmd: Command,
-    child: Option<Child>,
-}
+/// Monitors and restarts `child` until signaled to stop via `rx`
+#[allow(clippy::unnecessary_mut_passed)]
+async fn watchdog(child: Child, cmd: Arc<Mutex<Command>>, rx: Receiver<()>) {
 
+    // Prep futures for use with select!
+    let child = child.fuse();
+    let rx = rx.fuse();
+    futures::pin_mut!(child, rx);
 
-/// Watchdog tick interval
-const WDG_TICK_SECONDS: u64 = 2;
-
-
-/// Periodically checks that the child process is still running and restarts it if necessary
-fn host_wdg(hi: &Mutex<HostState>) {
-
-    let tick_duration = Duration::from_secs(WDG_TICK_SECONDS);
+    trace!("watchdog started");
 
     loop {
-        trace!("watchdog tick");
 
-        // Tick body scoped to ensure lock is not held
-        {
-            let mut hi = do_lock!(hi);
+        futures::select! {
 
-            let wait_res = if let Some(ref mut child) = hi.child {
-                child.try_wait()
-            } else {
-                trace!("host has been stopped");
-                break;
-            };
+            status = child => match status {
 
-            match wait_res {
+                Ok(status) => {
 
-                // Process is still running, everything OK
-                Ok(None) => (),
+                    warn!("child process exited with status {}", status);
 
-                // Child process no longer running
-                Ok(Some(status)) => {
-                    warn!("child process exited unexpectedly with status {}", status);
                     debug!("restarting child process");
-                    match hi.cmd.spawn() {
-                        Ok(child) => {
-                            hi.child.replace(child);
+                    match cmd.lock().await.spawn() {
+
+                        Ok(c) => {
+                            let c = c.fuse();
+                            *child = c;
                         },
+
                         Err(err) => {
                             error!("failed to restart child process: {}", err);
                             break;
-                        }
+                        },
                     }
                 },
 
-                // Error checking status
                 Err(err) => {
+
                     error!("failed to check child process status: {}", err);
                     break;
-                },
-            }
-        }
+                }
+            },
 
-        thread::sleep(tick_duration);
+            // Received signal from Watchdog::stop
+            _ = rx => break,
+        }
     }
 
-    debug!("watchdog exiting");
+    // Can't call Child::kill, because child has been fused to facilitate the
+    // above select! construct. Instead, we rely on ProcHost::new to call
+    // Command::kill_on_drop, then simply drop the child.
+    debug!("killing child process");
+    mem::drop(child);
+
+    trace!("watchdog exiting");
 }
 
 
@@ -80,38 +79,51 @@ fn host_wdg(hi: &Mutex<HostState>) {
 /// is started and checked periodically to ensure it is still running. If the
 /// process exits for any reason other than being terminated via the host (i.e.
 /// by calling `ProcHost::stop`), it is automatically restarted.
-pub struct ProcHost(Arc<Mutex<HostState>>);
+pub struct ProcHost {
+    cmd: Arc<Mutex<Command>>,
+    wdg: Option<(JoinHandle<()>, Sender<()>)>,
+}
 
 impl ProcHost {
 
     /// Creates a new `ProcHost`
     ///
     /// Hosted process is started/restarted according to `cmd`
-    pub fn new(cmd: Command) -> Self {
+    pub fn new<C: Into<Command>>(cmd: C) -> Self {
 
-        Self(Arc::new(Mutex::new(HostState {
-            cmd,
-            child: None,
-        })))
+        let mut cmd = cmd.into();
+
+        // Ensures child is properly killed when watchdog exits
+        cmd.kill_on_drop(true);
+
+        Self {
+            cmd: Arc::new(Mutex::new(cmd)),
+            wdg: None,
+        }
     }
 
     /// Starts the child process
     ///
     /// If child is already running, no action is taken.
-    pub fn start(&mut self) -> Result<()> {
+    pub async fn start(&mut self) -> Result<()> {
 
-        let wdg_hi = self.0.clone();
-        let mut hi = do_lock!(self.0);
+        if self.wdg.is_some() {
 
-        if hi.child.is_some() {
-            trace!("start called, but child process already running");
+            trace!("start called, but child process is already running");
+
         } else {
-            debug!("starting child process");
-            let child = hi.cmd.spawn()?;
-            hi.child.replace(child);
-        }
 
-        thread::spawn(move || host_wdg(&wdg_hi));
+            debug!("starting child process");
+            let child = self.cmd.lock()
+                .await
+                .spawn()?;
+
+            trace!("starting watchdog");
+            let (tx, rx) = oneshot::channel();
+            let handle = task::spawn(watchdog(child, self.cmd.clone(), rx));
+
+            self.wdg.replace((handle, tx));
+        }
 
         Ok(())
     }
@@ -119,14 +131,19 @@ impl ProcHost {
     /// Stops the child process
     ///
     /// If child is not currently running, no action is taken.
-    pub fn stop(&mut self) -> Result<()> {
+    pub async fn stop(&mut self) -> Result<()> {
 
-        let mut hi = do_lock!(self.0);
+        if let Some((handle, tx)) = self.wdg.take() {
 
-        if let Some(mut child) = hi.child.take() {
-            debug!("stopping child process");
-            child.kill()?;
+            trace!("stopping watchdog");
+            if tx.send(()).is_err() {
+                error!("failed to signal watchdog");
+            } else {
+                handle.await?;
+            }
+
         } else {
+
             trace!("stop called, but child process not running");
         }
 
@@ -136,17 +153,21 @@ impl ProcHost {
     /// Returns whether this host is currently in the running state
     pub fn running(&self) -> bool {
 
-        let hi = do_lock!(self.0);
-
-        hi.child.is_some()
+        self.wdg.is_some()
     }
 }
 
 /// Child process is automatically terminated when `ProcHost` is dropped
 impl Drop for ProcHost {
+
     fn drop(&mut self) {
-        if let Err(err) = self.stop() {
-            error!("failed to stop child process after dropping: {}", err);
+
+        if let Some((_, tx)) = self.wdg.take() {
+
+            trace!("stopping watchdog");
+            if tx.send(()).is_err() {
+                error!("failed to signal watchdog");
+            }
         }
     }
 }

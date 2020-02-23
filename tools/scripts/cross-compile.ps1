@@ -48,10 +48,9 @@ switch ($Variant) {
 }
 
 Push-Location $repoDir
-Write-Host "cross-compiling lcsvc binary"
+Write-Host "cross-compiling lunacam binary"
 cargo build                              `
     --target arm-unknown-linux-gnueabihf `
     --release                            `
-    $featureFlags                        `
-    --bin lcsvc
+    $featureFlags
 Pop-Location

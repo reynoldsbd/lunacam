@@ -1,19 +1,18 @@
 //! Camera management
 
+use tokio::fs;
+use tokio::sync::RwLock;
 
-use std::fs;
-use std::path::Path;
-use std::sync::RwLock;
-
+use actix_web::HttpResponse;
 use actix_web::http::{StatusCode};
 use actix_web::web::{self, Data, Json, ServiceConfig};
+
+use awc::Client;
 use diesel::prelude::*;
-use log::{debug, error, info, trace, warn};
-use reqwest::Client;
+use log::{debug, info, trace};
 use serde::{Deserialize, Serialize};
 use tera::{Context, Tera};
 
-use crate::do_write;
 use crate::db::{ConnectionPool, PooledConnection};
 use crate::db::schema::cameras;
 use crate::error::{Error, Result};
@@ -34,6 +33,58 @@ pub struct Camera {
     pub orientation: Orientation,
     pub local: bool,
     pub key: Vec<u8>,
+}
+
+impl Camera {
+
+    /// Writes or removes this camera's proxy configuration
+    async fn flush_config(
+        &self,
+        client: &Client,
+        templates: &Tera,
+        reload: bool,
+    ) -> Result<()> {
+
+        let cfg_dir = proxy::config_dir()
+            .await?;
+        let cfg_path = format!("{}/proxy-{}.conf", cfg_dir, self.id);
+
+        // If this camera is enabled, ensure an up-to-date config exists
+        if self.enabled {
+
+            // Validate remote address before writing proxy config (otherwise,
+            // Nginx may fail to start or reload, potentially making the web UI
+            // inaccessible)
+            if !self.local {
+                debug!("validating connection to camera {}", self.id);
+                let url = format!("http://{}/api/stream", self.address);
+                let _client_state = client.get(&url)
+                    .send().await
+                    .map_err(Error::with_status(StatusCode::INTERNAL_SERVER_ERROR))?;
+            }
+
+            let mut ctx = Context::new();
+            ctx.insert("camera", self);
+            let cfg = templates.render("proxy.conf", &ctx)?;
+
+            debug!("writing proxy configuration for camera {}", self.id);
+            fs::write(&cfg_path, cfg).await?;
+        }
+
+        // If this camera is not enabled, ensure its config does not exist
+        else if fs::metadata(&cfg_path).await.is_ok() {
+
+            debug!("clearing proxy configuration for camera {}", self.id);
+            fs::remove_file(&cfg_path).await?;
+        }
+
+        if reload {
+            proxy::reload()
+                .await?;
+        }
+
+        Ok(())
+    }
 }
 
 
@@ -58,8 +109,7 @@ struct NewCamera<'a> {
 
 
 /// Creates a new camera
-fn put_camera(
-    client: Data<Client>,
+async fn put_camera(
     pool: Data<ConnectionPool>,
     templates: Data<Tera>,
     body: Json<PutCameraBody>,
@@ -67,10 +117,13 @@ fn put_camera(
 {
     // Validate connection before touching the database
     debug!("connecting to camera at {}", body.address);
+    let client = Client::default();
     let url = format!("http://{}/api/stream", body.address);
     let stream: StreamState = client.get(&url)
-        .send()?
-        .json()?;
+        .send().await
+        .map_err(Error::with_status(StatusCode::BAD_REQUEST))?
+        .json().await
+        .map_err(Error::with_status(StatusCode::BAD_REQUEST))?;
 
     debug!("adding new camera to database");
     let conn = pool.get()?;
@@ -86,17 +139,12 @@ fn put_camera(
         .values(&new_cam)
         .execute(&conn)?;
 
-    // Get the row we just inserted
+    // Get the camera we just inserted (because get_result is not supported for
+    // SQLite) and flush its proxy configuration
     let camera: Camera = cameras::table.order(cameras::id.desc())
         .first(&conn)?;
-
-    if camera.enabled {
-        write_proxy_config(&camera, &client, &templates)
-            .and_then(|_| proxy::reload())
-            .unwrap_or_else(|e|
-                error!("failed to configure proxy for camera {}: {}", camera.id, e)
-            );
-    }
+    camera.flush_config(&client, &templates, true)
+        .await?;
 
     info!("created new camera {}", camera.id);
 
@@ -105,7 +153,7 @@ fn put_camera(
 
 
 /// Retrieves information about the specified camera
-fn get_camera(
+async fn get_camera(
     pool: Data<ConnectionPool>,
     path: web::Path<(i32,)>,
 ) -> Result<Json<Camera>>
@@ -122,7 +170,7 @@ fn get_camera(
 
 
 /// Retrieves information about all cameras
-fn get_cameras(
+async fn get_cameras(
     pool: Data<ConnectionPool>,
 ) -> Result<Json<Vec<Camera>>>
 {
@@ -147,9 +195,8 @@ struct PatchCameraBody {
 /// Updates information about the specified camera
 #[allow(clippy::assertions_on_constants)]
 #[allow(clippy::cognitive_complexity)]
-fn patch_camera(
+async fn patch_camera(
     pool: Data<ConnectionPool>,
-    client: Data<Client>,
     templates: Data<Tera>,
     #[cfg(feature = "stream")]
     stream: Data<RwLock<Stream>>,
@@ -203,10 +250,10 @@ fn patch_camera(
 
     if let Some(address) = body.address {
         if camera.local {
-            return Error::web(
+            return Err(Error::Web(
                 StatusCode::BAD_REQUEST,
-                "cannot update address of local camera",
-            );
+                String::from("cannot update address of local camera"),
+            ));
         }
         if camera.address != address {
             trace!("updating address for camera {}", id);
@@ -217,12 +264,15 @@ fn patch_camera(
     }
 
     // Validate new connection information before updating the database
+    let client = Client::default();
     let url = format!("http://{}/api/stream", camera.address);
     if do_connect {
         debug!("connecting to camera at {}", camera.address);
         let current_stream: StreamState = client.get(&url)
-            .send()?
-            .json()?;
+            .send().await
+            .map_err(Error::with_status(StatusCode::BAD_REQUEST))?
+            .json().await
+            .map_err(Error::with_status(StatusCode::BAD_REQUEST))?;
 
         // If successful, update the camera instance to reflect the settings of the connected
         // device. As an optimization, we skip these updates if we're about to change one of these
@@ -244,12 +294,15 @@ fn patch_camera(
             assert!(cfg!(feature = "stream"));
             debug!("updating local stream settings");
             #[cfg(feature = "stream")]
-            do_write!(stream).update(&new_stream, &conn, &templates)?;
+            stream.write()
+                .await
+                .update(&new_stream, &conn, &templates)
+                .await?;
         } else {
             debug!("sending new stream settings to {}", camera.address);
             client.patch(&url)
-                .json(&new_stream)
-                .send()?;
+                .send_json(&new_stream).await
+                .map_err(Error::with_status(StatusCode::BAD_REQUEST))?;
         }
     }
 
@@ -258,19 +311,8 @@ fn patch_camera(
         diesel::update(&camera)
             .set(&camera)
             .execute(&conn)?;
-        if camera.enabled {
-            write_proxy_config(&camera, &client, &templates)
-                .unwrap_or_else(|e|
-                    error!("failed to configure proxy for camera {}: {}", camera.id, e)
-                );
-        } else {
-            clear_proxy_config(camera.id)
-                .unwrap_or_else(|e|
-                    error!("failed to clear proxy configuration for camera {}: {}", camera.id, e)
-                );
-        }
-        proxy::reload()
-            .unwrap_or_else(|e| error!("failed to reload proxy configuration: {}", e));
+        camera.flush_config(&client, &templates, true)
+            .await?;
     }
 
     info!("successfully updated camera {}", id);
@@ -279,10 +321,11 @@ fn patch_camera(
 
 
 /// Deletes the specified camera
-fn delete_camera(
+async fn delete_camera(
     pool: Data<ConnectionPool>,
+    templates: Data<Tera>,
     path: web::Path<(i32,)>,
-) -> Result<()>
+) -> Result<HttpResponse>
 {
     let id = path.0;
     let conn = pool.get()?;
@@ -291,23 +334,22 @@ fn delete_camera(
     let camera: Camera = cameras::table.find(id)
         .get_result(&conn)?;
     if camera.local {
-        return Error::web(
+        return Err(Error::Web(
             StatusCode::BAD_REQUEST,
-            "cannot delete local camera",
-        );
+            String::from("cannot delete local camera")
+        ));
     }
 
     debug!("deleting camera {} from database", id);
     diesel::delete(cameras::table.filter(cameras::id.eq(id)))
         .execute(&conn)?;
 
-    clear_proxy_config(id)
-        .and_then(|_| proxy::reload())
-        .unwrap_or_else(|e| error!("failed to clear proxy configuration for camera {}: {}", id, e));
+    camera.flush_config(&Client::default(), &templates, true)
+        .await?;
 
     info!("deleted camera {}", id);
 
-    Ok(())
+    Ok(HttpResponse::NoContent().finish())
 }
 
 
@@ -331,98 +373,35 @@ pub fn configure_api(service: &mut ServiceConfig) {
 }
 
 
-/// Gets path of the proxy configuration file for the specified camera
-fn get_proxy_config_path(id: i32) -> Result<impl AsRef<Path>> {
-
-    let cfg_dir = proxy::config_dir()?;
-    let path = format!("{}/proxy-{}.conf", cfg_dir, id);
-
-    Ok(path)
-}
-
-
-/// Writes or removes the proxy configuration file for this camera
-fn write_proxy_config(
-    camera: &Camera,
-    client: &Client,
-    templates: &Tera
-) -> Result<()> {
-
-    // Validate remote address before writing proxy config (otherwise, Nginx
-    // will fail to start/reload, potentially making the web UI inaccessible)
-    if !camera.local {
-        debug!("validating connection to camera {}", camera.id);
-        let url = format!("http://{}/api/stream", camera.address);
-        if let Err(err) = client.get(&url).send() {
-            // Misconfigured camera should not bring down the whole system
-            error!("failed to connect to camera {}: {}", camera.id, err);
-            warn!("skipping proxy configuration");
-            return Ok(());
-        }
-    }
-
-    let mut context = Context::new();
-    context.insert("camera", camera);
-    let config = templates.render("proxy.conf", &context)?;
-
-    debug!("writing proxy configuration for camera {}", camera.id);
-    let config_path = get_proxy_config_path(camera.id)?;
-    fs::write(&config_path, config)?;
-
-    Ok(())
-}
-
-
-/// Removes proxy configuration for the specified camera
-fn clear_proxy_config(id: i32) -> Result<()> {
-
-    let config_path = get_proxy_config_path(id)?;
-
-    if fs::metadata(&config_path).is_ok() {
-        debug!("clearing proxy configuration for camera {}", id);
-        fs::remove_file(&config_path)?;
-    }
-
-    Ok(())
-}
-
-
 /// Initializes the `cameras` module
 ///
 /// Performs the following operations to make this module usable:
 ///
-/// * Ensures proxy is properly configured
+/// * Writes the necessary proxy configuration for all registered cameras
 /// * Ensures locally-attached cameras are properly identified and registered in
 ///   the database
 ///
+/// Although this function writes proxy configuration data, it is the caller's
+/// responsibility to reload the proxy (via `proxy::reload`). This gives the
+/// caller the opportunity to perform other proxy configuration (i.e.
+/// stream::initialize) without needlessly reloading the proxy multiple times.
+///
 /// This function must be called exactly once before using the rest of the APIs
 /// in this module.
-pub fn initialize(
+pub async fn initialize(
     conn: &PooledConnection,
-    client: &Client,
     templates: &Tera,
     #[cfg(feature = "stream")]
     stream: &Stream,
 ) -> Result<()> {
 
+    let client = Client::default();
     let cameras: Vec<Camera> = cameras::table.load(conn)?;
 
     for camera in &cameras {
-        if camera.enabled {
-            write_proxy_config(&camera, client, templates)
-                .unwrap_or_else(|e|
-                    error!("failed to configure proxy for camera {}: {}", camera.id, e)
-                );
-        } else {
-            clear_proxy_config(camera.id)
-                .unwrap_or_else(|e|
-                    error!("failed to clear proxy configuration for camera {}: {}", camera.id, e)
-                );
-        }
+        camera.flush_config(&client, templates, false)
+            .await?;
     }
-
-    proxy::reload()
-        .unwrap_or_else(|e| error!("failed to reload proxy configuration: {}", e));
 
     #[cfg(feature = "stream")]
     {

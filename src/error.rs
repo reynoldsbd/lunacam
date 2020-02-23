@@ -1,5 +1,7 @@
 //! Error handling used throughout LunaCam
 
+use std::fmt::Display;
+
 use actix_web::HttpResponse;
 use actix_web::error::ResponseError;
 use actix_web::http::StatusCode;
@@ -13,7 +15,7 @@ pub enum Error {
 
     /// Error produced by a failed web request
     #[display(fmt = "{}", _1)]
-    Web(StatusCode, &'static str),
+    Web(StatusCode, String),
 
     /// Error propagated from a third-party library
     External(Box<dyn std::error::Error>),
@@ -21,9 +23,22 @@ pub enum Error {
 
 impl Error {
 
-    /// Creates a new `Error` with custom HTTP status code and message
-    pub fn web<T>(status: StatusCode, msg: &'static str) -> Result<T> {
-        Err(Self::Web(status, msg))
+    /// Returns a callback which creates a new `Error`
+    ///
+    /// The callback returns a new `Error::Web` variant with the status code
+    /// specified by `status`. The error message is derived from the callback's
+    /// first and only argument, via the `Display` trait.
+    ///
+    /// This method is indended to be used with `Result::map_err` as a quick
+    /// means of overriding an error's status code while preserving it's string
+    /// representation.
+    pub fn with_status<E>(status: StatusCode) -> impl Fn(E) -> Self
+    where
+        E: Display
+    {
+        move |err| {
+            Self::Web(status, format!("{}", err))
+        }
     }
 }
 
@@ -55,10 +70,6 @@ impl ResponseError for Error {
 
         HttpResponse::build(status)
             .json(body)
-    }
-
-    fn render_response(&self) -> HttpResponse {
-        self.error_response()
     }
 }
 

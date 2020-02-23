@@ -48,10 +48,10 @@ function prepareStage {
 prepareStage "common"
 $commonDir = "$pigenBuildDir/common"
 
-& "$PSScriptRoot/build-lcsvc.ps1" -Variant $Variant
-Copy-Item $rustBuildDir/lcsvc $commonDir/03-lcsvc/files/lcsvc
+& "$PSScriptRoot/cross-compile.ps1" -Variant $Variant
+Copy-Item $rustBuildDir/lunacam $commonDir/03-lunacam/files/lunacam
 
-$templateDir = "$commonDir/03-lcsvc/files/templates"
+$templateDir = "$commonDir/03-lunacam/files/templates"
 $null = New-Item -Type Directory $templateDir
 Copy-Item -Recurse $repoDir/templates/* $templateDir
 

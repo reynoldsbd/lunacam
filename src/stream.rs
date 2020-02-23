@@ -9,7 +9,6 @@ use std::env;
 use std::fs;
 use std::io::Write;
 use std::process::{Command, Stdio};
-use std::sync::RwLock;
 
 use actix_web::web::{self, Data, Json, ServiceConfig};
 use diesel::backend::Backend;
@@ -20,8 +19,8 @@ use log::{debug, trace};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use tera::{Context, Tera};
+use tokio::sync::RwLock;
 
-use crate::{do_read, do_write};
 use crate::error::Result;
 use crate::db::{ConnectionPool, PooledConnection};
 use crate::prochost::ProcHost;
@@ -92,7 +91,7 @@ fn make_command(_orientation: Orientation) -> Result<Command> {
     // In debug mode, start a dummy process
     let mut cmd = if cfg!(debug_assertions) {
 
-        let mut cmd = Command::new("sh");
+        let mut cmd = Command::new("bash");
         let state_dir = env::var("STATE_DIRECTORY")?;
         cmd.arg("-c");
         cmd.arg(format!("while : ; do date > {}/time.txt; sleep 1; done", state_dir));
@@ -140,9 +139,10 @@ fn make_command(_orientation: Orientation) -> Result<Command> {
 
 
 /// Gets the location of the HLS stream's proxy configuration file
-fn get_proxy_config_path() -> Result<String> {
+async fn get_proxy_config_path() -> Result<String> {
 
-    let cfg_dir = proxy::config_dir()?;
+    let cfg_dir = proxy::config_dir()
+        .await?;
     let path = format!("{}/hls.conf", cfg_dir);
 
     Ok(path)
@@ -150,13 +150,14 @@ fn get_proxy_config_path() -> Result<String> {
 
 
 /// Writes proxy configuration for the HLS stream
-fn write_proxy_config(templates: &Tera) -> Result<()> {
+async fn write_proxy_config(templates: &Tera) -> Result<()> {
 
     debug!("writing proxy configuration for HLS stream");
 
     let config = templates.render("hls.conf", &Context::new())?;
 
-    let config_path = get_proxy_config_path()?;
+    let config_path = get_proxy_config_path()
+        .await?;
 
     fs::write(&config_path, config)?;
 
@@ -165,9 +166,10 @@ fn write_proxy_config(templates: &Tera) -> Result<()> {
 
 
 /// Removes proxy configuration for the HLS stream
-fn clear_proxy_config() -> Result<()> {
+async fn clear_proxy_config() -> Result<()> {
 
-    let config_path = get_proxy_config_path()?;
+    let config_path = get_proxy_config_path()
+        .await?;
 
     if fs::metadata(&config_path).is_ok() {
         debug!("clearing proxy configuration for HLS stream");
@@ -214,7 +216,7 @@ impl Stream {
     }
 
     /// Updates this stream's settings
-    pub fn update(
+    pub async fn update(
         &mut self,
         update: &StreamUpdate,
         conn: &PooledConnection,
@@ -245,9 +247,12 @@ impl Stream {
 
         if do_stop {
             debug!("stopping transcoder");
-            self.transcoder.stop()?;
-            clear_proxy_config()?;
-            proxy::reload()?;
+            self.transcoder.stop()
+                .await?;
+            clear_proxy_config()
+                .await?;
+            proxy::reload()
+                .await?;
         }
 
         if do_reconfig {
@@ -257,9 +262,12 @@ impl Stream {
 
         if do_start {
             debug!("starting transcoder");
-            self.transcoder.start()?;
-            write_proxy_config(templates)?;
-            proxy::reload()?;
+            self.transcoder.start()
+                .await?;
+            write_proxy_config(templates)
+                .await?;
+            proxy::reload()
+                .await?;
         }
 
         if do_stop || do_reconfig || do_start {
@@ -297,28 +305,32 @@ impl Default for StreamState {
 
 
 /// Retrieves information about the video stream
-fn get_stream(
+async fn get_stream(
     stream: Data<RwLock<Stream>>,
 ) -> Result<Json<StreamState>> {
 
-    let stream = do_read!(stream);
+    let state = stream.read()
+        .await
+        .state();
 
-    Ok(Json(stream.state()))
+    Ok(Json(state))
 }
 
 
 /// Updates video stream settings
-fn patch_stream(
+async fn patch_stream(
     pool: Data<ConnectionPool>,
     stream: Data<RwLock<Stream>>,
     templates: Data<Tera>,
     body: Json<StreamUpdate>,
 ) -> Result<Json<StreamState>> {
 
-    let mut stream = do_write!(stream);
     let conn = pool.get()?;
 
-    stream.update(&body, &conn, &templates)?;
+    let mut stream = stream.write()
+        .await;
+    stream.update(&body, &conn, &templates)
+        .await?;
 
     Ok(Json(stream.state()))
 }
@@ -326,9 +338,14 @@ fn patch_stream(
 
 /// Initializes an instance of `Stream` for the current host
 ///
+/// Although this function writes proxy configuration data, it is the caller's
+/// responsibility to reload the proxy (via `proxy::reload`). This gives the
+/// caller the opportunity to perform other proxy configuration (i.e.
+/// cameras::initialize) without needlessly reloading the proxy multiple times.
+///
 /// This function must be called exactly once over the lifetime of the current
 /// process.
-pub fn initialize(conn: &PooledConnection, templates: &Tera) -> Result<Stream> {
+pub async fn initialize(conn: &PooledConnection, templates: &Tera) -> Result<Stream> {
 
     trace!("loading stream settings");
     let state: StreamState = match settings::get(STREAM_STATE_SETTING, conn)? {
@@ -354,13 +371,14 @@ pub fn initialize(conn: &PooledConnection, templates: &Tera) -> Result<Stream> {
     let mut transcoder = ProcHost::new(make_command(state.orientation)?);
     if state.enabled {
         debug!("starting transcoder");
-        transcoder.start()?;
-        write_proxy_config(templates)?;
+        transcoder.start()
+            .await?;
+        write_proxy_config(templates)
+            .await?;
     } else {
-        clear_proxy_config()?;
+        clear_proxy_config()
+            .await?;
     }
-
-    proxy::reload()?;
 
     Ok(Stream {
         orientation: state.orientation,

@@ -1,21 +1,35 @@
+#![warn(clippy::all)]
+
+#[macro_use]
+extern crate derive_more;
+#[macro_use]
+extern crate diesel;
+#[macro_use]
+extern crate diesel_migrations;
+
+mod cameras;
+mod db;
+mod error;
+mod locks;
+mod prochost;
+mod proxy;
+mod settings;
+mod stream;
+mod ui;
+mod users;
+
 use std::env;
 use std::mem;
-use std::sync::RwLock;
 
 use actix_files::Files;
 use actix_web::{App, HttpServer};
 use actix_web::web::{self, Data};
 use env_logger::Env;
 use log::{debug, trace};
-use reqwest::Client;
 use tera::Tera;
+use tokio::sync::RwLock;
 
-use lunacam::cameras;
-use lunacam::db;
-use lunacam::error::Result;
-use lunacam::stream;
-use lunacam::ui;
-use lunacam::users;
+use crate::error::Result;
 
 
 #[cfg(not(any(feature = "portal", feature = "stream-api")))]
@@ -53,11 +67,11 @@ fn load_templates() -> Result<Tera> {
 }
 
 
-fn main() -> Result<()> {
+#[actix_rt::main]
+async fn main() -> Result<()> {
 
     init_logging();
 
-    let client    = Data::new(Client::new());
     let templates = Data::new(load_templates()?);
     let pool      = Data::new(db::connect()?);
 
@@ -65,18 +79,21 @@ fn main() -> Result<()> {
     let conn = pool.get()?;
 
     #[cfg(feature = "stream")]
-    let stream = stream::initialize(&conn, &templates)?;
+    let stream = stream::initialize(&conn, &templates)
+        .await?;
 
     if cfg!(feature = "portal") {
         cameras::initialize(
             &conn,
-            &client,
             &templates,
             #[cfg(feature = "stream")]
             &stream,
-        )?;
+        ).await?;
         users::maybe_create_default_user(&conn)?;
     }
+
+    proxy::reload()
+        .await?;
 
     #[cfg(feature = "stream")]
     let stream = Data::new(RwLock::new(stream));
@@ -87,12 +104,11 @@ fn main() -> Result<()> {
     HttpServer::new(move || {
 
             let app = App::new()
-                .register_data(client.clone())
-                .register_data(templates.clone())
-                .register_data(pool.clone());
+                .app_data(templates.clone())
+                .app_data(pool.clone());
 
             #[cfg(feature = "stream")]
-            let app = app.register_data(stream.clone());
+            let app = app.app_data(stream.clone());
 
             let api = web::scope("api");
             #[cfg(feature = "portal")]
@@ -114,7 +130,8 @@ fn main() -> Result<()> {
             app
         })
         .bind("127.0.0.1:9351")?
-        .run()?;
+        .run()
+        .await?;
 
     Ok(())
 }

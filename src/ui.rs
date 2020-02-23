@@ -27,7 +27,7 @@ fn render_template_response(
 }
 
 
-fn index(pool: Data<ConnectionPool>, templates: Data<Tera>) -> Result<HttpResponse> {
+async fn index(pool: Data<ConnectionPool>, templates: Data<Tera>) -> Result<HttpResponse> {
 
     let conn = pool.get()?;
     let cameras = cameras::all(&conn)?;
@@ -39,14 +39,14 @@ fn index(pool: Data<ConnectionPool>, templates: Data<Tera>) -> Result<HttpRespon
 }
 
 
-fn login(templates: Data<Tera>) -> Result<HttpResponse> {
+async fn login(templates: Data<Tera>) -> Result<HttpResponse> {
 
     let context = Context::new();
     render_template_response(&templates, "login.html", context)
 }
 
 
-fn camera(
+async fn camera(
     pool: Data<ConnectionPool>,
     templates: Data<Tera>,
     path: Path<(i32,)>,
@@ -62,7 +62,7 @@ fn camera(
 }
 
 
-fn camera_key(
+async fn camera_key(
     pool: Data<ConnectionPool>,
     path: Path<(i32,)>,
 ) -> Result<HttpResponse>
@@ -77,7 +77,7 @@ fn camera_key(
 }
 
 
-fn camera_admin(pool: Data<ConnectionPool>, templates: Data<Tera>) -> Result<HttpResponse> {
+async fn camera_admin(pool: Data<ConnectionPool>, templates: Data<Tera>) -> Result<HttpResponse> {
 
     let conn = pool.get()?;
     let cameras = cameras::all(&conn)?;
@@ -89,7 +89,7 @@ fn camera_admin(pool: Data<ConnectionPool>, templates: Data<Tera>) -> Result<Htt
 }
 
 
-fn user_admin(pool: Data<ConnectionPool>, templates: Data<Tera>) -> Result<HttpResponse> {
+async fn user_admin(pool: Data<ConnectionPool>, templates: Data<Tera>) -> Result<HttpResponse> {
 
     let conn = pool.get()?;
     let users = users::all(&conn)?;
