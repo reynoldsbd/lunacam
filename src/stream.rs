@@ -9,7 +9,6 @@ use std::env;
 use std::fs;
 use std::io::Write;
 use std::process::{Command, Stdio};
-use std::sync::RwLock;
 
 use actix_web::web::{self, Data, Json, ServiceConfig};
 use diesel::backend::Backend;
@@ -20,8 +19,8 @@ use log::{debug, trace};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use tera::{Context, Tera};
+use tokio::sync::RwLock;
 
-use crate::{do_read, do_write};
 use crate::error::Result;
 use crate::db::{ConnectionPool, PooledConnection};
 use crate::prochost::ProcHost;
@@ -310,9 +309,11 @@ async fn get_stream(
     stream: Data<RwLock<Stream>>,
 ) -> Result<Json<StreamState>> {
 
-    let stream = do_read!(stream);
+    let state = stream.read()
+        .await
+        .state();
 
-    Ok(Json(stream.state()))
+    Ok(Json(state))
 }
 
 
@@ -324,9 +325,10 @@ async fn patch_stream(
     body: Json<StreamUpdate>,
 ) -> Result<Json<StreamState>> {
 
-    let mut stream = do_write!(stream);
     let conn = pool.get()?;
 
+    let mut stream = stream.write()
+        .await;
     stream.update(&body, &conn, &templates)
         .await?;
 

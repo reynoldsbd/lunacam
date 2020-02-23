@@ -1,8 +1,7 @@
 //! Camera management
 
-use std::sync::RwLock;
-
 use tokio::fs;
+use tokio::sync::RwLock;
 
 use actix_web::HttpResponse;
 use actix_web::http::{StatusCode};
@@ -10,11 +9,10 @@ use actix_web::web::{self, Data, Json, ServiceConfig};
 
 use awc::Client;
 use diesel::prelude::*;
-use log::{debug, info, trace, warn};
+use log::{debug, info, trace};
 use serde::{Deserialize, Serialize};
 use tera::{Context, Tera};
 
-use crate::do_write;
 use crate::db::{ConnectionPool, PooledConnection};
 use crate::db::schema::cameras;
 use crate::error::{Error, Result};
@@ -296,7 +294,9 @@ async fn patch_camera(
             assert!(cfg!(feature = "stream"));
             debug!("updating local stream settings");
             #[cfg(feature = "stream")]
-            do_write!(stream).update(&new_stream, &conn, &templates)
+            stream.write()
+                .await
+                .update(&new_stream, &conn, &templates)
                 .await?;
         } else {
             debug!("sending new stream settings to {}", camera.address);

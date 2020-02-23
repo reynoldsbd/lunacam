@@ -20,7 +20,6 @@ mod users;
 
 use std::env;
 use std::mem;
-use std::sync::RwLock;
 
 use actix_files::Files;
 use actix_web::{App, HttpServer};
@@ -28,6 +27,7 @@ use actix_web::web::{self, Data};
 use env_logger::Env;
 use log::{debug, trace};
 use tera::Tera;
+use tokio::sync::RwLock;
 
 use crate::error::Result;
 
