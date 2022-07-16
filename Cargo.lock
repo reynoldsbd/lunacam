@@ -347,6 +347,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1d49d90015b3c36167a20fe2810c5cd875ad504b39cff3d4eae7977e6b7c1cb2"
 
 [[package]]
+name = "autocfg"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d468802bab17cbc0cc575e9b053f41e72aa36bfa6b7f55e3529ffa43161b97fa"
+
+[[package]]
 name = "awc"
 version = "0.2.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -696,7 +702,7 @@ version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5064ebdbf05ce3cb95e45c8b086f72263f4166b29b97f6baff7ef7fe047b55ac"
 dependencies = [
- "autocfg",
+ "autocfg 0.1.7",
  "cfg-if",
  "crossbeam-utils 0.7.0",
  "lazy_static",
@@ -729,7 +735,7 @@ version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ce446db02cdc3165b94ae73111e570793400d0794e46125cc4056c81cbb039f4"
 dependencies = [
- "autocfg",
+ "autocfg 0.1.7",
  "cfg-if",
  "lazy_static",
 ]
@@ -1058,7 +1064,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8e6073d0ca812575946eb5f35ff68dbe519907b25c42530389ff946dc84c6ead"
 dependencies = [
  "ahash",
- "autocfg",
+ "autocfg 0.1.7",
 ]
 
 [[package]]
@@ -1143,7 +1149,7 @@ dependencies = [
  "net2",
  "rustc_version",
  "time",
- "tokio",
+ "tokio 0.1.22",
  "tokio-buf",
  "tokio-executor",
  "tokio-io",
@@ -1213,7 +1219,7 @@ version = "1.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "712d7b3ea5827fcb9d4fda14bf4da5f136f0db2ae9c8f4bd4e2d1c6fde4e6db2"
 dependencies = [
- "autocfg",
+ "autocfg 0.1.7",
 ]
 
 [[package]]
@@ -1359,7 +1365,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tera",
- "tokio",
+ "tokio 1.8.4",
 ]
 
 [[package]]
@@ -1538,7 +1544,7 @@ version = "0.1.41"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b85e541ef8255f6cf42bbfe4ef361305c6c135d10919ecc26126c4e5ae94bc09"
 dependencies = [
- "autocfg",
+ "autocfg 0.1.7",
  "num-traits",
 ]
 
@@ -1548,7 +1554,7 @@ version = "0.2.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d4c81ffc11c212fa327657cb19dd85eb7419e163b5b076bede2bdb5c974c07e4"
 dependencies = [
- "autocfg",
+ "autocfg 0.1.7",
 ]
 
 [[package]]
@@ -1602,7 +1608,7 @@ version = "0.9.53"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "465d16ae7fc0e313318f7de5cecf57b2fbe7511fd213978b457e1c96ff46736f"
 dependencies = [
- "autocfg",
+ "autocfg 0.1.7",
  "cc",
  "libc",
  "openssl-src",
@@ -1731,6 +1737,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "pin-project-lite"
+version = "0.2.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e0a7ae3ac2f1173085d398531c705756c94a4c56843785df85a60c1a0afac116"
+
+[[package]]
 name = "pkg-config"
 version = "0.3.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1838,7 +1850,7 @@ version = "0.6.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6d71dacdc3c88c1fde3885a3be3fbab9f35724e6ce99467f7d9c5026132184ca"
 dependencies = [
- "autocfg",
+ "autocfg 0.1.7",
  "libc",
  "rand_chacha 0.1.1",
  "rand_core 0.4.2",
@@ -1870,7 +1882,7 @@ version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "556d3a1ca6600bfcbab7c7c91ccb085ac7fbbcd70e008a98742e7847f4f7bcef"
 dependencies = [
- "autocfg",
+ "autocfg 0.1.7",
  "rand_core 0.3.1",
 ]
 
@@ -1966,7 +1978,7 @@ version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "abf9b09b01790cfe0364f52bf32995ea3c39f4d2dd011eac241d2914146d0b44"
 dependencies = [
- "autocfg",
+ "autocfg 0.1.7",
  "rand_core 0.4.2",
 ]
 
@@ -2045,7 +2057,7 @@ dependencies = [
  "serde_json",
  "serde_urlencoded 0.5.5",
  "time",
- "tokio",
+ "tokio 0.1.22",
  "tokio-executor",
  "tokio-io",
  "tokio-threadpool",
@@ -2449,18 +2461,23 @@ dependencies = [
  "futures",
  "mio",
  "num_cpus",
- "tokio-codec",
  "tokio-current-thread",
  "tokio-executor",
- "tokio-fs",
  "tokio-io",
  "tokio-reactor",
- "tokio-sync",
  "tokio-tcp",
  "tokio-threadpool",
  "tokio-timer",
- "tokio-udp",
- "tokio-uds",
+]
+
+[[package]]
+name = "tokio"
+version = "1.8.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "50dae83881bc9b0403dd5b44ea9deed3e939856cc8722d5be37f0d6e5c6d53dd"
+dependencies = [
+ "autocfg 1.1.0",
+ "pin-project-lite",
 ]
 
 [[package]]
@@ -2503,17 +2520,6 @@ checksum = "ca6df436c42b0c3330a82d855d2ef017cd793090ad550a6bc2184f4b933532ab"
 dependencies = [
  "crossbeam-utils 0.6.6",
  "futures",
-]
-
-[[package]]
-name = "tokio-fs"
-version = "0.1.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3fe6dc22b08d6993916647d108a1a7d15b9cd29c4f4496c62b92c45b5041b7af"
-dependencies = [
- "futures",
- "tokio-io",
- "tokio-threadpool",
 ]
 
 [[package]]
@@ -2626,24 +2632,6 @@ dependencies = [
  "futures",
  "log",
  "mio",
- "tokio-codec",
- "tokio-io",
- "tokio-reactor",
-]
-
-[[package]]
-name = "tokio-uds"
-version = "0.2.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "037ffc3ba0e12a0ab4aca92e5234e0dedeb48fddf6ccd260f1f150a36a9f2445"
-dependencies = [
- "bytes",
- "futures",
- "iovec",
- "libc",
- "log",
- "mio",
- "mio-uds",
  "tokio-codec",
  "tokio-io",
  "tokio-reactor",
